@@ -1,0 +1,888 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>星星评级绘制器 · Star Rating Painter</title>
+<style>
+  :root{
+    --bg:#1c1e30;
+    --bg2:#252840;
+    --bg3:#2e3250;
+    --line:#3d4270;
+    --fg:#e9ecff;
+    --dim:#9aa1cc;
+    --accent:#ffcb2e;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:radial-gradient(1200px 600px at 12% -10%, #2b2f52 0%, #171929 60%, #12131f 100%);
+    color:var(--fg);
+    font:14px/1.55 "Segoe UI","PingFang SC","Microsoft YaHei",system-ui,-apple-system,sans-serif;
+    min-height:100vh;
+  }
+  .wrap{max-width:1280px;margin:0 auto;padding:26px 22px 60px}
+  header h1{margin:0 0 6px;font-size:23px;letter-spacing:.4px}
+  header p{margin:0 0 22px;color:var(--dim);font-size:13px}
+  header .k{color:var(--accent);font-weight:700}
+
+  .grid{display:grid;grid-template-columns:340px 1fr;gap:20px;align-items:start}
+  @media(max-width:900px){.grid{grid-template-columns:1fr}}
+
+  .card{
+    background:linear-gradient(180deg,rgba(255,255,255,.045),rgba(255,255,255,.012));
+    border:1px solid var(--line);border-radius:14px;padding:16px;
+  }
+  .card h2{margin:0 0 14px;font-size:12px;letter-spacing:1.6px;text-transform:uppercase;color:var(--dim);font-weight:700}
+
+  .row{margin-bottom:14px}
+  .row:last-child{margin-bottom:0}
+  .row > label{display:flex;justify-content:space-between;align-items:baseline;font-size:12px;color:var(--dim);margin-bottom:7px}
+  .row > label b{color:var(--fg);font-weight:700;font-variant-numeric:tabular-nums}
+
+  input[type=range]{
+    width:100%;height:26px;-webkit-appearance:none;appearance:none;background:transparent;cursor:pointer;
+  }
+  input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:6px;background:var(--bg3);border:1px solid var(--line)}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:var(--accent);margin-top:-6px;box-shadow:0 0 0 3px rgba(255,203,46,.18)}
+  input[type=range]::-moz-range-track{height:6px;border-radius:6px;background:var(--bg3);border:1px solid var(--line)}
+  input[type=range]::-moz-range-thumb{width:16px;height:16px;border:0;border-radius:50%;background:var(--accent)}
+
+  input[type=number],input[type=text],select{
+    width:100%;background:var(--bg2);color:var(--fg);border:1px solid var(--line);
+    border-radius:9px;padding:8px 10px;font:inherit;font-size:13px;outline:none;
+  }
+  input[type=number]:focus,select:focus,input[type=text]:focus{border-color:#6f77c8}
+  input[type=color]{width:100%;height:34px;padding:2px;background:var(--bg2);border:1px solid var(--line);border-radius:9px;cursor:pointer}
+  input[type=number]{font-variant-numeric:tabular-nums}
+
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+  .chk{display:flex;align-items:center;gap:9px;font-size:13px;color:var(--fg);cursor:pointer;padding:5px 0}
+  .chk input{accent-color:var(--accent);width:15px;height:15px;cursor:pointer}
+
+  .presets{display:flex;flex-wrap:wrap;gap:7px}
+  .presets button{
+    background:var(--bg3);color:var(--fg);border:1px solid var(--line);border-radius:8px;
+    padding:6px 10px;font:inherit;font-size:12px;cursor:pointer;transition:.15s;
+  }
+  .presets button:hover{border-color:#8b93e0;transform:translateY(-1px)}
+
+  .btns{display:flex;flex-wrap:wrap;gap:8px}
+  .btns button{
+    flex:1 1 auto;background:#3b4180;color:#fff;border:1px solid #555da8;border-radius:9px;
+    padding:9px 12px;font:inherit;font-size:13px;font-weight:600;cursor:pointer;transition:.15s;white-space:nowrap;
+  }
+  .btns button:hover{background:#48509b;transform:translateY(-1px)}
+  .btns button.ghost{background:transparent;color:var(--fg);border-color:var(--line)}
+  .btns button.ghost:hover{background:rgba(255,255,255,.06)}
+
+  /* ---------- 预览舞台 ---------- */
+  .stage{display:flex;flex-direction:column;gap:16px}
+  #preview{
+    border-radius:14px;border:1px solid var(--line);padding:22px;display:flex;
+    align-items:center;justify-content:center;min-height:190px;overflow:auto;
+    background-color:#3d4260;
+  }
+  #preview.checker{
+    background-image:
+      linear-gradient(45deg,#5b6088 25%,transparent 25%),
+      linear-gradient(-45deg,#5b6088 25%,transparent 25%),
+      linear-gradient(45deg,transparent 75%,#5b6088 75%),
+      linear-gradient(-45deg,transparent 75%,#5b6088 75%);
+    background-size:18px 18px;
+    background-position:0 0,0 9px,9px -9px,-9px 0;
+    background-color:#434869;
+  }
+  #preview svg{max-width:100%;height:auto;display:block}
+
+  /* ---------- 光谱条 ---------- */
+  .spec{padding:0;cursor:crosshair;user-select:none}
+  .spec .specHead{display:flex;justify-content:space-between;align-items:baseline;font-size:11.5px;color:var(--dim);margin-bottom:6px}
+  .spec .specHead b{color:var(--fg);font-variant-numeric:tabular-nums;letter-spacing:.5px;font-weight:700}
+  .spec .specHead .sw{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:6px;vertical-align:-1px;border:1px solid rgba(255,255,255,.25)}
+  .spec .barWrap{position:relative}
+  .spec .bar{height:18px;border-radius:4px;border:1px solid rgba(0,0,0,.4)}
+  .spec .ticks{position:relative;height:16px;margin-top:7px;font-size:10px;color:var(--dim)}
+  .spec .ticks span{position:absolute;top:0;transform:translateX(-50%);white-space:nowrap}
+  .spec .ticks span::before{content:"";position:absolute;left:50%;top:-12px;width:2px;height:8px;background:#cfd4ff;transform:translateX(-50%)}
+  .spec .marker{
+    position:absolute;top:-7px;width:2px;height:32px;background:#fff;border-radius:2px;
+    box-shadow:0 0 8px rgba(255,255,255,.9);pointer-events:none;transition:left .05s linear;
+  }
+  .tierBar{display:flex;height:7px;border-radius:4px;overflow:hidden;margin-top:22px}
+  .tierBar div{height:100%}
+  .tierLegend{
+    display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:10px;font-size:11.5px;
+    border-top:1px solid var(--line);padding-top:9px;
+  }
+  .tierLegend div{white-space:nowrap}
+  .tierLegend b{font-weight:700}
+  .tierLegend i{font-style:normal;color:var(--dim);margin-left:5px;font-size:10.5px}
+
+  .kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:12.5px}
+  .kv dt{color:var(--dim)}
+  .kv dd{margin:0;font-weight:600;font-variant-numeric:tabular-nums}
+
+  textarea{
+    width:100%;height:150px;background:#151728;color:#b9c4ff;border:1px solid var(--line);
+    border-radius:10px;padding:10px;font:12px/1.5 ui-monospace,Consolas,"Cascadia Code",monospace;
+    resize:vertical;outline:none;
+  }
+  .hint{font-size:11.5px;color:var(--dim);margin-top:8px}
+  .swatch{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-2px;margin-right:6px;border:1px solid rgba(0,0,0,.4)}
+  .toast{
+    position:fixed;left:50%;bottom:28px;transform:translate(-50%,20px);opacity:0;pointer-events:none;
+    background:#4b53a8;color:#fff;padding:9px 18px;border-radius:10px;font-size:13px;
+    transition:.22s;box-shadow:0 10px 30px rgba(0,0,0,.4);
+  }
+  .toast.on{opacity:1;transform:translate(-50%,0)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>星星评级绘制器 <span class="k">Star Rating Painter</span></h1>
+    <p>输入一个分值 → 自动决定<span class="k">点亮几颗星</span>与<span class="k">用什么颜色画</span>。<span class="k">星星</span>与<span class="k">数字</span>走<strong>两条独立色阶</strong>：星星 7 星以上一路压暗到全黑；数字则金 → 橙 → 红 → 粉紫 → 紫 → 靛蓝继续往下走。</p>
+  </header>
+
+  <div class="grid">
+    <!-- ============ 控制面板 ============ -->
+    <section class="card">
+      <h2>参数</h2>
+
+      <div class="row">
+        <label>评分值 <b id="vOut">10.77</b></label>
+        <input type="range" id="value" min="0" max="16" step="0.01" value="10.77" />
+        <input type="number" id="valueNum" min="0" max="99" step="0.01" value="10.77" style="margin-top:8px" />
+      </div>
+
+      <div class="row">
+        <label>实测样例（点一下即可跳转）</label>
+        <div class="presets" id="presets"></div>
+      </div>
+
+      <div class="row two">
+        <div>
+          <label style="margin-bottom:7px">量表上限</label>
+          <input type="number" id="scaleMax" min="1" max="100" step="0.1" value="15" />
+        </div>
+        <div>
+          <label style="margin-bottom:7px">星星总数</label>
+          <input type="number" id="starCount" min="1" max="30" step="1" value="15" />
+        </div>
+      </div>
+
+      <div class="row">
+        <label>配色模式</label>
+        <select id="colorMode">
+          <option value="strict" selected>严格对应 —— 星星走星星色阶，数字走数字色阶</option>
+          <option value="starOnly">只有一条色阶 —— 星星与数字同色</option>
+          <option value="tier">档位离散 —— 6.5 星以上一律淡紫蓝（旧规则）</option>
+          <option value="fixed">固定颜色 —— 所有分值同色</option>
+        </select>
+      </div>
+
+      <div class="row" id="fixedRow" style="display:none">
+        <label>固定颜色</label>
+        <input type="color" id="fixedColor" value="#6e6ef4" />
+      </div>
+
+      <div class="row">
+        <label>徽章底色</label>
+        <input type="color" id="badgeBg" value="#2b3048" />
+      </div>
+
+      <div class="row two">
+        <div>
+          <label style="margin-bottom:7px">星星尺寸</label>
+          <input type="number" id="starSize" min="8" max="200" step="1" value="46" />
+        </div>
+        <div>
+          <label style="margin-bottom:7px">间距倍率</label>
+          <input type="number" id="spacing" min="1" max="2.5" step="0.01" value="1.24" />
+        </div>
+      </div>
+
+      <div class="row two">
+        <div>
+          <label style="margin-bottom:7px">未点亮透明度</label>
+          <input type="number" id="emptyOpacity" min="0" max="1" step="0.01" value="0.20" />
+        </div>
+        <div>
+          <label style="margin-bottom:7px">背景</label>
+          <input type="color" id="bgColor" value="#3d4260" />
+        </div>
+      </div>
+
+      <div class="row">
+        <label class="chk"><input type="checkbox" id="showBadge" checked /> 显示左侧徽章</label>
+        <label class="chk"><input type="checkbox" id="showTier" checked /> 显示档位名称</label>
+        <label class="chk"><input type="checkbox" id="fadeTail" checked /> 尾部星星渐隐</label>
+      </div>
+    </section>
+
+    <!-- ============ 舞台 ============ -->
+    <section class="stage">
+      <div class="card">
+        <h2>预览</h2>
+        <div id="preview"></div>
+      </div>
+
+      <div class="card">
+        <h2>色阶对照 · 点击任意位置可直接设值</h2>
+        <div class="spec" id="specStar" data-ramp="star">
+          <div class="specHead"><span>★ 星星色阶</span><b><i class="sw" id="starSw"></i><span id="starHex">—</span></b></div>
+          <div class="barWrap">
+            <div class="bar" id="starBar"></div>
+            <div class="marker" id="starMarker"></div>
+          </div>
+        </div>
+        <div class="spec" id="specNum" data-ramp="num" style="margin-top:22px">
+          <div class="specHead"><span>数字色阶</span><b><i class="sw" id="numSw"></i><span id="numHex">—</span></b></div>
+          <div class="barWrap">
+            <div class="bar" id="numBar"></div>
+            <div class="marker" id="numMarker"></div>
+          </div>
+          <div class="ticks" id="specTicks"></div>
+        </div>
+        <div class="tierBar" id="specTierBar"></div>
+        <div class="tierLegend" id="specTiers"></div>
+        <dl class="kv" style="margin-top:16px">
+          <dt>当前档位</dt><dd id="k-tier">—</dd>
+          <dt>星星颜色</dt><dd id="k-color">—</dd>
+          <dt>数字颜色</dt><dd id="k-num">—</dd>
+          <dt>点亮数量</dt><dd id="k-fill">—</dd>
+          <dt>每颗星代表</dt><dd id="k-per">—</dd>
+        </dl>
+      </div>
+
+      <div class="card">
+        <h2>导出</h2>
+        <div class="btns">
+          <button data-png="1">PNG @1x</button>
+          <button data-png="2">PNG @2x</button>
+          <button data-png="4">PNG @4x</button>
+          <button id="btnSvg" class="ghost">下载 SVG</button>
+          <button id="btnCopy" class="ghost">复制 SVG 代码</button>
+        </div>
+        <div class="btns" style="margin-top:8px">
+          <button id="btnOverview">生成实测样例总览图</button>
+          <button id="btnClear" class="ghost">清空总览</button>
+        </div>
+        <div class="hint" id="hint">提示：背景色只决定预览与导出 PNG 的底色，选深色底时星星对比更清楚。导出 SVG 不含外部依赖，可直接嵌进网页。</div>
+        <div id="overviewWrap" style="margin-top:16px;display:none">
+          <div id="overview"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>SVG 源码</h2>
+        <textarea id="svgOut" spellcheck="false" readonly></textarea>
+      </div>
+    </section>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+
+/* =========================================================
+   1. 两条独立色阶 —— 星星与数字分开走
+   ---------------------------------------------------------
+   STAR_RAMP：星星颜色。6.5 星淡紫蓝之后不再"变蓝"，而是一路压暗，
+              到 10.6 星左右即为全黑（对应附件里 10.77~14.32 的黑星）。
+   NUM_RAMP ：数字颜色。金色(7.3) → 橙(9.8) → 红(10.2) → 粉紫(11)
+              → 紫(12) → 紫罗兰(13.3) → 靛蓝(14.3)。
+              锚点直接取自附件里的实测色。
+   ========================================================= */
+const STAR_RAMP = [
+  [ 0.00, '#4fc3f7'],  // Easy     天蓝
+  [ 2.00, '#7ed957'],  // Normal   绿
+  [ 2.70, '#c9e83c'],  // Hard     黄绿
+  [ 3.40, '#ffe94a'],  //          黄
+  [ 4.00, '#ff8c3c'],  //          橙
+  [ 4.70, '#ff4d6d'],  // Insane   红
+  [ 5.30, '#e040fb'],  // Expert   品红
+  [ 6.50, '#7b8cff'],  // Expert+  淡紫蓝 ← 实例图 7.32 就是这个色
+  [ 7.60, '#6a6ae8'],  // ↓ 7 星以上：不再偏蓝，开始压暗
+  [ 8.60, '#4545a8'],
+  [ 9.60, '#22225e'],
+  [10.60, '#0b0b22'],  // 10.6 星起基本全黑
+  [12.00, '#040410'],
+  [18.00, '#000000'],  // 再高也还是黑
+];
+
+const NUM_RAMP = [
+  [ 0.00, '#4fc3f7'],
+  [ 2.00, '#7ed957'],
+  [ 3.40, '#ffe94a'],
+  [ 4.70, '#ff4d6d'],
+  [ 5.30, '#e040fb'],
+  [ 6.50, '#ffcb2e'],  // Expert+ 金
+  [ 7.32, '#ffcb2e'],  // 实例图 7.32 = 金
+  [ 8.20, '#ffb022'],  // 琥珀
+  [ 9.00, '#ffa022'],  // 9 星：开始变红
+  [ 9.50, '#ff8a20'],
+  [ 9.90, '#f4792b'],  // 实例图 9.75~9.87 = 橙
+  [10.00, '#ff3b5c'],  // 10 星：完成变红
+  [10.50, '#ff3b8e'],  // 实例图 10.98 = 玫粉
+  [11.00, '#ff3bd0'],  // 11 星：粉紫
+  [11.70, '#e83bf5'],  // 实例图 11.42 / 11.63 = 品红
+  [12.00, '#c04df5'],  // 12 星：过渡成紫
+  [12.70, '#a855f7'],  // 实例图 12.66 = 紫
+  [13.30, '#8b5cf6'],  // 实例图 13.26 = 紫罗兰
+  [14.30, '#5b6bff'],  // 实例图 14.32 = 靛蓝
+  [16.00, '#4a5cff'],
+];
+
+/* 旧版档位色（「档位离散」模式用） */
+const TIERS = [
+  { key:'Easy',    label:'Easy',    lo:0.0, hi:2.0,  range:'0.0 – 1.99',  color:'#4fc3f7', accent:'#4fc3f7' },
+  { key:'Normal',  label:'Normal',  lo:2.0, hi:2.7,  range:'2.0 – 2.69',  color:'#7ed957', accent:'#7ed957' },
+  { key:'Hard',    label:'Hard',    lo:2.7, hi:4.0,  range:'2.7 – 3.99',  color:'#ffe94a', accent:'#ffe94a' },
+  { key:'Insane',  label:'Insane',  lo:4.0, hi:5.3,  range:'4.0 – 5.29',  color:'#ff4d6d', accent:'#ff4d6d' },
+  { key:'Expert',  label:'Expert',  lo:5.3, hi:6.5,  range:'5.3 – 6.49',  color:'#e040fb', accent:'#e040fb' },
+  { key:'Expert+', label:'Expert+', lo:6.5, hi:Infinity, range:'6.5 and above', color:'#7b8cff', accent:'#ffcb2e' },
+];
+
+const FONT = 'Segoe UI, PingFang SC, Microsoft YaHei, Roboto, Helvetica, Arial, sans-serif';
+
+/* =========================================================
+   2. 工具函数
+   ========================================================= */
+const clamp  = (v,a,b) => v < a ? a : (v > b ? b : v);
+const round2 = n => Math.round(n*100)/100;
+
+function rgbToHex(c){
+  return '#' + c.map(v => clamp(Math.round(v),0,255).toString(16).padStart(2,'0')).join('');
+}
+function hexToRgb(h){
+  const m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(String(h).trim());
+  if(!m) return [110,110,244];
+  let s = m[1];
+  if(s.length === 3) s = s[0]+s[0]+s[1]+s[1]+s[2]+s[2];
+  return [parseInt(s.slice(0,2),16), parseInt(s.slice(2,4),16), parseInt(s.slice(4,6),16)];
+}
+/* v(分值) → RGB：在色阶锚点之间线性插值 */
+function rampColor(ramp, v){
+  v = Number(v) || 0;
+  const first = ramp[0], last = ramp[ramp.length-1];
+  if(v <= first[0]) return first[1];
+  if(v >= last[0])  return last[1];
+  for(let i=0;i<ramp.length-1;i++){
+    const a = ramp[i], b = ramp[i+1];
+    if(v >= a[0] && v <= b[0]){
+      const f = (b[0]-a[0]) === 0 ? 0 : (v-a[0])/(b[0]-a[0]);
+      const ca = hexToRgb(a[1]), cb = hexToRgb(b[1]);
+      return rgbToHex([0,1,2].map(k => ca[k] + (cb[k]-ca[k])*f));
+    }
+  }
+  return last[1];
+}
+/* 色阶 → CSS 渐变（用于界面上的对照条） */
+function rampCss(ramp, max){
+  const stops = [];
+  for(let i=0;i<=140;i++){
+    const v = max*i/140;
+    stops.push(rampColor(ramp, v) + ' ' + (i/140*100).toFixed(2) + '%');
+  }
+  return 'linear-gradient(90deg,' + stops.join(',') + ')';
+}
+function tierOf(v){
+  for(const t of TIERS) if(v < t.hi) return t;
+  return TIERS[TIERS.length-1];
+}
+/* 相对亮度 → 决定文字用黑还是白 */
+function luminance(hex){
+  const [r,g,b] = hexToRgb(hex);
+  return (0.2126*r + 0.7152*g + 0.0722*b)/255;
+}
+function mix(hex, target, amt){
+  const a = hexToRgb(hex), b = hexToRgb(target);
+  return rgbToHex([0,1,2].map(i => a[i] + (b[i]-a[i])*amt));
+}
+function esc(s){
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/* 五角星路径 */
+function starPath(cx, cy, R, r){
+  const pts = [];
+  for(let i=0;i<10;i++){
+    const rad = (i % 2 === 0) ? R : r;
+    const a = -Math.PI/2 + i*Math.PI/5;
+    pts.push((cx + rad*Math.cos(a)).toFixed(2) + ',' + (cy + rad*Math.sin(a)).toFixed(2));
+  }
+  return 'M' + pts.join(' L') + ' Z';
+}
+
+/* 文字宽度测量（用于计算徽章宽度 / 画布宽度） */
+const measureCtx = document.createElement('canvas').getContext('2d');
+function textWidth(text, font){
+  measureCtx.font = font;
+  return measureCtx.measureText(text).width;
+}
+
+/* =========================================================
+   3. 状态
+   ========================================================= */
+const state = {
+  value: 10.77,
+  scaleMax: 15,
+  starCount: 15,
+  colorMode: 'strict',
+  fixedColor: '#6e6ef4',
+  badgeBg: '#2b3048',
+  starSize: 46,
+  spacing: 1.24,
+  emptyOpacity: 0.20,
+  bg: '#3d4260',
+  showBadge: true,
+  showTier: false,
+  fadeTail: true,
+};
+
+/* =========================================================
+   4. 核心：把一个分值画成一枚徽章 + 一行星星
+   返回 { defs, body, w, h }  —— 便于拼接成总览图
+   ========================================================= */
+function paint(s, prefix){
+  prefix = prefix || 's';
+
+  const v      = Math.max(0, Number(s.value) || 0);
+  const n      = Math.max(1, Math.round(s.starCount));
+  const scale  = Math.max(0.0001, Number(s.scaleMax) || 8);
+  const perStar = scale / n;                      // 每颗星代表多少分
+  const tier   = tierOf(v);
+
+  /* --- 颜色决策：星星走 STAR_RAMP，数字走 NUM_RAMP --- */
+  let starColor, numColor;
+  switch(s.colorMode){
+    case 'tier':      starColor = tier.color;                          numColor = tier.accent; break;
+    case 'starOnly':  starColor = rampColor(STAR_RAMP, v);             numColor = starColor;   break;
+    case 'fixed':     starColor = s.fixedColor;                        numColor = s.fixedColor; break;
+    default:          starColor = rampColor(STAR_RAMP, v);             numColor = rampColor(NUM_RAMP, v);
+  }
+  const badgeHex = numColor;
+
+  /* --- 尺寸 --- */
+  const R      = s.starSize/2;
+  const pitch  = s.starSize * s.spacing;
+  const pad    = Math.round(s.starSize * 0.42);
+  const badgeH = s.starSize * 0.96;
+  const badgeFontSize = badgeH * 0.50;
+  const badgeFont = '800 ' + badgeFontSize.toFixed(2) + 'px ' + FONT;
+  const valStr = v.toFixed(2);
+  const iconR  = badgeH * 0.27;
+  const badgePadX = badgeH * 0.36;
+  const badgeInnerGap = badgeH * 0.24;
+  const badgeW = badgePadX + iconR*2 + badgeInnerGap + textWidth(valStr, badgeFont) + badgePadX;
+  const badgeStarGap = Math.round(s.starSize * 0.42);
+
+  const starsW = n * pitch - (pitch - s.starSize);
+  const tierFontSize = Math.max(11, s.starSize*0.30);
+  const tierH = s.showTier ? tierFontSize*1.75 : 0;
+
+  const rowH = Math.max(badgeH, s.starSize);
+  const W = Math.round(pad*2 + (s.showBadge ? badgeW + badgeStarGap : 0) + starsW);
+  const H = Math.round(pad*2 + rowH + tierH);
+
+  const cy = pad + rowH/2;
+  const starStartX = pad + (s.showBadge ? badgeW + badgeStarGap : 0);
+
+  let defs = '';
+  let body = '';
+
+  /* --- 背景 --- */
+  body += '<rect x="0" y="0" width="' + W + '" height="' + H + '" fill="' + esc(s.bg) + '"/>';
+
+  /* --- 徽章 --- */
+  if(s.showBadge){
+    const bx = pad, by = cy - badgeH/2, brx = badgeH/2;
+    const badgeBg = s.badgeBg || '#2b3048';   // 药丸底色是中性深色，不跟数字色（金色混黑会变棕）
+    /* 描边：底色稍微往数字色偏一点，做出收敛的彩色圈，不抢戏 */
+    const badgeStroke = mix(badgeBg, badgeHex, 0.38);
+    /* 数字直接用色阶色；只有太暗（近黑）时才稍微提亮，免得看不见 */
+    const badgeFg = luminance(badgeHex) < 0.18 ? mix(badgeHex, '#ffffff', 0.30) : badgeHex;
+
+    body += '<rect x="' + bx.toFixed(2) + '" y="' + by.toFixed(2) + '" width="' + badgeW.toFixed(2) +
+            '" height="' + badgeH.toFixed(2) + '" rx="' + brx.toFixed(2) +
+            '" fill="' + badgeBg + '" stroke="' + badgeStroke + '" stroke-width="1.2"/>';
+    /* 徽章内的小星星 */
+    const icx = bx + badgePadX + iconR;
+    body += '<path d="' + starPath(icx, cy, iconR, iconR*0.45) + '" fill="' + badgeFg + '"/>';
+    /* 数值 */
+    const tx = icx + iconR + badgeInnerGap;
+    body += '<text x="' + tx.toFixed(2) + '" y="' + cy.toFixed(2) +
+            '" fill="' + badgeFg + '" font-family="' + FONT + '" font-size="' + badgeFontSize.toFixed(2) +
+            '" font-weight="800" dominant-baseline="central" letter-spacing="-0.3">' + esc(valStr) + '</text>';
+  }
+
+  /* --- 星星行 --- */
+  const emptyBase = clamp(Number(s.emptyOpacity), 0, 1);
+  let pastFill = 0;   // 已经过了填充点的空星计数（用于尾部渐隐）
+  for(let i=0;i<n;i++){
+    const cx  = starStartX + i*pitch + R;
+    const d   = starPath(cx, cy, R, R*0.45);
+    const filled = clamp(v/perStar - i, 0, 1);
+
+    let op;
+    if(filled >= 0.999){
+      op = 1;
+      pastFill = 0;
+    }else{
+      if(filled > 0){
+        /* 部分点亮：透明度随填充比例上升 */
+        op = emptyBase + (1-emptyBase)*filled;
+        pastFill = 1;
+      }else{
+        op = s.fadeTail ? Math.max(0.06, emptyBase * (1 - 0.42*pastFill)) : emptyBase;
+        pastFill += 1;
+      }
+    }
+
+    body += '<path d="' + d + '" fill="' + starColor + '" opacity="' + op.toFixed(3) + '"/>';
+
+    if(filled > 0.002 && filled < 0.998){
+      const cid = prefix + '_cp' + i;
+      defs += '<clipPath id="' + cid + '"><rect x="' + (cx-R-1).toFixed(2) + '" y="' + (cy-R-1).toFixed(2) +
+              '" width="' + (2*R*filled + 1).toFixed(2) + '" height="' + (2*R+2).toFixed(2) + '"/></clipPath>';
+      body += '<path d="' + d + '" fill="' + starColor + '" clip-path="url(#' + cid + ')"/>';
+    }
+  }
+
+  /* --- 档位名称 --- */
+  if(s.showTier){
+    const font = '700 ' + tierFontSize.toFixed(2) + 'px ' + FONT;
+    const tw = textWidth(tier.label, font);
+    body += '<text x="' + starStartX.toFixed(2) + '" y="' + (pad + rowH + tierFontSize*1.05).toFixed(2) +
+            '" fill="' + tier.accent + '" font-family="' + FONT + '" font-size="' + tierFontSize.toFixed(2) +
+            '" font-weight="700">' + esc(tier.label) + '</text>';
+    body += '<text x="' + (starStartX + tw + tierFontSize*0.6).toFixed(2) + '" y="' + (pad + rowH + tierFontSize*1.05).toFixed(2) +
+            '" fill="#ffffff" opacity="0.72" font-family="' + FONT + '" font-size="' + (tierFontSize*0.82).toFixed(2) +
+            '">' + esc(tier.range) + '</text>';
+  }
+
+  return { defs: defs, body: body, w: W, h: H, tier: tier, starColor: starColor, numColor: numColor,
+           badgeColor: badgeHex, perStar: perStar, filled: clamp(v/perStar, 0, n), n: n };
+}
+
+function toSvgString(r, idPrefix){
+  return '<svg xmlns="http://www.w3.org/2000/svg" width="' + r.w + '" height="' + r.h +
+         '" viewBox="0 0 ' + r.w + ' ' + r.h + '">' +
+         (r.defs ? '<defs>' + r.defs + '</defs>' : '') +
+         r.body + '</svg>';
+}
+
+/* =========================================================
+   5. 界面
+   ========================================================= */
+const $ = id => document.getElementById(id);
+const previewEl = $('preview');
+
+function currentState(){ return Object.assign({}, state); }
+
+function render(){
+  const s = currentState();
+  const r = paint(s, 'p');
+  const svg = toSvgString(r, 'p');
+
+  previewEl.style.background = state.bg;
+  previewEl.innerHTML = svg;
+  $('svgOut').value = svg;
+
+  /* 数值回显 */
+  $('vOut').textContent = Number(state.value).toFixed(2);
+  $('k-tier').innerHTML = '<span class="swatch" style="background:' + r.tier.accent + '"></span>' + r.tier.label + ' <span style="color:var(--dim);font-weight:400">(' + r.tier.range + ')</span>';
+  $('k-color').innerHTML = '<span class="swatch" style="background:' + r.starColor + '"></span>' + r.starColor.toUpperCase();
+  $('k-num').innerHTML   = '<span class="swatch" style="background:' + r.numColor + '"></span>' + r.numColor.toUpperCase();
+  $('k-fill').textContent = round2(r.filled) + ' / ' + r.n + ' 颗';
+  $('k-per').textContent = '每颗 ' + round2(r.perStar) + ' 分';
+
+  /* 两条色阶的游标 */
+  const max = Math.max(0.0001, Number(state.scaleMax) || 15);
+  const t = clamp(Number(state.value)/max, 0, 1);
+  const pos = 'calc(' + (t*100).toFixed(3) + '% - 1px)';
+  $('starMarker').style.left = pos;
+  $('numMarker').style.left  = pos;
+  $('starSw').style.background = r.starColor;
+  $('numSw').style.background  = r.numColor;
+  $('starHex').textContent = r.starColor.toUpperCase();
+  $('numHex').textContent  = r.numColor.toUpperCase();
+}
+
+/* --- 两条色阶条 --- */
+function buildRampsUI(){
+  const max = Math.max(0.0001, Number(state.scaleMax) || 15);
+  $('starBar').style.background = rampCss(STAR_RAMP, max);
+  $('numBar').style.background  = rampCss(NUM_RAMP,  max);
+
+  const ticks = $('specTicks');
+  ticks.innerHTML = '';
+  for(let i=0;i<=15;i++){
+    const sp = document.createElement('span');
+    sp.textContent = (max*i/15).toFixed(1);
+    sp.style.left = (i/15*100) + '%';
+    ticks.appendChild(sp);
+  }
+
+  /* 档位：上面是比例色条，下面是可换行标签（窄档位文字不再互相压叠） */
+  const bar = $('specTierBar');
+  bar.innerHTML = '';
+  const legend = $('specTiers');
+  legend.innerHTML = '';
+  let prev = 0;
+  TIERS.forEach(function(tr){
+    const hi = Math.min(tr.hi === Infinity ? max : tr.hi, max);
+    const w = Math.max(0, (hi - prev)/max*100);
+    if(w > 0){
+      const seg = document.createElement('div');
+      seg.style.width = w + '%';
+      seg.style.background = tr.color;
+      seg.title = tr.label + '  ' + tr.range;
+      bar.appendChild(seg);
+    }
+    const d = document.createElement('div');
+    d.innerHTML = '<b style="color:' + tr.accent + '">' + tr.label + '</b><i>' + tr.range + '</i>';
+    legend.appendChild(d);
+    prev = Math.max(prev, hi);
+  });
+}
+
+/* 点击任一条色阶直接设值 */
+['specStar','specNum'].forEach(function(id){
+  const wrap = $(id);
+  const bar  = wrap.querySelector('.bar');
+  wrap.addEventListener('click', function(e){
+    const rect = bar.getBoundingClientRect();
+    const t = clamp((e.clientX - rect.left)/rect.width, 0, 1);
+    setValue(round2(t * Number(state.scaleMax)));
+  });
+});
+
+/* --- 实测样例（取自你给的两张附件） --- */
+const PRESETS = [
+  ['7.32 金',   7.32],
+  ['9.80 橙',   9.80],
+  ['10.22 红', 10.22],
+  ['10.98 玫粉',10.98],
+  ['11.42 品红',11.42],
+  ['11.94 品红',11.94],
+  ['12.66 紫', 12.66],
+  ['13.26 紫罗兰',13.26],
+  ['14.32 靛蓝',14.32],
+];
+function buildPresets(){
+  const box = $('presets');
+  box.innerHTML = '';
+  PRESETS.forEach(function(p){
+    const b = document.createElement('button');
+    b.textContent = p[0];
+    const nc = rampColor(NUM_RAMP, p[1]);
+    b.style.borderColor = nc;
+    b.style.color = nc;
+    b.onclick = function(){ setValue(p[1]); };
+    box.appendChild(b);
+  });
+}
+
+/* --- 双向绑定 --- */
+function setValue(v){
+  v = clamp(Number(v) || 0, 0, 999);
+  state.value = v;
+  $('value').value = v;
+  $('valueNum').value = round2(v);
+  render();
+}
+function bindNum(id, key, after){
+  const el = $(id);
+  el.addEventListener('input', function(){
+    let v = parseFloat(el.value);
+    if(isNaN(v)) return;
+    state[key] = v;
+    if(after) after();
+    render();
+  });
+}
+function bindChk(id, key, after){
+  const el = $(id);
+  el.addEventListener('change', function(){
+    state[key] = el.checked;
+    if(after) after();
+    render();
+  });
+}
+
+$('value').addEventListener('input', function(){ setValue(this.value); });
+$('valueNum').addEventListener('input', function(){
+  const v = parseFloat(this.value);
+  if(isNaN(v)) return;
+  state.value = v;
+  $('value').value = v;
+  render();
+});
+
+bindNum('scaleMax','scaleMax', buildRampsUI);
+bindNum('starCount','starCount');
+bindNum('starSize','starSize');
+bindNum('spacing','spacing');
+bindNum('emptyOpacity','emptyOpacity');
+
+$('colorMode').addEventListener('change', function(){
+  state.colorMode = this.value;
+  $('fixedRow').style.display = (this.value === 'fixed') ? '' : 'none';
+  render();
+});
+$('fixedColor').addEventListener('input', function(){ state.fixedColor = this.value; render(); });
+$('badgeBg').addEventListener('input', function(){ state.badgeBg = this.value; render(); });
+$('bgColor').addEventListener('input', function(){ state.bg = this.value; render(); });
+
+bindChk('showBadge','showBadge');
+bindChk('showTier','showTier');
+bindChk('fadeTail','fadeTail');
+
+/* =========================================================
+   6. 导出
+   ========================================================= */
+function svgToPngBlob(svgStr, w, h, scale){
+  return new Promise(function(resolve, reject){
+    const blob = new Blob([svgStr], {type:'image/svg+xml;charset=utf-8'});
+    const url  = URL.createObjectURL(blob);
+    const img  = new Image();
+    img.onload = function(){
+      const cv = document.createElement('canvas');
+      cv.width  = Math.round(w*scale);
+      cv.height = Math.round(h*scale);
+      const ctx = cv.getContext('2d');
+      ctx.drawImage(img, 0, 0, cv.width, cv.height);
+      URL.revokeObjectURL(url);
+      cv.toBlob(function(b){ b ? resolve(b) : reject(new Error('toBlob failed')); }, 'image/png');
+    };
+    img.onerror = function(){ URL.revokeObjectURL(url); reject(new Error('SVG 载入失败')); };
+    img.src = url;
+  });
+}
+function download(blob, name){
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); }, 4000);
+}
+let toastTimer = null;
+function toast(msg){
+  const el = $('toast');
+  el.textContent = msg;
+  el.classList.add('on');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function(){ el.classList.remove('on'); }, 1800);
+}
+
+document.querySelectorAll('[data-png]').forEach(function(btn){
+  btn.addEventListener('click', function(){
+    const scale = Number(btn.getAttribute('data-png'));
+    const s = currentState();
+    const r = paint(s, 'x');
+    const svg = toSvgString(r, 'x');
+    btn.disabled = true;
+    svgToPngBlob(svg, r.w, r.h, scale).then(function(blob){
+      download(blob, 'rating_' + Number(s.value).toFixed(2) + '_' + r.tier.key + '_@' + scale + 'x.png');
+      toast('已导出 PNG @' + scale + 'x');
+    }).catch(function(err){
+      toast('导出失败：' + err.message);
+    }).then(function(){ btn.disabled = false; });
+  });
+});
+
+$('btnSvg').addEventListener('click', function(){
+  const s = currentState();
+  const r = paint(s, 'd');
+  const svg = toSvgString(r, 'd');
+  download(new Blob([svg], {type:'image/svg+xml;charset=utf-8'}),
+           'rating_' + Number(s.value).toFixed(2) + '_' + r.tier.key + '.svg');
+  toast('已导出 SVG');
+});
+
+$('btnCopy').addEventListener('click', function(){
+  const txt = $('svgOut').value;
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(txt).then(function(){ toast('SVG 代码已复制'); },
+                                            function(){ toast('复制失败，请手动选中'); });
+  }else{
+    $('svgOut').select();
+    toast('请按 Ctrl+C 复制');
+  }
+});
+
+/* --- 实测样例总览图（9 个档位点，覆盖"变黑 + 数字变色"全过程） --- */
+$('btnOverview').addEventListener('click', function(){
+  const samples = PRESETS.map(function(p){ return [p[0], p[1]]; });
+  const gapY = 12, padAll = 20;
+  let defs = '', body = '', y = 0, maxW = 0;
+  const rows = [];
+
+  samples.forEach(function(p, i){
+    const s = Object.assign({}, state, { value: p[1] });
+    const r = paint(s, 'o' + i);
+    rows.push({ name: p[0], r: r, y: y });
+    maxW = Math.max(maxW, r.w);
+    y += r.h + gapY;
+  });
+  const totalH = y - gapY;
+
+  body += '<rect x="0" y="0" width="' + (maxW + padAll*2) + '" height="' + (totalH + padAll*2) +
+          '" fill="' + esc(state.bg) + '"/>';
+
+  rows.forEach(function(row, i){
+    const r = row.r;
+    defs += r.defs;
+    body += '<g transform="translate(' + padAll + ',' + (padAll + row.y) + ')">' + r.body + '</g>';
+    /* 左侧空白背景条被翻译覆盖：这里补一层同色底保证对齐 */
+  });
+
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + (maxW + padAll*2) +
+              '" height="' + (totalH + padAll*2) + '" viewBox="0 0 ' + (maxW + padAll*2) + ' ' + (totalH + padAll*2) + '">' +
+              (defs ? '<defs>' + defs + '</defs>' : '') + body + '</svg>';
+
+  $('overview').innerHTML = svg;
+  $('overviewWrap').style.display = '';
+
+  /* 总览图导出按钮 */
+  const bar = document.createElement('div');
+  bar.className = 'btns';
+  bar.style.marginTop = '12px';
+  [1,2].forEach(function(sc){
+    const b = document.createElement('button');
+    b.textContent = '导出总览 PNG @' + sc + 'x';
+    b.onclick = function(){
+      b.disabled = true;
+      svgToPngBlob(svg, maxW + padAll*2, totalH + padAll*2, sc).then(function(blob){
+        download(blob, 'rating_overview_' + sc + 'x.png');
+        toast('已导出总览图');
+      }).catch(function(e){ toast('导出失败：' + e.message); })
+        .then(function(){ b.disabled = false; });
+    };
+    bar.appendChild(b);
+  });
+  $('overviewWrap').appendChild(bar);
+});
+
+$('btnClear').addEventListener('click', function(){
+  $('overview').innerHTML = '';
+  $('overviewWrap').style.display = 'none';
+});
+
+/* =========================================================
+   7. 启动
+   ========================================================= */
+buildRampsUI();
+buildPresets();
+render();
+</script>
+</body>
+</html>

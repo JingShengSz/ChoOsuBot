@@ -1,0 +1,147 @@
+{
+  "osu_credential_file": {
+    "description": "osu! 凭据文件路径",
+    "hint": "默认 D:\\Cho Osu Bot\\renderer\\data\\osu_oauth.local.json —— 渲染器已经维护着这个文件，本机装好了就不用再填下面两项。文件里需要 osu_client_id 和 osu_client_secret 两个键（就是 OsuApi.from_file 认的格式）。文件不存在时才会退回用下面两项。",
+    "type": "string",
+    "default": "D:\\Cho Osu Bot\\renderer\\data\\osu_oauth.local.json"
+  },
+  "osu_client_id": {
+    "description": "osu! OAuth 客户端 ID（备用）",
+    "hint": "只在凭据文件不存在时才会用到。在 https://osu.ppy.sh/home/account/edit 的 OAuth 应用里创建/查看。用途：调用官方 API 读取成绩与玩家资料。",
+    "type": "string",
+    "default": "",
+    "obvious_hint": true,
+    "secret": true
+  },
+  "osu_client_secret": {
+    "description": "osu! OAuth 客户端密钥（敏感，备用）",
+    "hint": "‼️ 敏感信息，只填在这里，不要发到聊天里、不要写进截图。插件只把它换成 token，token 缓存在内存、不落盘，也不会出现在日志、错误消息或聊天回复里。若不慎外泄，请去上面那个页面重置。",
+    "type": "string",
+    "default": "",
+    "obvious_hint": true,
+    "secret": true
+  },
+  "osu_data_path": {
+    "description": "成绩卡模板 PSD 路径",
+    "hint": "默认 D:\\Cho Osu Bot\\template\\osu_score_template_v1.psd。插件只读取它，渲染时永远操作它的副本，不会改到原文件。素材目录自动取它旁边的 assets/。",
+    "type": "string",
+    "default": "D:\\Cho Osu Bot\\template\\osu_score_template_v1.psd"
+  },
+  "assets_path": {
+    "description": "素材目录（留空自动推导）",
+    "hint": "留空 = 模板 PSD 同级的 assets/。里面需要 mods/ready/（mod 徽章）、rank_svg/（八套评级染色与辉光）、signboards/（立绘）。",
+    "type": "string",
+    "default": ""
+  },
+  "renderer_path": {
+    "description": "渲染器目录",
+    "hint": "osu! API 客户端复用渲染器里的 mania_render/osu_api.py，不重复实现一份。默认 D:\\Cho Osu Bot\\renderer。路径不对时插件会直接提示，不会静默失败。",
+    "type": "string",
+    "default": "D:\\Cho Osu Bot\\renderer"
+  },
+  "photoshop_path": {
+    "description": "Photoshop 可执行文件路径",
+    "hint": "默认 D:\\Photoshop\\Adobe Photoshop 2026\\Photoshop.exe。正常情况走 COM 会自动拉起 Photoshop，这里是兜底：万一 COM 没能启动它，插件会用这个路径手动启动一次再重试。",
+    "type": "string",
+    "default": "D:\\Photoshop\\Adobe Photoshop 2026\\Photoshop.exe"
+  },
+  "default_ruleset": {
+    "description": "默认模式",
+    "hint": "模板是按 osu!mania 做的（4K/7K 判定栏、SV/OD/HP 条），所以默认 mania。改成别的模式卡片版式不会跟着变。",
+    "type": "string",
+    "default": "mania",
+    "options": [
+      "mania",
+      "osu",
+      "taiko",
+      "fruits"
+    ]
+  },
+  "auto_link": {
+    "description": "自动渲染成绩链接",
+    "hint": "开启后，群里任何一条消息里出现 osu.ppy.sh/scores/<数字> 或 /community/scores/<数字> 就会自动渲染成卡片，不需要 @机器人也不需要指令。一次渲染要驱动 Photoshop，几秒钟，建议不要关。",
+    "type": "bool",
+    "default": true
+  },
+  "cache_minutes": {
+    "description": "玩家资料缓存时长（分钟）",
+    "hint": "玩家资料（总 PP / 头像 / 全球排名）只在本地缓存过期后才重新请求 osu!。填 0 = 每次都重新拉。绑定关系不受这个影响，永久保存。",
+    "type": "int",
+    "default": 10
+  },
+  "output_keep": {
+    "description": "保留多少张渲染产物",
+    "hint": "渲染出的 PNG 放在 data/plugin_data/astrbot_plugin_osu_scorecard/output/，超过这个数量就删最旧的，避免无限堆积。",
+    "type": "int",
+    "default": 20
+  },
+  "render_timeout_seconds": {
+    "description": "单次渲染超时（秒）",
+    "hint": "Photoshop 打开 16MB 的 PSD、填几十个图层、导出 1920x1080 PNG，正常几秒。如果 Photoshop 弹了模态框，脚本会一直卡住直到这个超时。",
+    "type": "int",
+    "default": 180
+  },
+  "renderer": {
+    "description": "渲染引擎",
+    "type": "string",
+    "default": "auto",
+    "options": [
+      "auto",
+      "pil",
+      "photoshop"
+    ],
+    "hint": "auto = 先用 Pillow（约 0.4 秒），失败才退回 Photoshop（约 30 秒）。photoshop 保留了模板的设计源行为，模板改版对不上时可以切过去对照。"
+  },
+  "pp_max_mode": {
+    "description": "理论最大 PP",
+    "type": "string",
+    "default": "computed",
+    "options": [
+      "computed",
+      "dash"
+    ],
+    "hint": "computed = 按 osu!mania 的 pp 公式算「全 320 判定 + 满连」的值。该公式随 osu! 版本变化，改版后数字会失准——那时切成 dash 显示 --。"
+  },
+  "spec_path": {
+    "description": "layer_mapping.json 路径",
+    "type": "string",
+    "default": "",
+    "hint": "Pillow 渲染器的版式来源。留空 = 用模板旁边的那个。"
+  },
+  "sb_api_url": {
+    "description": "SB 私服 API 地址",
+    "type": "string",
+    "default": "https://api.ppy.sb",
+    "hint": "SB（osu.ppy.sb）私服的 API 根地址，只用于 -sb 指令。不需要 OAuth。改成别的私服地址前请先确认对方跑的是同一套 bancho.py 接口（/v1/search_players、/v1/get_player_info、/v1/get_player_scores、/v1/get_score_info、/v1/get_map_info），否则 -sb 会整体报错。"
+  },
+  "http_proxy": {
+    "description": "HTTP/HTTPS 代理地址（留空 = 自动探测）",
+    "hint": "留空时自动探测系统代理。注意：如果环境里存在 NO_PROXY 这类变量，Python 的自动探测会被短路、忽略 Windows 注册表里的代理，请求就会直连并超时。探测不到但确实需要代理时，在这里显式填上，例如 http://127.0.0.1:7890",
+    "type": "string",
+    "default": ""
+  },
+  "oauth_enabled": {
+    "description": "官服授权流程",
+    "type": "bool",
+    "default": true,
+    "hint": "打开后，bind 会给你一个 osu! 授权链接，授权完成才能用 p / r 查官服最近成绩。关掉则只保留 s <成绩ID> 和贴成绩链接。私服（-sb）不受影响。"
+  },
+  "oauth_callback_host": {
+    "description": "授权回调监听地址",
+    "type": "string",
+    "default": "127.0.0.1",
+    "hint": "默认 127.0.0.1 只对本机浏览器有效（本地自测够用）。要让别的机器上的用户点链接能回到这里，必须改成一个公网可达的地址。"
+  },
+  "oauth_callback_port": {
+    "description": "授权回调监听端口",
+    "type": "int",
+    "default": 6199,
+    "hint": "端口被占用时换一个。这个端口必须能被用户的浏览器访问到。"
+  },
+  "oauth_redirect_base": {
+    "description": "授权回调的外部基地址",
+    "type": "string",
+    "default": "",
+    "hint": "留空 = 用 host:port 拼本机地址。部署到公网时填成 https://你的域名。填什么就要在 osu! 后台把 Callback URL 登记成 这个基地址 + /oauth/callback（必须一字不差，osu! 是字面比较）。"
+  }
+}

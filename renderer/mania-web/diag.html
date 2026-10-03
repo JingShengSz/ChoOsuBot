@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>mania-render 音频诊断</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; padding: 18px 20px 40px; background: #16161c; color: #e8e8ee;
+         font: 14px/1.5 'Segoe UI', Roboto, 'Noto Sans', 'DejaVu Sans', Arial, sans-serif; }
+  h1 { font-size: 18px; margin: 0 0 4px; font-weight: 600; }
+  p.sub { margin: 0 0 16px; color: #9a9aa8; font-size: 13px; }
+  table { border-collapse: collapse; width: 100%; max-width: 1100px; margin-bottom: 14px; }
+  th, td { border: 1px solid #2e2e3a; padding: 6px 9px; text-align: left; vertical-align: top; }
+  th { background: #1e1e27; font-weight: 600; color: #b9b9c8; }
+  td.name { white-space: nowrap; }
+  .ok   { color: #57d38c; font-weight: 600; }
+  .fail { color: #ff6b6b; font-weight: 600; }
+  .run  { color: #d8b24a; }
+  .skip { color: #7a7a88; }
+  code { background: #22222c; padding: 1px 5px; border-radius: 3px; font-size: 12.5px; }
+  .mono { font-family: Consolas, 'Cascadia Mono', monospace; font-size: 12.5px; }
+  #meta { max-width: 1100px; margin-bottom: 14px; padding: 10px 12px; background: #1c1c24;
+          border: 1px solid #2e2e3a; border-radius: 6px; font-size: 12.5px; }
+  #meta div { margin: 2px 0; }
+  button { background: #4a3fa8; color: #fff; border: 0; border-radius: 5px;
+           padding: 7px 14px; font-size: 13px; cursor: pointer; }
+  button:hover { background: #5a4dc8; }
+  textarea { width: 100%; max-width: 1100px; height: 150px; margin-top: 10px; background: #101018;
+             color: #cfcfda; border: 1px solid #2e2e3a; border-radius: 6px; padding: 8px;
+             font-family: Consolas, 'Cascadia Mono', monospace; font-size: 12px; }
+  .note { max-width: 1100px; color: #9a9aa8; font-size: 12.5px; margin: 10px 0 0; }
+</style>
+</head>
+<body>
+<h1>mania-render 音频诊断</h1>
+<p class="sub">在<strong>你自己的浏览器</strong>里跑，用来判断「音频 Failed to fetch」是<b>大小</b>限制、<b>路径/扩展名</b>拦截，还是<b>Content-Type</b> 拦截。</p>
+
+<div id="meta"></div>
+<table id="tbl">
+  <thead><tr><th>#</th><th>测试</th><th>结果</th><th>字节</th><th>耗时</th><th>详情</th></tr></thead>
+  <tbody></tbody>
+</table>
+<button id="again">重新测试</button>
+<textarea id="out" readonly placeholder="结果会出现在这里，可直接全选复制"></textarea>
+<p class="note">判读方式：若「二进制 12 MB」成功而「音频 .mp3」失败 → 是按 <code>.mp3</code> 路径或 <code>audio/mpeg</code> 拦截；<br/>
+若两者都失败、小请求成功 → 是响应<strong>大小</strong>被限制；若连「同源小请求」都失败 → 是页面到服务端的连通性问题。</p>
+
+<script>
+const qs = new URLSearchParams(location.search);
+const SID  = qs.get('sid')  || '2164968';
+const NAME = qs.get('name') || 'audio.mp3';
+
+const meta = document.getElementById('meta');
+meta.innerHTML = '';
+[
+  ['页面来源 (location.origin)', location.origin],
+  ['完整地址', location.href],
+  ['User-Agent', navigator.userAgent],
+  ['sid / name', SID + ' / ' + NAME],
+  ['fetch 可用', typeof fetch === 'function' ? 'yes' : 'NO'],
+  ['streams 可用', typeof ReadableStream === 'function' ? 'yes' : 'no'],
+].forEach(([k, v]) => {
+  const d = document.createElement('div');
+  const b = document.createElement('strong');
+  b.textContent = k + ': ';
+  d.appendChild(b);
+  d.appendChild(document.createTextNode(String(v)));
+  meta.appendChild(d);
+});
+
+// Each test separates two different failures that both surface as "Failed to fetch"-ish:
+//   fetch threw      -> no response at all (connection/proxy/extension blocked it)
+//   body read threw  -> headers arrived but the body was cut short
+const TESTS = [
+  { id: 1, name: '同源小请求 (json)',        url: '/api/skins',                        what: 'control: same origin, tiny' },
+  { id: 2, name: '二进制 1 MB',              url: '/api/blob/1048576',                 what: 'size probe' },
+  { id: 3, name: '二进制 4 MB',              url: '/api/blob/4194304',                 what: 'size probe' },
+  { id: 4, name: '二进制 12 MB',             url: '/api/blob/12582912',                what: 'size probe' },
+  { id: 5, name: '音频 · 非 .mp3 路径 · octet-stream',
+    url: '/api/media/' + encodeURIComponent(SID) + '/' + encodeURIComponent(NAME),
+    what: 'same bytes, neutral path + type' },
+  { id: 6, name: '音频 · .mp3 · audio/mpeg',
+    url: '/api/audio/' + encodeURIComponent(SID) + '/' + encodeURIComponent(NAME),
+    what: 'the request that failed' },
+];
+
+const tbody = document.querySelector('#tbl tbody');
+const out = document.getElementById('out');
+const lines = [];
+
+function addRow(t) {
+  const tr = document.createElement('tr');
+  tr.id = 'row' + t.id;
+  tr.innerHTML = '<td>' + t.id + '</td><td class="name">' + t.name + '</td>' +
+                 '<td class="run">…</td><td></td><td></td><td class="mono"></td>';
+  tbody.appendChild(tr);
+  return tr;
+}
+
+function setRow(t, cls, text, bytes, ms, detail) {
+  const tr = document.getElementById('row' + t.id);
+  tr.children[2].className = cls;
+  tr.children[2].textContent = text;
+  tr.children[3].textContent = bytes;
+  tr.children[4].textContent = ms;
+  tr.children[5].textContent = detail || '';
+  lines.push([t.id, t.name, text, bytes, ms, detail || ''].join('  |  '));
+}
+
+async function runOne(t) {
+  addRow(t);
+  const t0 = performance.now();
+  let res, fetchErr = null;
+  try {
+    res = await fetch(t.url, { cache: 'no-store' });
+  } catch (err) {
+    fetchErr = (err && (err.name + ': ' + err.message)) || String(err);
+  }
+  if (fetchErr) {
+    setRow(t, 'fail', 'fetch 抛出', '-', Math.round(performance.now() - t0) + 'ms', fetchErr);
+    return;
+  }
+  let buf = null, bodyErr = null;
+  try {
+    buf = await res.arrayBuffer();
+  } catch (err) {
+    bodyErr = (err && (err.name + ': ' + err.message)) || String(err);
+  }
+  const ms = Math.round(performance.now() - t0) + 'ms';
+  const ct = res.headers.get('Content-Type') || '?';
+  const cl = res.headers.get('Content-Length') || '?';
+  if (bodyErr) {
+    setRow(t, 'fail', '读取 body 抛出', 'HTTP ' + res.status, ms, bodyErr + '  (CL=' + cl + ')');
+  } else {
+    setRow(t, res.ok ? 'ok' : 'fail', 'HTTP ' + res.status, buf.byteLength.toLocaleString(), ms,
+           ct + '  CL=' + cl);
+  }
+}
+
+async function runAll() {
+  tbody.innerHTML = '';
+  lines.length = 0;
+
+  // Environmental interceptors a fetch() cannot see: a stale Service Worker registered on
+  // this origin sits between the page and the server and can fail a request without the
+  // server ever hearing about it.
+  let swInfo = 'unavailable';
+  try {
+    if (navigator.serviceWorker) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      swInfo = 'controller=' + (navigator.serviceWorker.controller ? 'YES' : 'no') +
+               '  registrations=' + regs.length +
+               (regs.length ? '  scopes=' + regs.map(r => r.scope).join(',') : '');
+    }
+  } catch (e) { swInfo = 'error: ' + e; }
+  const extra = [
+    ['Service Worker', swInfo],
+    ['isSecureContext', String(window.isSecureContext)],
+    ['navigator.onLine', String(navigator.onLine)],
+    ['hardwareConcurrency', String(navigator.hardwareConcurrency)],
+    ['deviceMemory', String(navigator.deviceMemory)],
+  ];
+  for (const [k, v] of extra) {
+    const d = document.createElement('div');
+    const b = document.createElement('strong');
+    b.textContent = k + ': ';
+    d.appendChild(b); d.appendChild(document.createTextNode(v));
+    meta.appendChild(d);
+  }
+
+  for (const t of TESTS) await runOne(t);
+  out.value = 'mania-render 音频诊断\n' +
+    'origin      = ' + location.origin + '\n' +
+    'UA          = ' + navigator.userAgent + '\n' +
+    'sid/name    = ' + SID + ' / ' + NAME + '\n' +
+    'time        = ' + new Date().toISOString() + '\n' +
+    extra.map(([k, v]) => (k + ' = ' + v).padEnd(20)).join('\n') + '\n' +
+    '---\n' + lines.join('\n') + '\n';
+}
+
+document.getElementById('again').addEventListener('click', runAll);
+runAll();
+</script>
+</body>
+</html>

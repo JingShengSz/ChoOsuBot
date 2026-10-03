@@ -1,0 +1,22 @@
+name: astrbot_plugin_mania_render
+display_name: osu!mania 回放渲染
+desc: |
+  把 osu!mania 谱面或 .osr 回放渲染成 MP4 视频并发送到聊天。
+
+  支持指定皮肤、滚动速度、背景暗度、分辨率、帧率和渲染片段。
+  渲染由独立的 mania-render HTTP 服务完成，插件只负责调用接口、轮询进度、
+  下载视频并交给平台适配器发送。
+
+  默认输出 1920x1080 / 60fps 的 H.264 MP4（QQ 可直接当视频播放）。
+version: 1.0.0
+author: OwO
+repo: ""
+short_desc: 把 osu!mania 回放渲染成视频发到群里
+tags:
+  - osu
+  - mania
+  - video
+astrbot_version: ">=4.0.0"
+support_platforms:
+  - aiocqhttp
+  - qq_official

@@ -1,0 +1,1431 @@
+{
+ "canvas": {
+  "width": 1920,
+  "height": 1080,
+  "safeMargin": 60,
+  "resolution": 72,
+  "mode": "RGB/8"
+ },
+ "backgroundDimmingPct": 74.9,
+ "textLayers": [
+  {
+   "group": "watermark_slot",
+   "name": "_deco_watermark_hint",
+   "kind": "text",
+   "font": "Inter18pt-Regular",
+   "cjkFont": "YuGothic-Medium",
+   "sizePx": 15,
+   "color": "#8C96A9",
+   "x": 80,
+   "y": 924,
+   "justify": "left",
+   "example": "watermark slot 180x60",
+   "freeWidthPx": 880,
+   "maxChars": 94,
+   "ink": [
+    80,
+    924,
+    238,
+    936
+   ]
+  },
+  {
+   "group": "player_info",
+   "name": "play_date",
+   "kind": "text",
+   "font": "Inter18pt-Regular",
+   "cjkFont": "YuGothic-Medium",
+   "sizePx": 20,
+   "color": "#8C96A9",
+   "x": 761,
+   "y": 860,
+   "justify": "left",
+   "example": "2026-10-02",
+   "freeWidthPx": 199,
+   "maxChars": 16,
+   "ink": [
+    761,
+    860,
+    871,
+    876
+   ]
+  },
+  {
+   "group": "player_info",
+   "name": "rank_change",
+   "kind": "text",
+   "font": "Inter18pt-Bold",
+   "cjkFont": "YuGothic-Medium",
+   "sizePx": 30,
+   "color": "#EAEEF6",
+   "x": 932,
+   "y": 227,
+   "justify": "center",
+   "example": "+1,204",
+   "freeWidthPx": 28,
+   "maxChars": 1,
+   "ink": [
+    932,
+    227,
+    1030,
+    256
+   ]
+  },
+  {
+   "group": "player_info",
+   "name": "player_name",
+   "kind": "text",
+   "font": "Inter18pt-Bold",
+   "cjkFont": "YuGothic-Medium",
+   "sizePx": 26,
+   "color": "#EAEEF6",
+   "x": 926,
+   "y": 190,
+   "justify": "center",
+   "example": "Cookiezi",
+   "freeWidthPx": 34,
+   "maxChars": 2,
+   "ink": [
+    926,
+    190,
+    1033,
+    211
+   ]
+  },
+  {
+   "group": "beatmap_stats",
+   "name": "hp",
+   "kind": "text",
+   "font": "Inter18pt-Bold",
+   "cjkFont": "YuGothic-Medium",
+   "sizePx": 32,
+   "color": "#EAEEF6",
+   "x": 107,
+   "y": 545,
+   "justify": "left",
+   "example": "6.0",
+   "freeWidthPx": 853,
+   "maxChars": 42,
+   "ink": [
+    107,
+    545,
+    155,
+    570
+   ]
+  },
+  {
+   "group": "beatmap_stats",
+   "name": "od",
+   "kind": "text",
+   "font": "Inter18pt-Bold",
+   "cjkFont": "YuGothic-Medium",
+   "sizePx": 32,
+   "color": "#EAEEF6",
+   "x": 107,
+   "y": 477,
+   "justify": "left",
+   "example": "9.0",
+   "freeWidthPx": 853,
+   "maxChars": 42,
+   "ink": [
+    107,
+    477,
+    155,
+    502
+   ]
+  },
+  {
+   "group": "beatmap_stats",
+   "name": "bpm",
+   "kind": "text",
+   "font": "Inter18pt-Bold",
+   "cjkFont": "YuGothic-Medium",
+   "sizePx": 32,
+   "color": "#EAEEF6",
+   "x": 107,
+   "y": 409,
+   "justify": "left",
+   "example": "222.22",
+   "freeWidthPx": 853,
+   "maxChars": 42,
+   "ink": [
+    107,
+    409,
+    215,
+    434
+   ]
+  },
+  {
+   "group": "beatmap_stats",
+   "name": "star_rating",
+   "kind": "text",
+   "font": "Inter18pt-Bold",
+   "cjkFont": "YuGothic-Medium",
+   "sizePx": 32,
+   "color": "#EAEEF6",
+   "x": 107,
+   "y": 319,
+   "justify": "left",
+   "example": "7.42",
+   "freeWidthPx": 853,
+   "maxChars": 42,
+   "ink": [
+    107,
+    319,
+    171,
+    344
+   ]
+  },
+  {
+   "group": "beatmap_info",
+   "name": "beatmap_id",
+   "kind": "text",
+   "font": "Inter18pt-Regular",
+   "cjkFont": "YuGothic-Medium",
+   "sizePx": 18,
+   "color": "#8C96A9",
+   "x": 60,
+   "y": 249,
+   "justify": "left",
+   "example": "#1234567",
+   "freeWidthPx": 900,
+   "maxChars": 80,
+   "ink": [
+    60,
+    249,
+    143,
+    264
+   ]
+  },
+  {
+   "group": "beatmap_info",
+   "name": "beatmap_mapper",
+   "kind": "text",
+   "font": "Inter18pt-Regular",
+   "cjkFont": "YuGothic-Medium",
+   "sizePx": 18,
+   "color": "#8C96A9",
+   "x": 61,
+   "y": 220,
+   "justify": "left",
+   "example": "mapped by Nakagawa-Kanon",
+   "freeWidthPx": 899,
+   "maxChars": 80,
+   "ink": [
+    61,
+    220,
+    307,
+    237
+   ]
+  },
+  {
+   "group": "beatmap_info",
+   "name": "beatmap_difficulty",
+   "kind": "text",
+   "font": "Inter18pt-Medium",
+   "cjkFont": "YuGothic-Medium",
+   "sizePx": 22,
+   "color": "#8C97A9",
+   "x": 61,
+   "y": 182,
+   "justify": "left",
+   "example": "FOUR DIMENSIONS",
+   "freeWidthPx": 899,
+   "maxChars": 65,
+   "ink": [
+    61,
+    182,
+    263,
+    200
+   ]
+  },
+  {
+   "group": "beatmap_info",
+   "name": "beatmap_artist",
+   "kind": "text",
+   "font": "Inter18pt-Medium",
+   "cjkFont": "YuGothic-Medium",
+   "sizePx": 28,
+   "color": "#8C97A9",
+   "x": 60,
+   "y": 133,
+   "justify": "left",
+   "example": "xi",
+   "freeWidthPx": 900,
+   "maxChars": 51,
+   "ink": [
+    60,
+    133,
+    81,
+    154
+   ]
+  },
+  {
+   "group": "beatmap_info",
+   "name": "beatmap_title",
+   "kind": "text",
+   "font": "Inter18pt-Medium",
+   "cjkFont": "YuGothic-Medium",
+   "sizePx": 36,
+   "color": "#EAEEF6",
+   "x": 62,
+   "y": 74,
+   "justify": "left",
+   "example": "FREEDOM DiVE",
+   "freeWidthPx": 898,
+   "maxChars": 40,
+   "ink": [
+    62,
+    74,
+    322,
+    102
+   ]
+  },
+  {
+   "group": "mods_block",
+   "name": "mod_6_mult",
+   "kind": "text",
+   "font": "Inter18pt-Regular",
+   "cjkFont": "YuGothic-Medium",
+   "sizePx": 16,
+   "color": "#8C97A9",
+   "x": 650,
+   "y": 900,
+   "justify": "center",
+   "example": "x1.5",
+   "freeWidthPx": 310,
+   "maxChars": 31,
+   "ink": [
+    650,
+    900,
+    680,
+    913
+   ]
+  },
+  {
+   "group": "mods_block",
+   "name": "mod_5_mult",
+   "kind": "text",
+   "font": "Inter18pt-Regular",
+   "cjkFont": "YuGothic-Medium",
+   "sizePx": 16,
+   "color": "#8C97A9",
+   "x": 540,
+   "y": 900,
+   "justify": "center",
+   "example": "x1.5",
+   "freeWidthPx": 420,
+   "maxChars": 42,
+   "ink": [
+    540,
+    900,
+    570,
+    913
+   ]
+  },
+  {
+   "group": "mods_block",
+   "name": "mod_4_mult",
+   "kind": "text",
+   "font": "Inter18pt-Regular",
+   "cjkFont": "YuGothic-Medium",
+   "sizePx": 16,
+   "color": "#8C97A9",
+   "x": 430,
+   "y": 900,
+   "justify": "center",
+   "example": "x1.5",
+   "freeWidthPx": 530,
+   "maxChars": 53,
+   "ink": [
+    430,
+    900,
+    460,
+    913
+   ]
+  },
+  {
+   "group": "mods_block",
+   "name": "mod_3_mult",
+   "kind": "text",
+   "font": "Inter18pt-Regular",
+   "cjkFont": "YuGothic-Medium",
+   "sizePx": 16,
+   "color": "#8C97A9",
+   "x": 320,
+   "y": 900,
+   "justify": "center",
+   "example": "x1.5",
+   "freeWidthPx": 640,
+   "maxChars": 64,
+   "ink": [
+    320,
+    900,
+    350,
+    913
+   ]
+  },
+  {
+   "group": "mods_block",
+   "name": "mod_2_mult",
+   "kind": "text",
+   "font": "Inter18pt-Regular",
+   "cjkFont": "YuGothic-Medium",
+   "sizePx": 16,
+   "color": "#8C97A9",
+   "x": 210,
+   "y": 900,
+   "justify": "center",
+   "example": "x1.5",
+   "freeWidthPx": 750,
+   "maxChars": 75,
+   "ink": [
+    210,
+    900,
+    240,
+    913
+   ]
+  },
+  {
+   "group": "mods_block",
+   "name": "mod_1_mult",
+   "kind": "text",
+   "font": "Inter18pt-Regular",
+   "cjkFont": "YuGothic-Medium",
+   "sizePx": 16,
+   "color": "#8C97A9",
+   "x": 100,
+   "y": 900,
+   "justify": "center",
+   "example": "x1.5",
+   "freeWidthPx": 860,
+   "maxChars": 86,
+   "ink": [
+    100,
+    900,
+    130,
+    913
+   ]
+  },
+  {
+   "group": "mods_block",
+   "name": "_deco_mods_label",
+   "kind": "text",
+   "font": "Inter18pt-Regular",
+   "cjkFont": "YuGothic-Medium",
+   "sizePx": 15,
+   "color": "#8C96A9",
+   "x": 61,
+   "y": 830,
+   "justify": "left",
+   "example": "MODS",
+   "freeWidthPx": 899,
+   "maxChars": 96,
+   "ink": [
+    61,
+    830,
+    108,
+    842
+   ]
+  },
+  {
+   "group": "secondary_stats",
+   "name": "map_max_combo",
+   "kind": "text",
+   "font": "Inter18pt-Bold",
+   "cjkFont": "YuGothic-Medium",
+   "sizePx": 30,
+   "color": "#8C97A9",
+   "x": 981,
+   "y": 591,
+   "justify": "left",
+   "example": "2,109x",
+   "freeWidthPx": 259,
+   "maxChars": 13,
+   "ink": [
+    981,
+    591,
+    1074,
+    620
+   ]
+  },
+  {
+   "group": "secondary_stats",
+   "name": "_deco_map_combo_label",
+   "kind": "text",
+   "font": "Inter18pt-Regular",
+   "cjkFont": "YuGothic-Medium",
+   "sizePx": 15,
+   "color": "#8C96A9",
+   "x": 981,
+   "y": 567,
+   "justify": "left",
+   "example": "MAP COMBO",
+   "freeWidthPx": 259,
+   "maxChars": 27,
+   "ink": [
+    981,
+    567,
+    1074,
+    579
+   ]
+  },
+  {
+   "group": "secondary_stats",
+   "name": "max_combo",
+   "kind": "text",
+   "font": "Inter18pt-Bold",
+   "cjkFont": "YuGothic-Medium",
+   "sizePx": 46,
+   "color": "#8C97A9",
+   "x": 721,
+   "y": 591,
+   "justify": "left",
+   "example": "1,847x",
+   "freeWidthPx": 239,
+   "maxChars": 8,
+   "ink": [
+    721,
+    591,
+    865,
+    634
+   ]
+  },
+  {
+   "group": "secondary_stats",
+   "name": "_deco_combo_label",
+   "kind": "text",
+   "font": "Inter18pt-Regular",
+   "cjkFont": "YuGothic-Medium",
+   "sizePx": 15,
+   "color": "#8C96A9",
+   "x": 720,
+   "y": 567,
+   "justify": "left",
+   "example": "COMBO",
+   "freeWidthPx": 240,
+   "maxChars": 25,
+   "ink": [
+    720,
+    567,
+    776,
+    579
+   ]
+  },
+  {
+   "group": "secondary_stats",
+   "name": "score",
+   "kind": "text",
+   "font": "Inter18pt-Bold",
+   "cjkFont": "YuGothic-Medium",
+   "sizePx": 46,
+   "color": "#EAEEF6",
+   "x": 721,
+   "y": 500,
+   "justify": "left",
+   "example": "1,000,000",
+   "freeWidthPx": 239,
+   "maxChars": 8,
+   "ink": [
+    721,
+    500,
+    947,
+    543
+   ]
+  },
+  {
+   "group": "secondary_stats",
+   "name": "_deco_score_label",
+   "kind": "text",
+   "font": "Inter18pt-Regular",
+   "cjkFont": "YuGothic-Medium",
+   "sizePx": 15,
+   "color": "#8C96A9",
+   "x": 720,
+   "y": 476,
+   "justify": "left",
+   "example": "SCORE",
+   "freeWidthPx": 240,
+   "maxChars": 25,
+   "ink": [
+    720,
+    476,
+    770,
+    488
+   ]
+  },
+  {
+   "group": "secondary_stats",
+   "name": "_deco_judgement_label",
+   "kind": "text",
+   "font": "Inter18pt-Regular",
+   "cjkFont": "YuGothic-Medium",
+   "sizePx": 15,
+   "color": "#8C96A9",
+   "x": 60,
+   "y": 714,
+   "justify": "left",
+   "example": "JUDGEMENT",
+   "freeWidthPx": 900,
+   "maxChars": 96,
+   "ink": [
+    60,
+    714,
+    163,
+    726
+   ]
+  },
+  {
+   "group": "secondary_stats",
+   "name": "count_miss",
+   "kind": "text",
+   "font": "Inter18pt-Regular",
+   "cjkFont": "YuGothic-Medium",
+   "sizePx": 26,
+   "color": "#8C97A9",
+   "x": 1105,
+   "y": 762,
+   "justify": "left",
+   "example": "0",
+   "freeWidthPx": 135,
+   "maxChars": 8,
+   "ink": [
+    1105,
+    762,
+    1119,
+    783
+   ]
+  },
+  {
+   "group": "secondary_stats",
+   "name": "count_50",
+   "kind": "text",
+   "font": "Inter18pt-Regular",
+   "cjkFont": "YuGothic-Medium",
+   "sizePx": 26,
+   "color": "#8C97A9",
+   "x": 909,
+   "y": 762,
+   "justify": "left",
+   "example": "2",
+   "freeWidthPx": 51,
+   "maxChars": 3,
+   "ink": [
+    909,
+    762,
+    922,
+    782
+   ]
+  },
+  {
+   "group": "secondary_stats",
+   "name": "count_100",
+   "kind": "text",
+   "font": "Inter18pt-Regular",
+   "cjkFont": "YuGothic-Medium",
+   "sizePx": 26,
+   "color": "#8C97A9",
+   "x": 713,
+   "y": 762,
+   "justify": "left",
+   "example": "12",
+   "freeWidthPx": 247,
+   "maxChars": 15,
+   "ink": [
+    713,
+    762,
+    737,
+    782
+   ]
+  },
+  {
+   "group": "secondary_stats",
+   "name": "count_200",
+   "kind": "text",
+   "font": "Inter18pt-Regular",
+   "cjkFont": "YuGothic-Medium",
+   "sizePx": 26,
+   "color": "#8C97A9",
+   "x": 517,
+   "y": 762,
+   "justify": "left",
+   "example": "0",
+   "freeWidthPx": 443,
+   "maxChars": 27,
+   "ink": [
+    517,
+    762,
+    531,
+    783
+   ]
+  },
+  {
+   "group": "secondary_stats",
+   "name": "count_300",
+   "kind": "text",
+   "font": "Inter18pt-Regular",
+   "cjkFont": "YuGothic-Medium",
+   "sizePx": 26,
+   "color": "#8C97A9",
+   "x": 321,
+   "y": 762,
+   "justify": "left",
+   "example": "1847",
+   "freeWidthPx": 639,
+   "maxChars": 39,
+   "ink": [
+    321,
+    762,
+    376,
+    783
+   ]
+  },
+  {
+   "group": "secondary_stats",
+   "name": "count_max",
+   "kind": "text",
+   "font": "Inter18pt-Regular",
+   "cjkFont": "YuGothic-Medium",
+   "sizePx": 26,
+   "color": "#8C97A9",
+   "x": 125,
+   "y": 762,
+   "justify": "left",
+   "example": "2103",
+   "freeWidthPx": 835,
+   "maxChars": 51,
+   "ink": [
+    125,
+    762,
+    181,
+    783
+   ]
+  },
+  {
+   "group": "primary_stats",
+   "name": "accuracy_lazer",
+   "kind": "text",
+   "font": "Inter18pt-Bold",
+   "cjkFont": "YuGothic-Medium",
+   "sizePx": 26,
+   "color": "#8C97A9",
+   "x": 981,
+   "y": 682,
+   "justify": "left",
+   "example": "98.12%",
+   "freeWidthPx": 259,
+   "maxChars": 16,
+   "ink": [
+    981,
+    682,
+    1070,
+    703
+   ]
+  },
+  {
+   "group": "primary_stats",
+   "name": "_deco_accuracy_lazer_label",
+   "kind": "text",
+   "font": "Inter18pt-Regular",
+   "cjkFont": "YuGothic-Medium",
+   "sizePx": 15,
+   "color": "#8C96A9",
+   "x": 981,
+   "y": 658,
+   "justify": "left",
+   "example": "LAZER ACC",
+   "freeWidthPx": 259,
+   "maxChars": 27,
+   "ink": [
+    981,
+    658,
+    1062,
+    670
+   ]
+  },
+  {
+   "group": "primary_stats",
+   "name": "accuracy",
+   "kind": "text",
+   "font": "Inter18pt-Bold",
+   "cjkFont": "YuGothic-Medium",
+   "sizePx": 62,
+   "color": "#EAEEF6",
+   "x": 722,
+   "y": 682,
+   "justify": "left",
+   "example": "99.87%",
+   "freeWidthPx": 238,
+   "maxChars": 6,
+   "ink": [
+    722,
+    682,
+    948,
+    729
+   ]
+  },
+  {
+   "group": "primary_stats",
+   "name": "_deco_accuracy_label",
+   "kind": "text",
+   "font": "Inter18pt-Regular",
+   "cjkFont": "YuGothic-Medium",
+   "sizePx": 15,
+   "color": "#8C96A9",
+   "x": 720,
+   "y": 658,
+   "justify": "left",
+   "example": "ACCURACY",
+   "freeWidthPx": 240,
+   "maxChars": 25,
+   "ink": [
+    720,
+    658,
+    803,
+    670
+   ]
+  },
+  {
+   "group": "primary_stats",
+   "name": "pp_max",
+   "kind": "text",
+   "font": "Inter18pt-Bold",
+   "cjkFont": "YuGothic-Medium",
+   "sizePx": 36,
+   "color": "#8C97A9",
+   "x": 981,
+   "y": 395,
+   "justify": "left",
+   "example": "612pp",
+   "freeWidthPx": 259,
+   "maxChars": 11,
+   "ink": [
+    981,
+    395,
+    1084,
+    430
+   ]
+  },
+  {
+   "group": "primary_stats",
+   "name": "_deco_pp_max_label",
+   "kind": "text",
+   "font": "Inter18pt-Regular",
+   "cjkFont": "YuGothic-Medium",
+   "sizePx": 15,
+   "color": "#8C96A9",
+   "x": 981,
+   "y": 371,
+   "justify": "left",
+   "example": "MAX PP",
+   "freeWidthPx": 259,
+   "maxChars": 27,
+   "ink": [
+    981,
+    371,
+    1036,
+    382
+   ]
+  },
+  {
+   "group": "primary_stats",
+   "name": "pp",
+   "kind": "text",
+   "font": "Inter18pt-Bold",
+   "cjkFont": "YuGothic-Medium",
+   "sizePx": 62,
+   "color": "#EAEEF6",
+   "x": 722,
+   "y": 395,
+   "justify": "left",
+   "example": "512pp",
+   "freeWidthPx": 238,
+   "maxChars": 6,
+   "ink": [
+    722,
+    395,
+    898,
+    454
+   ]
+  },
+  {
+   "group": "primary_stats",
+   "name": "_deco_pp_label",
+   "kind": "text",
+   "font": "Inter18pt-Regular",
+   "cjkFont": "YuGothic-Medium",
+   "sizePx": 15,
+   "color": "#8C96A9",
+   "x": 720,
+   "y": 371,
+   "justify": "left",
+   "example": "PP",
+   "freeWidthPx": 240,
+   "maxChars": 25,
+   "ink": [
+    720,
+    371,
+    738,
+    382
+   ]
+  },
+  {
+   "group": "primary_stats",
+   "name": "total_pp",
+   "kind": "text",
+   "font": "Inter18pt-Bold",
+   "cjkFont": "YuGothic-Medium",
+   "sizePx": 30,
+   "color": "#EAEEF6",
+   "x": 721,
+   "y": 315,
+   "justify": "left",
+   "example": "12,345pp",
+   "freeWidthPx": 239,
+   "maxChars": 12,
+   "ink": [
+    721,
+    315,
+    854,
+    344
+   ]
+  },
+  {
+   "group": "primary_stats",
+   "name": "_deco_total_pp_label",
+   "kind": "text",
+   "font": "Inter18pt-Regular",
+   "cjkFont": "YuGothic-Medium",
+   "sizePx": 15,
+   "color": "#8C96A9",
+   "x": 720,
+   "y": 294,
+   "justify": "left",
+   "example": "TOTAL PP",
+   "freeWidthPx": 240,
+   "maxChars": 25,
+   "ink": [
+    720,
+    294,
+    790,
+    306
+   ]
+  },
+  {
+   "group": "rank_block",
+   "name": "rank_d",
+   "kind": "text",
+   "font": "Montserrat-Black",
+   "cjkFont": "YuGothic-Medium",
+   "sizePx": 170,
+   "color": "#EAEEF6",
+   "x": 899,
+   "y": 145,
+   "justify": "center",
+   "example": "D",
+   "freeWidthPx": 61,
+   "maxChars": 1,
+   "ink": [
+    899,
+    145,
+    1026,
+    264
+   ]
+  },
+  {
+   "group": "rank_block",
+   "name": "rank_c",
+   "kind": "text",
+   "font": "Montserrat-Black",
+   "cjkFont": "YuGothic-Medium",
+   "sizePx": 170,
+   "color": "#EAEEF6",
+   "x": 901,
+   "y": 142,
+   "justify": "center",
+   "example": "C",
+   "freeWidthPx": 59,
+   "maxChars": 1,
+   "ink": [
+    901,
+    142,
+    1022,
+    267
+   ]
+  },
+  {
+   "group": "rank_block",
+   "name": "rank_b",
+   "kind": "text",
+   "font": "Montserrat-Black",
+   "cjkFont": "YuGothic-Medium",
+   "sizePx": 170,
+   "color": "#EAEEF6",
+   "x": 903,
+   "y": 145,
+   "justify": "center",
+   "example": "B",
+   "freeWidthPx": 57,
+   "maxChars": 1,
+   "ink": [
+    903,
+    145,
+    1021,
+    264
+   ]
+  },
+  {
+   "group": "rank_block",
+   "name": "rank_a",
+   "kind": "text",
+   "font": "Montserrat-Black",
+   "cjkFont": "YuGothic-Medium",
+   "sizePx": 170,
+   "color": "#EAEEF6",
+   "x": 888,
+   "y": 145,
+   "justify": "center",
+   "example": "A",
+   "freeWidthPx": 72,
+   "maxChars": 1,
+   "ink": [
+    888,
+    145,
+    1032,
+    264
+   ]
+  },
+  {
+   "group": "rank_block",
+   "name": "rank_sh",
+   "kind": "text",
+   "font": "Montserrat-Black",
+   "cjkFont": "YuGothic-Medium",
+   "sizePx": 170,
+   "color": "#EAEEF6",
+   "x": 841,
+   "y": 142,
+   "justify": "center",
+   "example": "SH",
+   "freeWidthPx": 119,
+   "maxChars": 1,
+   "ink": [
+    841,
+    142,
+    1071,
+    267
+   ]
+  },
+  {
+   "group": "rank_block",
+   "name": "rank_s",
+   "kind": "text",
+   "font": "Montserrat-Black",
+   "cjkFont": "YuGothic-Medium",
+   "sizePx": 170,
+   "color": "#EAEEF6",
+   "x": 906,
+   "y": 142,
+   "justify": "center",
+   "example": "S",
+   "freeWidthPx": 54,
+   "maxChars": 1,
+   "ink": [
+    906,
+    142,
+    1014,
+    267
+   ]
+  },
+  {
+   "group": "rank_block",
+   "name": "rank_xh",
+   "kind": "text",
+   "font": "Montserrat-Black",
+   "cjkFont": "YuGothic-Medium",
+   "sizePx": 170,
+   "color": "#EAEEF6",
+   "x": 830,
+   "y": 145,
+   "justify": "center",
+   "example": "XH",
+   "freeWidthPx": 130,
+   "maxChars": 1,
+   "ink": [
+    830,
+    145,
+    1078,
+    264
+   ]
+  },
+  {
+   "group": "rank_block",
+   "name": "rank_ss",
+   "kind": "text",
+   "font": "Montserrat-Black",
+   "cjkFont": "YuGothic-Medium",
+   "sizePx": 170,
+   "color": "#EAEEF6",
+   "x": 854,
+   "y": 142,
+   "justify": "center",
+   "example": "SS",
+   "freeWidthPx": 106,
+   "maxChars": 1,
+   "ink": [
+    854,
+    142,
+    1067,
+    267
+   ]
+  },
+  {
+   "group": "beatmap_info",
+   "name": "server_tag",
+   "kind": "text",
+   "font": "YuGothic-Medium",
+   "cjkFont": "YuGothic-Medium",
+   "sizePx": 18,
+   "color": "#8C96A9",
+   "x": 170,
+   "y": 249,
+   "justify": "left",
+   "example": "官方",
+   "freeWidthPx": 480,
+   "maxChars": 14,
+   "ink": [
+    170,
+    249,
+    204,
+    266
+   ],
+   "note": "分服标识。官服 -> 「官方」#8C96A9；SB 私服 -> 「SB 私服」#4FC3F7。由 card.build_card 按成绩的 server 字段填（server_tag / server_tag_color），main._text_jobs 把颜色转成 accent 交给渲染器。"
+  }
+ ],
+ "rasterSlots": [
+  {
+   "group": "beatmap_stats",
+   "name": "star_strip",
+   "kind": "raster",
+   "note": "星级条",
+   "x": 75,
+   "y": 326,
+   "w": 569,
+   "h": 52
+  },
+  {
+   "group": "beatmap_stats",
+   "name": "od_bar",
+   "kind": "raster",
+   "note": "OD 进度条",
+   "x": 60,
+   "y": 520,
+   "w": 600,
+   "h": 12
+  },
+  {
+   "group": "beatmap_stats",
+   "name": "hp_bar",
+   "kind": "raster",
+   "note": "HP 进度条",
+   "x": 60,
+   "y": 588,
+   "w": 600,
+   "h": 12
+  },
+  {
+   "group": "player_info",
+   "name": "player_avatar",
+   "kind": "raster",
+   "note": "头像（椭圆）",
+   "x": 922,
+   "y": 60,
+   "w": 116,
+   "h": 116
+  },
+  {
+   "group": "mods_block",
+   "name": "mod_1..mod_6",
+   "kind": "raster",
+   "note": "mod 徽章 48px 高，间距 110，起点 x60",
+   "x": 64,
+   "y": 842,
+   "w": 0,
+   "h": 48
+  },
+  {
+   "group": "mods_block",
+   "name": "mod_N_mult",
+   "kind": "text",
+   "note": "mod 倍率，由插件填",
+   "x": 210,
+   "y": 900,
+   "w": 0,
+   "h": 13
+  },
+  {
+   "group": "secondary_stats",
+   "name": "_deco_jicon_count_max",
+   "kind": "raster",
+   "note": "判定图标 56x56",
+   "x": 60,
+   "y": 745,
+   "w": 0,
+   "h": 56
+  },
+  {
+   "group": "signboard",
+   "name": "signboard_*",
+   "kind": "raster",
+   "note": "立绘，按评级切换可见性",
+   "x": 1277,
+   "y": 0,
+   "w": 643,
+   "h": 1080
+  },
+  {
+   "group": "panel",
+   "name": "panel_glass",
+   "kind": "raster",
+   "note": "毛玻璃底板（跟随背景生成）",
+   "x": 40,
+   "y": 40,
+   "w": 1216,
+   "h": 980
+  },
+  {
+   "group": "panel",
+   "name": "panel_border",
+   "kind": "raster",
+   "note": "底板描边 1px 白 16%",
+   "x": 40,
+   "y": 40,
+   "w": 1216,
+   "h": 980
+  },
+  {
+   "group": "watermark_slot",
+   "name": "watermark",
+   "kind": "raster",
+   "note": "水印槽 180x60",
+   "x": 60,
+   "y": 950,
+   "w": 180,
+   "h": 60
+  },
+  {
+   "group": "signboard",
+   "name": "rank_glow",
+   "kind": "raster",
+   "note": "立绘辉光，screen 混合，垫在 signboard 组最底层",
+   "x": 845,
+   "y": 0,
+   "w": 1075,
+   "h": 1080
+  }
+ ],
+ "rankColors": [
+  {
+   "key": "XH",
+   "label": "XH",
+   "name": "All Perfect + Hidden",
+   "color": "#FFE45C",
+   "accentContrast": 15,
+   "glowStrength": 0.62,
+   "tintStrength": 0.26
+  },
+  {
+   "key": "SS",
+   "label": "SS",
+   "name": "All Perfect",
+   "color": "#FFCB3D",
+   "accentContrast": 12.6,
+   "glowStrength": 0.58,
+   "tintStrength": 0.24
+  },
+  {
+   "key": "SH",
+   "label": "SH",
+   "name": "Full Combo + Hidden",
+   "color": "#D9E2EF",
+   "accentContrast": 14.61,
+   "glowStrength": 0.46,
+   "tintStrength": 0.18
+  },
+  {
+   "key": "S",
+   "label": "S",
+   "name": "Full Combo",
+   "color": "#FFB93D",
+   "accentContrast": 11.14,
+   "glowStrength": 0.5,
+   "tintStrength": 0.21
+  },
+  {
+   "key": "A",
+   "label": "A",
+   "name": "A",
+   "color": "#6BC24A",
+   "accentContrast": 8.58,
+   "glowStrength": 0.42,
+   "tintStrength": 0.17
+  },
+  {
+   "key": "B",
+   "label": "B",
+   "name": "B",
+   "color": "#4A9BE8",
+   "accentContrast": 6.5,
+   "glowStrength": 0.4,
+   "tintStrength": 0.16
+  },
+  {
+   "key": "C",
+   "label": "C",
+   "name": "C",
+   "color": "#A25CE0",
+   "accentContrast": 4.68,
+   "glowStrength": 0.38,
+   "tintStrength": 0.15
+  },
+  {
+   "key": "D",
+   "label": "D",
+   "name": "D",
+   "color": "#E8503F",
+   "accentContrast": 5.14,
+   "glowStrength": 0.38,
+   "tintStrength": 0.15
+  },
+  {
+   "key": "F",
+   "label": "F",
+   "name": "Fail",
+   "color": "#C05A5A",
+   "accentContrast": 4.0,
+   "glowStrength": 0.32,
+   "tintStrength": 0.13
+  }
+ ],
+ "rankTheme": {
+  "note": "一个评级驱动三处：背景染色(_deco_bg_gradient) / 立绘辉光(rank_glow, screen) / 准确率强调色(accuracy)。生成器 rank_theme.js，模板当前装的是 A。",
+  "bgGradientLayer": {
+   "group": "bg",
+   "name": "_deco_bg_gradient",
+   "blend": "normal",
+   "size": [
+    1920,
+    1080
+   ],
+   "default": "S"
+  },
+  "rankGlowLayer": {
+   "group": "signboard",
+   "name": "rank_glow",
+   "blend": "screen",
+   "size": [
+    1920,
+    1080
+   ],
+   "default": "S"
+  },
+  "accentTextLayer": {
+   "name": "accuracy",
+   "defaultColor": "#FFB93D"
+  },
+  "default": "A"
+ },
+ "signboards": {
+  "ratio_want": "0.60 ~ 0.70（竖构图）",
+  "anchor": "右边贴 x=1920、底边贴 y=1080、宽度 643px",
+  "available": {
+   "S": {
+    "source": "723x1188",
+    "placed": [
+     643,
+     1056
+    ],
+    "at": [
+     1277,
+     24
+    ]
+   },
+   "B": {
+    "source": "1358x1920",
+    "placed": [
+     643,
+     909
+    ],
+    "at": [
+     1277,
+     171
+    ]
+   },
+   "A": {
+    "source": "1145x1374",
+    "placed": [
+     643,
+     770
+    ],
+    "at": [
+     1277,
+     310
+    ]
+   }
+  },
+  "missing": [
+   "XH",
+   "SS",
+   "SH",
+   "C",
+   "D"
+  ],
+  "note": "A 的源图偏方(0.83)，所以比 B 矮 139px、上方空 310px。要填满需要 0.6~0.7 的竖构图源图。"
+ },
+ "render": {
+  "bgDimPct": 74.9019607843137,
+  "panel": {
+   "box": [
+    40,
+    40,
+    1256,
+    1020
+   ],
+   "radius": 36,
+   "blur": 44,
+   "keep": 0.5,
+   "desat": 0.25,
+   "tint": [
+    10,
+    14,
+    22
+   ],
+   "borderRGBA": [
+    255,
+    255,
+    255,
+    41
+   ]
+  },
+  "signboard": {
+   "width": 643,
+   "anchorRight": 1920,
+   "anchorBottom": 1080
+  },
+  "overlayOpacity": 74.9019607843137,
+  "gradientBlend": "BlendMode.NORMAL",
+  "glowBlend": "BlendMode.SCREEN",
+  "panelGlass": [
+   40,
+   40,
+   1256,
+   1020
+  ],
+  "panelBorder": [
+   40,
+   40,
+   1256,
+   1020
+  ]
+ }
+}

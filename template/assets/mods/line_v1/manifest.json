@@ -1,0 +1,78 @@
+{
+  "color": "#A8B2C4",
+  "strokeWidth": 26,
+  "canvas": 512,
+  "style": "rounded monochrome outline",
+  "mods": [
+    {
+      "key": "hd",
+      "label": "HD",
+      "name": "Hidden",
+      "svg": "mod_hd.svg",
+      "png": "mod_hd.png"
+    },
+    {
+      "key": "dt",
+      "label": "DT",
+      "name": "Double Time",
+      "svg": "mod_dt.svg",
+      "png": "mod_dt.png"
+    },
+    {
+      "key": "ht",
+      "label": "HT",
+      "name": "Half Time",
+      "svg": "mod_ht.svg",
+      "png": "mod_ht.png"
+    },
+    {
+      "key": "hr",
+      "label": "HR",
+      "name": "Hard Rock",
+      "svg": "mod_hr.svg",
+      "png": "mod_hr.png"
+    },
+    {
+      "key": "ez",
+      "label": "EZ",
+      "name": "Easy",
+      "svg": "mod_ez.svg",
+      "png": "mod_ez.png"
+    },
+    {
+      "key": "fl",
+      "label": "FL",
+      "name": "Flashlight",
+      "svg": "mod_fl.svg",
+      "png": "mod_fl.png"
+    },
+    {
+      "key": "nf",
+      "label": "NF",
+      "name": "No Fail",
+      "svg": "mod_nf.svg",
+      "png": "mod_nf.png"
+    },
+    {
+      "key": "so",
+      "label": "SO",
+      "name": "Spun Out",
+      "svg": "mod_so.svg",
+      "png": "mod_so.png"
+    },
+    {
+      "key": "sd",
+      "label": "SD",
+      "name": "Sudden Death",
+      "svg": "mod_sd.svg",
+      "png": "mod_sd.png"
+    },
+    {
+      "key": "pf",
+      "label": "PF",
+      "name": "Perfect",
+      "svg": "mod_pf.svg",
+      "png": "mod_pf.png"
+    }
+  ]
+}

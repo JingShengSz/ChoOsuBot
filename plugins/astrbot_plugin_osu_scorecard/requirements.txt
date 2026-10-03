@@ -1,0 +1,16 @@
+# This plugin runs inside AstrBot's own venv, which already ships everything it
+# needs — nothing here has to be installed separately:
+#
+#   Pillow      -> raster.py   (star strip, OD/HP bars, avatar, mod badges)
+#   aiohttp     -> main.py     (background and avatar downloads)
+#   pywin32     -> psd.py      (COM bridge to Photoshop)
+#
+# Only two things outside pip are required, and neither is a Python package:
+#
+#   1. Adobe Photoshop installed on the same machine
+#   2. The Cho Osu Bot template + assets, at the paths in _conf_schema.json
+#
+# Listed for completeness; `pip install -r requirements.txt` is a no-op here.
+Pillow>=10.0
+aiohttp>=3.9
+pywin32>=306

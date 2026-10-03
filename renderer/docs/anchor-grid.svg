@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 520" font-family="-apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif">
+  <text x="340" y="30" text-anchor="middle" font-size="14" font-weight="500" fill="#111">1920×1080 九宫格 Anchor（JSON 整型）与像素坐标</text>
+  <text x="340" y="52" text-anchor="middle" font-size="11" fill="#555">Position = 相对锚点的偏移；锚点像素 = 下表坐标</text>
+
+  <!-- frame 1920x1080 scaled -->
+  <rect x="70" y="80" width="540" height="304" rx="4" fill="#f6f7f9" stroke="#222" stroke-width="1.5"/>
+
+  <!-- grid lines -->
+  <line x1="250" y1="80" x2="250" y2="384" stroke="#c5c9d0" stroke-width="0.5" stroke-dasharray="4 3"/>
+  <line x1="430" y1="80" x2="430" y2="384" stroke="#c5c9d0" stroke-width="0.5" stroke-dasharray="4 3"/>
+  <line x1="70" y1="181.3" x2="610" y2="181.3" stroke="#c5c9d0" stroke-width="0.5" stroke-dasharray="4 3"/>
+  <line x1="70" y1="282.7" x2="610" y2="282.7" stroke="#c5c9d0" stroke-width="0.5" stroke-dasharray="4 3"/>
+
+  <!-- 9 points: cx = 70+540*fx, cy = 80+304*fy -->
+  <!-- TopLeft 9 (0,0) -->
+  <circle cx="70" cy="80" r="5" fill="#2563eb"/>
+  <text x="78" y="72" font-size="11" fill="#111">TopLeft  9</text>
+  <text x="78" y="86" font-size="11" fill="#2563eb">(0, 0)</text>
+
+  <!-- TopCentre 10 (960,0) -->
+  <circle cx="340" cy="80" r="5" fill="#2563eb"/>
+  <text x="348" y="72" font-size="11" fill="#111">TopCentre  10</text>
+  <text x="348" y="86" font-size="11" fill="#2563eb">(960, 0)</text>
+
+  <!-- TopRight 12 (1920,0) -->
+  <circle cx="610" cy="80" r="5" fill="#2563eb"/>
+  <text x="602" y="72" font-size="11" text-anchor="end" fill="#111">TopRight  12</text>
+  <text x="602" y="86" font-size="11" text-anchor="end" fill="#2563eb">(1920, 0)</text>
+
+  <!-- CentreLeft 17 (0,540) -->
+  <circle cx="70" cy="232" r="5" fill="#2563eb"/>
+  <text x="78" y="224" font-size="11" fill="#111">CentreLeft  17</text>
+  <text x="78" y="238" font-size="11" fill="#2563eb">(0, 540)</text>
+
+  <!-- Centre 18 (960,540) -->
+  <circle cx="340" cy="232" r="5" fill="#2563eb"/>
+  <text x="348" y="224" font-size="11" fill="#111">Centre  18</text>
+  <text x="348" y="238" font-size="11" fill="#2563eb">(960, 540)</text>
+
+  <!-- CentreRight 20 (1920,540) -->
+  <circle cx="610" cy="232" r="5" fill="#2563eb"/>
+  <text x="602" y="224" font-size="11" text-anchor="end" fill="#111">CentreRight  20</text>
+  <text x="602" y="238" font-size="11" text-anchor="end" fill="#2563eb">(1920, 540)</text>
+
+  <!-- BottomLeft 33 (0,1080) -->
+  <circle cx="70" cy="384" r="5" fill="#2563eb"/>
+  <text x="78" y="376" font-size="11" fill="#111">BottomLeft  33</text>
+  <text x="78" y="390" font-size="11" fill="#2563eb">(0, 1080)</text>
+
+  <!-- BottomCentre 34 (960,1080) -->
+  <circle cx="340" cy="384" r="5" fill="#2563eb"/>
+  <text x="348" y="376" font-size="11" fill="#111">BottomCentre  34</text>
+  <text x="348" y="390" font-size="11" fill="#2563eb">(960, 1080)</text>
+
+  <!-- BottomRight 36 (1920,1080) -->
+  <circle cx="610" cy="384" r="5" fill="#2563eb"/>
+  <text x="602" y="376" font-size="11" text-anchor="end" fill="#111">BottomRight  36</text>
+  <text x="602" y="390" font-size="11" text-anchor="end" fill="#2563eb">(1920, 1080)</text>
+
+  <!-- Default Layout proposal -->
+  <rect x="70" y="420" width="540" height="80" rx="8" fill="#fff" stroke="#ddd" stroke-width="0.5"/>
+  <text x="86" y="442" font-size="12" font-weight="500" fill="#111">Default Layout 建议（Q29-A）· Position 为锚点偏移</text>
+  <text x="86" y="462" font-size="11" fill="#333">Combo → TopCentre 10 · (0, 177.6)          SongProgress → TopRight 12 · (−90, 20)</text>
+  <text x="86" y="480" font-size="11" fill="#333">BeatmapAttributeText → TopLeft 9 · (20, 20)   BPM → TopRight 12 · (−20, 70)</text>
+  <text x="86" y="494" font-size="11" fill="#333">ClicksPerSecond → BottomRight 36 · (−20, −50)   BarHitErrorMeter（仅有 Replay）→ BottomCentre 34</text>
+</svg>

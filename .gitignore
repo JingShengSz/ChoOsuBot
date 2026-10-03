@@ -1,0 +1,78 @@
+# ─────────────────────────────────────────────────────────────
+# 凭据与令牌 —— 绝对不能进仓库
+# ─────────────────────────────────────────────────────────────
+# osu! OAuth 应用凭据（含 client_secret）
+renderer/data/osu_oauth.local.json
+**/osu_oauth.local.json
+# OAuth 用户令牌（access / refresh）
+**/osu_token.json
+**/osu_store.json
+**/oauth_pending.json
+# AstrBot 生成的插件配置（里面可能存了用户填的密钥）
+**/astrbot_plugin_*_config.json
+# 通用兜底
+*.secret
+*.token
+.env
+.env.*
+
+# ─────────────────────────────────────────────────────────────
+# 商业字体 —— 不能随仓库分发
+# ─────────────────────────────────────────────────────────────
+# Yu Gothic（微软/Adobe 授权）。本机和自己服务器上放没问题，
+# 公开仓库不能带。要部署请从自己 Windows 的 C:\Windows\Fonts\ 复制：
+#     fonts_private/YuGothM.ttc
+plugins/**/fonts_private/
+plugins/**/data/fonts/
+**/YuGoth*.ttc
+**/meiryo*.ttc
+**/msgothic*.ttc
+**/msyh*.ttc
+# 模板 assets 下的字体安装包源文件（36 MB，渲染用不到）
+template/assets/fonts/
+
+# ─────────────────────────────────────────────────────────────
+# 大体积产物 / 缓存（可再生成）
+# ─────────────────────────────────────────────────────────────
+renderer/cache/
+renderer/out/
+renderer/data/temp/
+renderer/tools/_engine_cutover/
+**/chrome-gpu-profile/
+**/chrome-profile/
+scratch/
+**/__pycache__/
+*.pyc
+*.pyo
+**/tests/out/
+
+# ─────────────────────────────────────────────────────────────
+# 设计源文件（PSD 共约 78 MB，太大不适合 git）
+# ─────────────────────────────────────────────────────────────
+# 模板的版式规格是 template/layer_mapping.json —— 渲染只读它，PSD 只是设计源。
+# 需要 PSD 请单独索取。
+template/*.psd
+# 立绘的原始设定图（22 MB）—— 成品 signboard_*.png 已在仓库里
+template/assets/signboards/character_*.png
+# 原始美术素材归档
+sources/
+
+# ─────────────────────────────────────────────────────────────
+# 重复副本（renderer/ 下是插件的工作镜像，权威副本在 plugins/）
+# ─────────────────────────────────────────────────────────────
+renderer/astrbot_plugin_osu_scorecard/
+renderer/astrbot_plugin_mania_render/
+renderer/astrbot_plugin_boot_greeting/
+renderer/astrbot_plugin_master_status/
+
+# ─────────────────────────────────────────────────────────────
+# 杂项
+# ─────────────────────────────────────────────────────────────
+*.bak
+*.bak_*
+*.bak.*
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+design/

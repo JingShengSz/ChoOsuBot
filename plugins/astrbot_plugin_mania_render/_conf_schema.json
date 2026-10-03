@@ -1,0 +1,81 @@
+{
+  "server": {
+    "description": "mania-render 服务地址",
+    "hint": "插件本身不渲染，只调用这个 HTTP 服务。同一台机器上就是 http://127.0.0.1:8760",
+    "type": "string",
+    "default": "http://127.0.0.1:8760"
+  },
+  "default_skin": {
+    "description": "默认皮肤",
+    "hint": "留空则用渲染服务声明的默认皮肤（当前是 boj 1-10K）。用 /mania皮肤 可以看服务端有哪些皮肤。",
+    "type": "string",
+    "default": ""
+  },
+  "default_resolution": {
+    "description": "默认分辨率",
+    "hint": "720 或 1080，默认 1080。720p 下皮肤贴图缩放会出问题，除非有特别理由否则别改。用户仍可用 -r 720 / -r 1080 单独覆盖。",
+    "type": "string",
+    "default": "1080",
+    "options": [
+      "1080",
+      "720"
+    ]
+  },
+  "engine": {
+    "description": "渲染引擎",
+    "hint": "留空 = 用服务端默认（当前是 webgl）。webgl：驱动无头 Chromium 跑网页渲染器，画面与网页一致；页面用 WebCodecs 按调用方给定的时间戳编码（不是在录制墙上时钟），所以比实时快——实测 86 秒的谱面约 25 秒（≈0.25 倍谱面时长）。注意整张谱面总会被完整编码一次，range 只是事后裁剪。需要渲染节点上先起好带 GPU 的 Chrome。python：Pillow 渲染器，无浏览器依赖、约 1.3-1.5 倍速，画面与网页有细微差别。",
+    "type": "string",
+    "default": "",
+    "options": [
+      "",
+      "webgl",
+      "python"
+    ]
+  },
+  "video_bitrate_kbps": {
+    "description": "视频码率（kbps）",
+    "hint": "决定成片体积，也就决定了上传通道能不能吃得下。默认 2000（≈2 Mbps）：86 秒的谱面约 24MB，4 分钟的谱面约 60MB，都在 video_file_threshold_mb 以内。实测 6000 时同样 86 秒的谱面是 74.8MB，视频通道发送超时（视频其实已经发出去了），4 分钟会到 200MB 根本发不出去。填 0 表示交给渲染服务的默认值（服务端可用 MANIA_BITRATE 环境变量改）。调大可提升画质，但先确认频道传得动。",
+    "type": "int",
+    "default": 2000
+  },
+  "video_delivery": {
+    "description": "视频投递方式",
+    "hint": "file：把视频文件路径交给协议端（要求协议端和本插件在同一台机器）。url：发链接让协议端自己下载（协议端在别的机器时用这个）。",
+    "type": "string",
+    "default": "file",
+    "options": [
+      "file",
+      "url"
+    ]
+  },
+  "timeout_seconds": {
+    "description": "单个渲染任务的超时（秒）",
+    "hint": "1080p 比 720p 慢不少，2 核服务器渲染一首 3 分钟的图可能要十分钟以上，不要设太小。",
+    "type": "int",
+    "default": 1800
+  },
+  "osu_client_id": {
+    "description": "osu! OAuth 客户端 ID",
+    "hint": "在 https://osu.ppy.sh/home/account/edit 的 OAuth 应用里创建/查看。用途只有一个：调用官方 API 下载成绩回放（/api/v2/scores/<id>/download）。注意 client secret 属于敏感信息，填在本页即可，不要发到聊天里；若已经外泄请去该页面重置。",
+    "type": "string",
+    "default": ""
+  },
+  "osu_client_secret": {
+    "description": "osu! OAuth 客户端密钥",
+    "hint": "与上面的客户端 ID 配套。仅用于 client_credentials 换 token，token 会在内存里缓存到过期，不会写盘。留空则自动渲染成绩链接的功能不可用（会静默跳过）。",
+    "type": "string",
+    "default": ""
+  },
+  "video_file_threshold_mb": {
+    "description": "超过多少 MB 就改用文件形式发送",
+    "hint": "视频消息和文件消息走的是两个不同的上传通道，上限也不同。实测 174MB / 4分11秒 的 1080p 成片在 NapCat 的 highway 上传里传到 85MB 就失败（code 102902），所以默认 80。达到这个体积就改用文件发送；另外视频通道万一失败也会自动回退到文件通道。想永远发视频消息就填一个很大的数。",
+    "type": "int",
+    "default": 80
+  },
+  "poll_interval_seconds": {
+    "description": "查询渲染进度的间隔（秒）",
+    "hint": "进度只写进 AstrBot 日志，不会发到聊天里；改这个只影响日志的频率。",
+    "type": "float",
+    "default": 5.0
+  }
+}

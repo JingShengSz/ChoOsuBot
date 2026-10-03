@@ -1,0 +1,35 @@
+name: astrbot_plugin_osu_scorecard
+display_name: osu!mania 成绩卡
+desc: |
+  把一个 osu! 成绩渲染成 1920x1080 的成绩卡图片并发到聊天。
+
+  卡片本体是本机的 PSD 模板（D:\Cho Osu Bot\template\osu_score_template_v1.psd），
+  插件用 COM 驱动 Photoshop 填写字段、换背景、按评级换立绘与配色，再导出 PNG。
+  星级条与 OD/HP 条按每局数值实时生成。
+
+  用法：
+  · p                 最近「通过」的成绩
+  · r                 最近「游玩」的成绩
+  · s <id|链接>       指定一个成绩
+  · bind <用户名>     绑定 osu! 账号
+  · 消息里出现 osu.ppy.sh/scores/<数字> 链接会自动出图
+
+  注意：p / r 依赖 osu! 的「最近成绩」接口，该接口对应用凭据返回 404，
+  需要用户授权才能用。目前 s 和链接识别完全可用。
+version: 1.0.0
+author: OwO
+repo: ""
+short_desc: 把 osu! 成绩渲染成成绩卡图片发到群里
+tags:
+  - osu
+  - mania
+  - score
+  - image
+  - photoshop
+astrbot_version: ">=4.0.0"
+support_platforms:
+  - aiocqhttp
+  - qq_official
+  - satori
+  - webchat
+config: true

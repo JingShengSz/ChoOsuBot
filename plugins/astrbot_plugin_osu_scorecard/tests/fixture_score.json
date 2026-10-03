@@ -1,0 +1,973 @@
+{
+ "_note": "Frozen osu! API responses for the offline self-test. Public data only.",
+ "_score_id": "6645548845",
+ "score": {
+  "classic_total_score": 984196,
+  "preserve": true,
+  "processed": true,
+  "ranked": true,
+  "maximum_statistics": {
+   "perfect": 2922,
+   "ignore_hit": 888
+  },
+  "mods": [],
+  "statistics": {
+   "good": 10,
+   "great": 617,
+   "perfect": 2295,
+   "ignore_hit": 888
+  },
+  "beatmap_id": 5493536,
+  "best_id": null,
+  "id": 6645548845,
+  "rank": "S",
+  "type": "solo_score",
+  "user_id": 32749965,
+  "accuracy": 0.99536,
+  "build_id": 8686,
+  "ended_at": "2026-05-05T15:56:00Z",
+  "has_replay": true,
+  "is_perfect_combo": true,
+  "legacy_perfect": true,
+  "legacy_score_id": null,
+  "legacy_total_score": 0,
+  "max_combo": 2922,
+  "passed": true,
+  "pp": 147.902,
+  "ruleset_id": 3,
+  "started_at": "2026-05-05T15:52:37Z",
+  "total_score": 984196,
+  "replay": true,
+  "current_user_attributes": {
+   "pin": null
+  },
+  "beatmap": {
+   "beatmapset_id": 2498268,
+   "difficulty_rating": 3.88145,
+   "id": 5493536,
+   "lazer_only": false,
+   "mode": "mania",
+   "status": "ranked",
+   "total_length": 198,
+   "user_id": 12564565,
+   "version": "[4K] Rigid-Brained Girl",
+   "accuracy": 8.5,
+   "ar": 5,
+   "bpm": 181,
+   "convert": false,
+   "count_circles": 2034,
+   "count_sliders": 444,
+   "count_spinners": 0,
+   "cs": 4,
+   "deleted_at": null,
+   "drain": 8.5,
+   "hit_length": 198,
+   "is_scoreable": true,
+   "last_updated": "2026-03-29T14:49:38Z",
+   "mode_int": 3,
+   "passcount": 4692,
+   "playcount": 14248,
+   "ranked": 1,
+   "url": "https://osu.ppy.sh/beatmaps/5493536",
+   "checksum": "3449b5b02da2f821777d9940c8847dd2",
+   "max_combo": 3243,
+   "owners": [
+    {
+     "id": 12564565,
+     "username": "J-99"
+    }
+   ],
+   "user": {
+    "avatar_url": "https://a.ppy.sh/12564565?1530316324.jpeg",
+    "country_code": "NL",
+    "default_group": "default",
+    "id": 12564565,
+    "is_active": true,
+    "is_bot": false,
+    "is_deleted": false,
+    "is_online": false,
+    "is_supporter": true,
+    "last_visit": "2026-10-01T23:42:21+00:00",
+    "pm_friends_only": false,
+    "profile_colour": null,
+    "username": "J-99"
+   }
+  },
+  "beatmapset": {
+   "anime_cover": false,
+   "artist": "ShinRa-Bansho",
+   "artist_unicode": "森羅万象",
+   "covers": {
+    "cover": "https://assets.ppy.sh/beatmaps/2498268/covers/cover.jpg?1774795807",
+    "cover@2x": "https://assets.ppy.sh/beatmaps/2498268/covers/cover@2x.jpg?1774795807",
+    "card": "https://assets.ppy.sh/beatmaps/2498268/covers/card.jpg?1774795807",
+    "card@2x": "https://assets.ppy.sh/beatmaps/2498268/covers/card@2x.jpg?1774795807",
+    "list": "https://assets.ppy.sh/beatmaps/2498268/covers/list.jpg?1774795807",
+    "list@2x": "https://assets.ppy.sh/beatmaps/2498268/covers/list@2x.jpg?1774795807",
+    "slimcover": "https://assets.ppy.sh/beatmaps/2498268/covers/slimcover.jpg?1774795807",
+    "slimcover@2x": "https://assets.ppy.sh/beatmaps/2498268/covers/slimcover@2x.jpg?1774795807"
+   },
+   "creator": "J-99",
+   "favourite_count": 224,
+   "genre_id": 2,
+   "hype": null,
+   "id": 2498268,
+   "language_id": 3,
+   "nsfw": false,
+   "offset": 0,
+   "play_count": 52844,
+   "preview_url": "https://b.ppy.sh/preview/2498268.mp3",
+   "source": "東方妖々夢　～ Perfect Cherry Blossom.",
+   "spotlight": false,
+   "status": "ranked",
+   "title": "Noumiso Rigid Girl",
+   "title_unicode": "脳味噌リジッドガール",
+   "track_id": null,
+   "user_id": 12564565,
+   "video": true
+  },
+  "rank_global": 165,
+  "room_summary": null,
+  "user": {
+   "avatar_url": "https://a.ppy.sh/32749965?1787257337.jpeg",
+   "country_code": "CN",
+   "default_group": "default",
+   "id": 32749965,
+   "is_active": true,
+   "is_bot": false,
+   "is_deleted": false,
+   "is_online": false,
+   "is_supporter": false,
+   "last_visit": "2026-10-03T06:53:31+00:00",
+   "pm_friends_only": false,
+   "profile_colour": null,
+   "username": "F6A8AF",
+   "country": {
+    "code": "CN",
+    "name": "China"
+   },
+   "cover": {
+    "custom_url": "https://assets.ppy.sh/user-profile-covers/32749965/1f00e44d49040a4ee08eeee39092fee2f923ac03197cb027e33fce89e506e4f4.jpeg",
+    "url": "https://assets.ppy.sh/user-profile-covers/32749965/1f00e44d49040a4ee08eeee39092fee2f923ac03197cb027e33fce89e506e4f4.jpeg",
+    "id": null
+   },
+   "groups": [],
+   "team": {
+    "flag_url": "https://assets.ppy.sh/teams/flag/472/23929f8a79af9d26a819310db14e4bc4c1ad79abe3e40851e24222cf7fd372b7.png",
+    "id": 472,
+    "name": "Millennium Science School",
+    "short_name": "MSS"
+   }
+  },
+  "replay_views": 1
+ },
+ "player": {
+  "avatar_url": "https://a.ppy.sh/32749965?1787257337.jpeg",
+  "country_code": "CN",
+  "default_group": "default",
+  "id": 32749965,
+  "is_active": true,
+  "is_bot": false,
+  "is_deleted": false,
+  "is_online": false,
+  "is_supporter": false,
+  "last_visit": "2026-10-03T06:53:31+00:00",
+  "pm_friends_only": false,
+  "profile_colour": null,
+  "username": "F6A8AF",
+  "cover_url": "https://assets.ppy.sh/user-profile-covers/32749965/1f00e44d49040a4ee08eeee39092fee2f923ac03197cb027e33fce89e506e4f4.jpeg",
+  "discord": "F6A8AF#8693",
+  "has_supported": true,
+  "interests": null,
+  "join_date": "2023-02-05T04:23:27+00:00",
+  "location": null,
+  "max_blocks": 100,
+  "max_friends": 500,
+  "occupation": null,
+  "playmode": "mania",
+  "playstyle": [
+   "keyboard",
+   "touch"
+  ],
+  "post_count": 4,
+  "profile_hue": 319,
+  "profile_order": [
+   "me",
+   "recent_activity",
+   "historical",
+   "top_ranks",
+   "medals",
+   "beatmaps",
+   "kudosu"
+  ],
+  "title": null,
+  "title_url": null,
+  "twitter": null,
+  "website": "https://space.bilibili.com/568461629",
+  "country": {
+   "code": "CN",
+   "name": "China"
+  },
+  "cover": {
+   "custom_url": "https://assets.ppy.sh/user-profile-covers/32749965/1f00e44d49040a4ee08eeee39092fee2f923ac03197cb027e33fce89e506e4f4.jpeg",
+   "url": "https://assets.ppy.sh/user-profile-covers/32749965/1f00e44d49040a4ee08eeee39092fee2f923ac03197cb027e33fce89e506e4f4.jpeg",
+   "id": null
+  },
+  "kudosu": {
+   "available": 0,
+   "total": 0
+  },
+  "account_history": [],
+  "active_tournament_banner": null,
+  "active_tournament_banners": [],
+  "badges": [],
+  "beatmap_playcounts_count": 3607,
+  "comments_count": 7,
+  "current_season_stats": null,
+  "current_user_attributes": null,
+  "daily_challenge_user_stats": {
+   "daily_streak_best": 0,
+   "daily_streak_current": 0,
+   "last_update": "2000-01-01T00:00:00+00:00",
+   "last_weekly_streak": "2000-01-01T00:00:00+00:00",
+   "playcount": 0,
+   "top_10p_placements": 0,
+   "top_50p_placements": 0,
+   "user_id": 32749965,
+   "weekly_streak_best": 0,
+   "weekly_streak_current": 0
+  },
+  "favourite_beatmapset_count": 22,
+  "follower_count": 41,
+  "graveyard_beatmapset_count": 0,
+  "groups": [],
+  "guest_beatmapset_count": 0,
+  "loved_beatmapset_count": 0,
+  "mapping_follower_count": 2,
+  "matchmaking_stats": [
+   {
+    "first_placements": 3,
+    "is_rating_provisional": true,
+    "plays": 7,
+    "pool_id": 41,
+    "rank": 30,
+    "rank_percent": 0.0008459998308000339,
+    "rating": 1572,
+    "total_points": 0,
+    "user_id": 32749965,
+    "pool": {
+     "active": true,
+     "id": 41,
+     "name": "RP: Season 0",
+     "ruleset_id": 3,
+     "type": "ranked_play",
+     "variant_id": 4
+    },
+    "recent_history": [
+     {
+      "created_at": "2026-04-19T14:32:04+00:00",
+      "elo_after": 1572,
+      "id": 56177,
+      "result": "loss",
+      "room_id": 2536856
+     },
+     {
+      "created_at": "2026-04-19T14:07:31+00:00",
+      "elo_after": 1597,
+      "id": 55162,
+      "result": "win",
+      "room_id": 2536764
+     },
+     {
+      "created_at": "2026-04-19T14:02:33+00:00",
+      "elo_after": 1562,
+      "id": 54966,
+      "result": "win",
+      "room_id": 2536555
+     },
+     {
+      "created_at": "2026-04-19T13:53:06+00:00",
+      "elo_after": 1528,
+      "id": 54579,
+      "result": "win",
+      "room_id": 2535715
+     },
+     {
+      "created_at": "2026-04-19T13:20:13+00:00",
+      "elo_after": 1498,
+      "id": 53229,
+      "result": "loss",
+      "room_id": 2535446
+     },
+     {
+      "created_at": "2026-04-19T13:08:29+00:00",
+      "elo_after": 1547,
+      "id": 52756,
+      "result": "loss",
+      "room_id": 2534861
+     },
+     {
+      "created_at": "2026-04-19T12:47:04+00:00",
+      "elo_after": 1613,
+      "id": 51965,
+      "result": "loss",
+      "room_id": 2533987
+     }
+    ]
+   }
+  ],
+  "monthly_playcounts": [
+   {
+    "start_date": "2023-02-01",
+    "count": 40
+   },
+   {
+    "start_date": "2023-03-01",
+    "count": 24
+   },
+   {
+    "start_date": "2023-04-01",
+    "count": 123
+   },
+   {
+    "start_date": "2023-05-01",
+    "count": 27
+   },
+   {
+    "start_date": "2023-06-01",
+    "count": 31
+   },
+   {
+    "start_date": "2023-08-01",
+    "count": 286
+   },
+   {
+    "start_date": "2023-09-01",
+    "count": 154
+   },
+   {
+    "start_date": "2023-10-01",
+    "count": 154
+   },
+   {
+    "start_date": "2023-11-01",
+    "count": 71
+   },
+   {
+    "start_date": "2023-12-01",
+    "count": 82
+   },
+   {
+    "start_date": "2024-01-01",
+    "count": 50
+   },
+   {
+    "start_date": "2024-02-01",
+    "count": 507
+   },
+   {
+    "start_date": "2024-03-01",
+    "count": 90
+   },
+   {
+    "start_date": "2024-04-01",
+    "count": 354
+   },
+   {
+    "start_date": "2024-05-01",
+    "count": 127
+   },
+   {
+    "start_date": "2024-06-01",
+    "count": 375
+   },
+   {
+    "start_date": "2024-07-01",
+    "count": 938
+   },
+   {
+    "start_date": "2024-08-01",
+    "count": 258
+   },
+   {
+    "start_date": "2024-09-01",
+    "count": 155
+   },
+   {
+    "start_date": "2024-10-01",
+    "count": 196
+   },
+   {
+    "start_date": "2024-11-01",
+    "count": 264
+   },
+   {
+    "start_date": "2024-12-01",
+    "count": 375
+   },
+   {
+    "start_date": "2025-01-01",
+    "count": 306
+   },
+   {
+    "start_date": "2025-02-01",
+    "count": 149
+   },
+   {
+    "start_date": "2025-03-01",
+    "count": 252
+   },
+   {
+    "start_date": "2025-04-01",
+    "count": 337
+   },
+   {
+    "start_date": "2025-05-01",
+    "count": 281
+   },
+   {
+    "start_date": "2025-06-01",
+    "count": 222
+   },
+   {
+    "start_date": "2025-07-01",
+    "count": 230
+   },
+   {
+    "start_date": "2025-08-01",
+    "count": 764
+   },
+   {
+    "start_date": "2025-09-01",
+    "count": 835
+   },
+   {
+    "start_date": "2025-10-01",
+    "count": 747
+   },
+   {
+    "start_date": "2025-11-01",
+    "count": 641
+   },
+   {
+    "start_date": "2025-12-01",
+    "count": 472
+   },
+   {
+    "start_date": "2026-01-01",
+    "count": 547
+   },
+   {
+    "start_date": "2026-02-01",
+    "count": 247
+   },
+   {
+    "start_date": "2026-03-01",
+    "count": 1137
+   },
+   {
+    "start_date": "2026-04-01",
+    "count": 772
+   },
+   {
+    "start_date": "2026-05-01",
+    "count": 510
+   },
+   {
+    "start_date": "2026-06-01",
+    "count": 838
+   },
+   {
+    "start_date": "2026-07-01",
+    "count": 898
+   },
+   {
+    "start_date": "2026-08-01",
+    "count": 988
+   },
+   {
+    "start_date": "2026-09-01",
+    "count": 921
+   },
+   {
+    "start_date": "2026-10-01",
+    "count": 70
+   }
+  ],
+  "nominated_beatmapset_count": 0,
+  "page": {
+   "html": "<div class='bbcode bbcode--profile-page'>你好！<br /><br />你可以称呼我Cho/景胜<br /><br />请打开Lazer模式以便观看完整的best成绩<br /><br />My skin: <a href=\"https://mania-tracker.com/skins/cho-skin\" rel=\"nofollow\">https://mania-tracker.com/skins/cho-skin</a><br /><div class=\"well\"><div class=\"bbcode__align-centre\"><strong><span style=\"color:#F6A8AF;\"><span style=\"font-size:150%;\">关于我/About Me</span></span></strong></div>我是一名大学生,为什么要起名为F6A8AF呢,因为我喜欢这个颜色<br />段位:<br />Malody 4K Regular Dan v3 <strong>10Dan</strong><br />Underjoy_ 4K LN Dan Courses v2 <strong>6Dan</strong><br />联系我/Call me<div class=\"js-spoilerbox bbcode-spoilerbox\"><a class=\"js-spoilerbox__link bbcode-spoilerbox__link\" href=\"#\"><span class=\"bbcode-spoilerbox__link-icon\"></span><span class=\"bbcode-spoilerbox__link-text\"></span></a><div class=\"js-spoilerbox__body bbcode-spoilerbox__body\">QQ:1291415477<br />Email:t1291415477@163.com<br />telegram:t.me/Jack_Nick4</div></div><div class=\"bbcode__align-centre\"><span style=\"font-size:200%;\"><span style=\"color:#FF0000;\">Milliennium Science School<br />\"绝⭐对⭐主⭐角\" Collab↓</span></span></div><div class=\"imagemap\"><img class=\"imagemap__image\" loading=\"lazy\" src=\"https://i.ppy.sh/09943edb98d4093f5bd1c69fc4fd1616eebb6143/68747470733a2f2f692e6962622e636f2f667a4754433131662f636f6c6c61622e706e67\" width=\"2559\" height=\"1598\" alt=\"68747470733a2f2f692e6962622e636f2f667a4754433131662f636f6c6c61622e706e67\" /><a class=\"imagemap__link\" href=\"https://osu.ppy.sh/users/33005235\" style=\"left:18%;top:18.2%;width:9.1%;height:31.3%;\" title=\"NotBadHuh\"></a><a class=\"imagemap__link\" href=\"https://osu.ppy.sh/users/32749965\" style=\"left:28.9%;top:18.2%;width:9.1%;height:31%;\" title=\"F6A8AF\"></a><a class=\"imagemap__link\" href=\"https://osu.ppy.sh/users/33620269\" style=\"left:39.6%;top:18.2%;width:9.3%;height:30.9%;\" title=\"renyu2018\"></a><a class=\"imagemap__link\" href=\"https://osu.ppy.sh/users/36071823\" style=\"left:50.6%;top:18%;width:9.2%;height:30.9%;\" title=\"-Sou1essZzz-\"></a><a class=\"imagemap__link\" href=\"https://osu.ppy.sh/users/33042188\" style=\"left:61.5%;top:18.2%;width:9.2%;height:31%;\" title=\"yue626\"></a><a class=\"imagemap__link\" href=\"https://osu.ppy.sh/users/35899644\" style=\"left:72.4%;top:18.4%;width:9.1%;height:30.5%;\" title=\"DaBiGu\"></a><a class=\"imagemap__link\" href=\"https://osu.ppy.sh/users/35843897\" style=\"left:18%;top:50.5%;width:9.1%;height:31.1%;\" title=\"wushang\"></a><a class=\"imagemap__link\" href=\"https://osu.ppy.sh/users/34717481\" style=\"left:28.8%;top:50.6%;width:9.3%;height:30.6%;\" title=\"Viden_\"></a><a class=\"imagemap__link\" href=\"https://osu.ppy.sh/users/22431628\" style=\"left:39.7%;top:50.5%;width:9.2%;height:30.7%;\" title=\"Elifo\"></a><a class=\"imagemap__link\" href=\"https://osu.ppy.sh/users/28495605\" style=\"left:50.6%;top:50.8%;width:9.1%;height:30.8%;\" title=\"MyAngel_Chisa\"></a><a class=\"imagemap__link\" href=\"https://osu.ppy.sh/users/34278014\" style=\"left:61.5%;top:50.6%;width:9.1%;height:30.6%;\" title=\"Arisu Tendou\"></a><a class=\"imagemap__link\" href=\"https://osu.ppy.sh/users/18484642\" style=\"left:72.3%;top:50.6%;width:9.1%;height:30.7%;\" title=\"StyAGT\"></a></div><div class=\"imagemap\"><img class=\"imagemap__image\" loading=\"lazy\" src=\"https://i.ppy.sh/d3a0cd6ed6f35e7071805878b345e965fb17b3b4/68747470733a2f2f692e6962622e636f2f68524e43326277512f38656363643633333430643838633039633166643633326638633464306566612e706e67\" width=\"1358\" height=\"1920\" alt=\"68747470733a2f2f692e6962622e636f2f68524e43326277512f38656363643633333430643838633039633166643633326638633464306566612e706e67\" /><a class=\"imagemap__link\" href=\"https://osu.ppy.sh/users/31817843\" style=\"left:8%;top:34%;width:54%;height:47%;\" title=\"Hiyashinsu104\"></a><a class=\"imagemap__link\" href=\"https://osu.ppy.sh/users/32749965\" style=\"left:50%;top:11%;width:45%;height:44%;\" title=\"F6A8AF\"></a></div></div><div class=\"well\"><div class=\"bbcode__align-centre\"><strong><span style=\"color:#F6A8AF;\"><span style=\"font-size:150%;\">其他游戏/Other Games</span></span></strong></div>Blue Archive:<div class=\"js-spoilerbox bbcode-spoilerbox\"><a class=\"js-spoilerbox__link bbcode-spoilerbox__link\" href=\"#\"><span class=\"bbcode-spoilerbox__link-icon\"></span><span class=\"bbcode-spoilerbox__link-text\"></span></a><div class=\"js-spoilerbox__body bbcode-spoilerbox__body\">服务器/Server:Global<br /><img alt=\"\" src=\"https://i.ppy.sh/d9ab60cac22da8d8e2e9d7efab7bcea862222fa0/68747470733a2f2f692e6962622e636f2f466b5331663032742f323032362d30312d32312d3135323032302e706e67\" loading=\"lazy\" style=\"aspect-ratio: 1.8768; width: 2164px;\" class=\"js-gallery\" data-width=\"2164\" data-height=\"1153\" data-index=\"0\" data-gallery-id=\"1516725086\" data-src=\"https://i.ppy.sh/d9ab60cac22da8d8e2e9d7efab7bcea862222fa0/68747470733a2f2f692e6962622e636f2f466b5331663032742f323032362d30312d32312d3135323032302e706e67\" /></div></div>KALPA(Steam/M)<div class=\"js-spoilerbox bbcode-spoilerbox\"><a class=\"js-spoilerbox__link bbcode-spoilerbox__link\" href=\"#\"><span class=\"bbcode-spoilerbox__link-icon\"></span><span class=\"bbcode-spoilerbox__link-text\"></span></a><div class=\"js-spoilerbox__body bbcode-spoilerbox__body\">Steam Version请私信我/Steam Version DM Me！<br />Mobile Version UID:10499345</div></div>Apex,CSGO2,Quaver<br /><div class=\"js-spoilerbox bbcode-spoilerbox\"><a class=\"js-spoilerbox__link bbcode-spoilerbox__link\" href=\"#\"><span class=\"bbcode-spoilerbox__link-icon\"></span><span class=\"bbcode-spoilerbox__link-text\"></span></a><div class=\"js-spoilerbox__body bbcode-spoilerbox__body\">请私信我！/DM Me！</div></div>Clash Royale<div class=\"js-spoilerbox bbcode-spoilerbox\"><a class=\"js-spoilerbox__link bbcode-spoilerbox__link\" href=\"#\"><span class=\"bbcode-spoilerbox__link-icon\"></span><span class=\"bbcode-spoilerbox__link-text\"></span></a><div class=\"js-spoilerbox__body bbcode-spoilerbox__body\">请私信我！/DM Me！</div></div>Arcaea<br /><div class=\"js-spoilerbox bbcode-spoilerbox\"><a class=\"js-spoilerbox__link bbcode-spoilerbox__link\" href=\"#\"><span class=\"bbcode-spoilerbox__link-icon\"></span><span class=\"bbcode-spoilerbox__link-text\"></span></a><div class=\"js-spoilerbox__body bbcode-spoilerbox__body\">ID:24520095<br /><del>是ptt10.20的菜鸡</del></div></div></div>非常感谢你浏览我的主页！<br /><img alt=\"\" src=\"https://i.ppy.sh/28d13de4206e27914ff4856260d29328e39625c5/68747470733a2f2f6d616e69612d747261636b65722e636f6d2f6170692f7369676e61747572652f356e394b4377784341663377424d4e5566366f797455676737374551713450382f696e7369676874732d73746174732d616e642d746f702d706c61792e706e67\" loading=\"lazy\" style=\"aspect-ratio: 3.8261; width: 880px;\" class=\"js-gallery\" data-width=\"880\" data-height=\"230\" data-index=\"1\" data-gallery-id=\"1516725086\" data-src=\"https://i.ppy.sh/28d13de4206e27914ff4856260d29328e39625c5/68747470733a2f2f6d616e69612d747261636b65722e636f6d2f6170692f7369676e61747572652f356e394b4377784341663377424d4e5566366f797455676737374551713450382f696e7369676874732d73746174732d616e642d746f702d706c61792e706e67\" /><br /><span style=\"font-size:50%;\">普罗娜可爱喵</span></div>",
+   "raw": "你好！\n\n你可以称呼我Cho/景胜\n\n请打开Lazer模式以便观看完整的best成绩\n\nMy skin: https://mania-tracker.com/skins/cho-skin\n[notice][centre][b][color=#F6A8AF][size=150]关于我/About Me[/size][/color][/b][/centre]\n我是一名大学生,为什么要起名为F6A8AF呢,因为我喜欢这个颜色\n段位:\nMalody 4K Regular Dan v3 [b]10Dan[/b]\nUnderjoy_ 4K LN Dan Courses v2 [b]6Dan[/b]\n联系我/Call me[box=]QQ:1291415477\nEmail:t1291415477@163.com\ntelegram:t.me/Jack_Nick4[/box]\n[centre][size=200][color=#FF0000]Milliennium Science School\n\"绝⭐对⭐主⭐角\" Collab↓[/color][/size][/centre][imagemap]\nhttps://i.ibb.co/fzGTC11f/collab.png\n18 18.2 9.1 31.3 https://osu.ppy.sh/users/33005235 NotBadHuh\n28.9 18.2 9.1 31 https://osu.ppy.sh/users/32749965 F6A8AF\n39.6 18.2 9.3 30.9 https://osu.ppy.sh/users/33620269 renyu2018\n50.6 18 9.2 30.9 https://osu.ppy.sh/users/36071823 -Sou1essZzz-\n61.5 18.2 9.2 31 https://osu.ppy.sh/users/33042188 yue626\n72.4 18.4 9.1 30.5 https://osu.ppy.sh/users/35899644 DaBiGu\n18 50.5 9.1 31.1 https://osu.ppy.sh/users/35843897 wushang\n28.8 50.6 9.3 30.6 https://osu.ppy.sh/users/34717481 Viden_\n39.7 50.5 9.2 30.7 https://osu.ppy.sh/users/22431628 Elifo\n50.6 50.8 9.1 30.8 https://osu.ppy.sh/users/28495605 MyAngel_Chisa\n61.5 50.6 9.1 30.6 https://osu.ppy.sh/users/34278014 Arisu Tendou\n72.3 50.6 9.1 30.7 https://osu.ppy.sh/users/18484642 StyAGT\n[/imagemap]\n[imagemap]\nhttps://i.ibb.co/hRNC2bwQ/8eccd63340d88c09c1fd632f8c4d0efa.png\n8 34 54 47 https://osu.ppy.sh/users/31817843 Hiyashinsu104\n50 11 45 44 https://osu.ppy.sh/users/32749965 F6A8AF\n[/imagemap]\n[/notice]\n[notice]\n[centre][b][color=#F6A8AF][size=150]其他游戏/Other Games[/size][/color][/b][/centre]\nBlue Archive:[box=]服务器/Server:Global\n[img]https://i.ibb.co/FkS1f02t/2026-01-21-152020.png[/img]\n[/box]\nKALPA(Steam/M)[box=]Steam Version请私信我/Steam Version DM Me！\nMobile Version UID:10499345[/box]\nApex,CSGO2,Quaver\n[box=]请私信我！/DM Me！[/box]\nClash Royale[box=]请私信我！/DM Me！[/box]\nArcaea\n[box=]ID:24520095\n[s]是ptt10.20的菜鸡[/s][/box]\n[/notice]\n非常感谢你浏览我的主页！\n[img]https://mania-tracker.com/api/signature/5n9KCwxCAf3wBMNUf6oytUgg77EQq4P8/insights-stats-and-top-play.png[/img]\n[size=50]普罗娜可爱喵[/size]"
+  },
+  "pending_beatmapset_count": 0,
+  "previous_usernames": [],
+  "rank_highest": {
+   "rank": 7886,
+   "updated_at": "2026-09-10T15:34:10Z"
+  },
+  "ranked_beatmapset_count": 0,
+  "replays_watched_counts": [
+   {
+    "start_date": "2025-06-01",
+    "count": 1
+   },
+   {
+    "start_date": "2026-01-01",
+    "count": 1
+   },
+   {
+    "start_date": "2026-04-01",
+    "count": 1
+   },
+   {
+    "start_date": "2026-05-01",
+    "count": 1
+   }
+  ],
+  "scores_best_count": 200,
+  "scores_first_count": 0,
+  "scores_pinned_count": 1,
+  "scores_recent_count": 10,
+  "statistics": {
+   "count_100": 3490314,
+   "count_300": 24448682,
+   "count_50": 224155,
+   "count_miss": 716516,
+   "level": {
+    "current": 95,
+    "progress": 70
+   },
+   "global_rank": 8078,
+   "global_rank_percent": 0.008060323710103743,
+   "global_rank_exp": null,
+   "pp": 9485.6,
+   "pp_exp": 0,
+   "ranked_score": 1240766002,
+   "hit_accuracy": 96.172,
+   "accuracy": 0.96172,
+   "play_count": 16342,
+   "play_time": 1894943,
+   "total_score": 7482098516,
+   "total_hits": 28163151,
+   "maximum_combo": 15847,
+   "replays_watched_by_others": 4,
+   "is_ranked": true,
+   "grade_counts": {
+    "ss": 17,
+    "ssh": 0,
+    "s": 921,
+    "sh": 4,
+    "a": 394
+   },
+   "country_rank": 1589,
+   "rank": {
+    "country": 1589
+   },
+   "variants": [
+    {
+     "mode": "mania",
+     "variant": "4k",
+     "country_rank": 1323,
+     "global_rank": 6819,
+     "pp": 9485.6
+    },
+    {
+     "mode": "mania",
+     "variant": "7k",
+     "country_rank": 2017,
+     "global_rank": 11779,
+     "pp": 1983.99
+    }
+   ]
+  },
+  "support_level": 0,
+  "team": {
+   "flag_url": "https://assets.ppy.sh/teams/flag/472/23929f8a79af9d26a819310db14e4bc4c1ad79abe3e40851e24222cf7fd372b7.png",
+   "id": 472,
+   "name": "Millennium Science School",
+   "short_name": "MSS"
+  },
+  "user_achievements": [
+   {
+    "achieved_at": "2026-09-17T09:12:54Z",
+    "achievement_id": 116
+   },
+   {
+    "achieved_at": "2026-07-27T08:44:40Z",
+    "achievement_id": 41
+   },
+   {
+    "achieved_at": "2026-04-19T14:34:35Z",
+    "achievement_id": 356
+   },
+   {
+    "achieved_at": "2026-04-13T11:25:14Z",
+    "achievement_id": 51
+   },
+   {
+    "achieved_at": "2026-03-11T10:27:30Z",
+    "achievement_id": 222
+   },
+   {
+    "achieved_at": "2026-01-16T17:38:25Z",
+    "achievement_id": 115
+   },
+   {
+    "achieved_at": "2025-12-07T16:03:33Z",
+    "achievement_id": 340
+   },
+   {
+    "achieved_at": "2025-11-29T09:07:58Z",
+    "achievement_id": 94
+   },
+   {
+    "achieved_at": "2025-11-16T13:30:14Z",
+    "achievement_id": 79
+   },
+   {
+    "achieved_at": "2025-11-14T07:54:53Z",
+    "achievement_id": 339
+   },
+   {
+    "achieved_at": "2025-11-06T13:25:29Z",
+    "achievement_id": 42
+   },
+   {
+    "achieved_at": "2025-10-10T14:38:37Z",
+    "achievement_id": 93
+   },
+   {
+    "achieved_at": "2025-09-01T05:21:11Z",
+    "achievement_id": 57
+   },
+   {
+    "achieved_at": "2025-08-31T14:26:40Z",
+    "achievement_id": 63
+   },
+   {
+    "achieved_at": "2025-07-03T01:08:52Z",
+    "achievement_id": 132
+   },
+   {
+    "achieved_at": "2025-05-04T13:13:03Z",
+    "achievement_id": 319
+   },
+   {
+    "achieved_at": "2025-01-24T13:54:55Z",
+    "achievement_id": 127
+   },
+   {
+    "achieved_at": "2024-10-03T07:52:58Z",
+    "achievement_id": 152
+   },
+   {
+    "achieved_at": "2024-07-26T11:07:30Z",
+    "achievement_id": 48
+   },
+   {
+    "achieved_at": "2024-07-23T12:18:46Z",
+    "achievement_id": 168
+   },
+   {
+    "achieved_at": "2024-07-23T11:55:37Z",
+    "achievement_id": 176
+   },
+   {
+    "achieved_at": "2024-07-17T13:19:40Z",
+    "achievement_id": 92
+   },
+   {
+    "achieved_at": "2024-07-16T06:52:21Z",
+    "achievement_id": 50
+   },
+   {
+    "achieved_at": "2024-06-23T07:13:31Z",
+    "achievement_id": 114
+   },
+   {
+    "achieved_at": "2024-06-06T11:54:51Z",
+    "achievement_id": 124
+   },
+   {
+    "achieved_at": "2024-06-04T09:17:19Z",
+    "achievement_id": 38
+   },
+   {
+    "achieved_at": "2024-05-03T03:06:17Z",
+    "achievement_id": 328
+   },
+   {
+    "achieved_at": "2024-04-13T07:44:57Z",
+    "achievement_id": 303
+   },
+   {
+    "achieved_at": "2024-04-04T13:24:58Z",
+    "achievement_id": 331
+   },
+   {
+    "achieved_at": "2024-03-23T11:54:40Z",
+    "achievement_id": 91
+   },
+   {
+    "achieved_at": "2024-02-09T08:06:40Z",
+    "achievement_id": 112
+   },
+   {
+    "achieved_at": "2024-02-09T08:00:38Z",
+    "achievement_id": 111
+   },
+   {
+    "achieved_at": "2024-02-06T14:14:13Z",
+    "achievement_id": 148
+   },
+   {
+    "achieved_at": "2023-12-31T06:03:48Z",
+    "achievement_id": 122
+   },
+   {
+    "achieved_at": "2023-09-30T06:55:46Z",
+    "achievement_id": 113
+   },
+   {
+    "achieved_at": "2023-09-02T07:00:53Z",
+    "achievement_id": 47
+   },
+   {
+    "achieved_at": "2023-09-01T10:32:29Z",
+    "achievement_id": 71
+   },
+   {
+    "achieved_at": "2023-08-20T05:35:56Z",
+    "achievement_id": 123
+   },
+   {
+    "achieved_at": "2023-08-07T20:16:53Z",
+    "achievement_id": 128
+   },
+   {
+    "achieved_at": "2023-08-04T05:57:20Z",
+    "achievement_id": 90
+   },
+   {
+    "achieved_at": "2023-08-03T05:35:43Z",
+    "achievement_id": 89
+   },
+   {
+    "achieved_at": "2023-08-02T12:30:24Z",
+    "achievement_id": 55
+   },
+   {
+    "achieved_at": "2023-08-01T10:37:52Z",
+    "achievement_id": 56
+   },
+   {
+    "achieved_at": "2023-08-01T06:57:47Z",
+    "achievement_id": 88
+   },
+   {
+    "achieved_at": "2023-08-01T06:17:11Z",
+    "achievement_id": 87
+   },
+   {
+    "achieved_at": "2023-08-01T06:17:11Z",
+    "achievement_id": 54
+   },
+   {
+    "achieved_at": "2023-08-01T06:17:11Z",
+    "achievement_id": 46
+   }
+  ],
+  "rank_history": {
+   "mode": "mania",
+   "data": [
+    8748,
+    8761,
+    8771,
+    8781,
+    8361,
+    8388,
+    8403,
+    8418,
+    8430,
+    8432,
+    8457,
+    8470,
+    8481,
+    8494,
+    8509,
+    8516,
+    8259,
+    8276,
+    8291,
+    8303,
+    8268,
+    8215,
+    8215,
+    8227,
+    7965,
+    7973,
+    7977,
+    7909,
+    7913,
+    7929,
+    7938,
+    7947,
+    7900,
+    7914,
+    7927,
+    7938,
+    7942,
+    7953,
+    7958,
+    7969,
+    7979,
+    7963,
+    7972,
+    7987,
+    8002,
+    8012,
+    8027,
+    8039,
+    8054,
+    8065,
+    8078,
+    8092,
+    8107,
+    8115,
+    8128,
+    8139,
+    8148,
+    8164,
+    8171,
+    8000,
+    8006,
+    8022,
+    7993,
+    8006,
+    7958,
+    7969,
+    7891,
+    7899,
+    7913,
+    7924,
+    7927,
+    7932,
+    7939,
+    7925,
+    7937,
+    7951,
+    7961,
+    7975,
+    7979,
+    7995,
+    7991,
+    8005,
+    8011,
+    8026,
+    8034,
+    8044,
+    8054,
+    8061,
+    8078,
+    8078
+   ]
+  },
+  "rankHistory": {
+   "mode": "mania",
+   "data": [
+    8748,
+    8761,
+    8771,
+    8781,
+    8361,
+    8388,
+    8403,
+    8418,
+    8430,
+    8432,
+    8457,
+    8470,
+    8481,
+    8494,
+    8509,
+    8516,
+    8259,
+    8276,
+    8291,
+    8303,
+    8268,
+    8215,
+    8215,
+    8227,
+    7965,
+    7973,
+    7977,
+    7909,
+    7913,
+    7929,
+    7938,
+    7947,
+    7900,
+    7914,
+    7927,
+    7938,
+    7942,
+    7953,
+    7958,
+    7969,
+    7979,
+    7963,
+    7972,
+    7987,
+    8002,
+    8012,
+    8027,
+    8039,
+    8054,
+    8065,
+    8078,
+    8092,
+    8107,
+    8115,
+    8128,
+    8139,
+    8148,
+    8164,
+    8171,
+    8000,
+    8006,
+    8022,
+    7993,
+    8006,
+    7958,
+    7969,
+    7891,
+    7899,
+    7913,
+    7924,
+    7927,
+    7932,
+    7939,
+    7925,
+    7937,
+    7951,
+    7961,
+    7975,
+    7979,
+    7995,
+    7991,
+    8005,
+    8011,
+    8026,
+    8034,
+    8044,
+    8054,
+    8061,
+    8078,
+    8078
+   ]
+  },
+  "ranked_and_approved_beatmapset_count": 0,
+  "unranked_beatmapset_count": 0
+ }
+}

@@ -1,0 +1,35 @@
+# Runtime dependencies for mania-render, split by what you actually run.
+#
+# ---------------------------------------------------------------------------
+# A) Static + API server (the 2-core / 2 GB deployment)
+#        python -m mania_render --web --host 0.0.0.0 --port 8760
+#    NOTHING here. Standard library only — `webapp.py` imports Pillow/numpy lazily inside
+#    the server-side render job, so the API server never loads them (verified: after
+#    `import mania_render.webapp`, neither PIL nor numpy is in sys.modules).
+#    Rendering happens in the visitor's browser / a headless Chrome started per job, and
+#    MP4/H.264 comes straight out of MediaRecorder — no ffmpeg.
+#
+# ---------------------------------------------------------------------------
+# B) Server-side render job (`POST /api/render`, or the CLI)
+#        pip install Pillow numpy
+#    plus ffmpeg on PATH for the encode:
+#        Debian/Ubuntu : apt install ffmpeg
+#        RHEL/Fedora   : dnf install ffmpeg
+#    A text font also matters: with none of the usual system faces present, `_load_font`
+#    falls back to PIL's tiny bitmap font and the HUD readouts come out wrong-sized.
+#        Debian/Ubuntu : apt install fonts-dejavu-core
+#
+# ---------------------------------------------------------------------------
+# Environment
+#   MANIA_SKINS_DIR      where .osk files live          (default: <project>/skins)
+#   MANIA_DEFAULT_SKIN   key preselected in the UI      (default: boj 1-10K)
+#   MANIA_HOST           --web bind address             (default: 127.0.0.1)
+#   MANIA_PORT           --web port                     (default: 8760)
+#
+# Big skins dominate memory in BOTH render paths, so slim them first:
+#   python tools/slim_skin.py "in.osk" "skins/out.osk" --keys 4
+# (Suisei: 1798 files / 181 MB -> 67 files / 1.2 MB, and the mania renderer only ever
+#  references 0.1 % of those bytes.)
+
+Pillow
+numpy
