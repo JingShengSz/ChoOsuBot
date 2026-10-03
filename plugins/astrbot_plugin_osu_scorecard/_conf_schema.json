@@ -108,6 +108,18 @@
     "default": "",
     "hint": "Pillow 渲染器的版式来源。留空 = 用模板旁边的那个。"
   },
+  "map_combo_fetch": {
+    "description": "满连自己数 .osu",
+    "type": "bool",
+    "default": true,
+    "hint": "开启后，非满连的成绩会额外下载一次谱面 .osu（公开端点，最多几十 KB）并数出真实满连 —— 也就是「MAP COMBO」那一格。关掉则直接显示 API 给的 beatmap.max_combo。两者对 mania 不是同一个数：API 是 lazer 口径（长条算 ticks），数出来的是 stable 口径，比 API 小。卡片显示的是 stable 成绩的连击，所以默认开启。"
+  },
+  "map_combo_cache_days": {
+    "description": "谱面满连缓存时长（天）",
+    "type": "int",
+    "default": 30,
+    "hint": "数出来的满连按谱面 ID 缓存在 data/plugin_data/astrbot_plugin_osu_scorecard/map_combo_cache.json。同一个谱面的满连不会变，所以默认 30 天。填 0 = 不缓存、每次都重新下载。"
+  },
   "sb_api_url": {
     "description": "SB 私服 API 地址",
     "type": "string",

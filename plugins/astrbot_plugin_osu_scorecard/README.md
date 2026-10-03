@@ -100,6 +100,10 @@ mode mania -sb        -> 只改私服那条
    不是谱面满连。真值只能另外调 `/v1/get_map_info?md5=`。实测同一条成绩：玩家 945、
    谱面 3228。
 
+   私服**不走**官服那条「下载 `.osu` 自己数」的路：`get_map_info` 已经单独查过了，
+   `sb_api.score_to_osu()` 把它的 `max_combo` 放进 `beatmap["max_combo"]`，
+   卡片直接用它（见「`map_max_combo` 用哪个数」）。
+
 3. **`mods` 是 stable 位掩码整数**，不是官服的缩写列表，得自己解码。键数 mod（4K/5K…）
    对 mania 卡片是噪音，解码后丢掉。
 
@@ -150,6 +154,8 @@ Python 侧不需要额外装东西 —— AstrBot 自带的虚拟环境已经有
 | `renderer` | `auto` | `auto` / `pil` / `photoshop` |
 | `pp_max_mode` | `computed` | `computed` = 按公式算理论最大 PP；`dash` = 显示 `--` |
 | `spec_path` | 空 | `layer_mapping.json` 路径，留空 = 模板旁边那个 |
+| `map_combo_fetch` | `true` | 非满连时下载 `.osu` 数真实满连（公开端点，不需要授权）。关掉 = 退回 API 的值 |
+| `map_combo_cache_days` | `30` | 数出来的满连缓存多久（天）。`0` = 不缓存，每次重下 |
 | `sb_api_url` | `https://api.ppy.sb` | SB 私服的 API 根地址，**不需要密钥** |
 | `oauth_enabled` | `true` | 关掉 = 不启动回调服务、不主动要授权（`p` / `r` 会提示改用 `s`） |
 | `oauth_callback_host` | `127.0.0.1` | 回调服务的监听地址。本机测试用 `127.0.0.1`；上了服务器要改成 `0.0.0.0` |
@@ -213,6 +219,7 @@ osu! API  ──►  card.py      成绩 JSON → 每个文字层该显示什么
 cd D:\LLBot\bin\astrbot\data\plugins\astrbot_plugin_osu_scorecard
 D:\LLBot\bin\astrbot\.venv\Scripts\python.exe self_test.py                # 全部离线阶段
 D:\LLBot\bin\astrbot\.venv\Scripts\python.exe self_test.py --only sb      # 只跑私服那一节
+D:\LLBot\bin\astrbot\.venv\Scripts\python.exe self_test.py --only combo   # 只跑满连那一节
 D:\LLBot\bin\astrbot\.venv\Scripts\python.exe self_test.py --only oauth   # 只跑 OAuth 那一节
 D:\LLBot\bin\astrbot\.venv\Scripts\python.exe self_test.py --full         # 再加一次全量渲染（要联网）
 ```
@@ -228,7 +235,11 @@ D:\LLBot\bin\astrbot\.venv\Scripts\python.exe self_test.py --full         # 再�
    `max_combo`、以及**两个成绩接口的形状差异**。
 5. **官服 OAuth**（`--only oauth`）—— 真起 HTTP 服务、真发请求、真走回调、真落盘；
    只有 `exchange_code` 和 `/me` 两个必须联网的调用用替身。见「官服授权 → 这一块的自检」。
-6. **全量渲染**（`--full`）—— 含背景、头像、mod 徽章、辉光，导出后检查不是单色。
+6. **满连**（`--only combo`）—— 数 `tests/fixture_beatmap_*.osu`（官服 `osu.ppy.sh/osu/<bid>`
+   的**原样字节**，md5 等于 API 的 `checksum`，所以 2922 / 2432 是离线可复现的），
+   然后喂生产同一个 `build_card` 验四条降级路径，并断言**没有一条会输出 `0x`**；
+   最后验缓存落盘 / 过期 / 失败不写。
+7. **全量渲染**（`--full`）—— 含背景、头像、mod 徽章、辉光，导出后检查不是单色。
 
 > **这一节存在的理由**：这个项目被同一个模式坑过两次 —— 测试喂的 JSON 形状和生产
 > 真收到的形状不一样，于是测试全绿、线上永远显示 `--`。
@@ -403,22 +414,62 @@ python self_test.py --only oauth
 
 ### `map_max_combo` 用哪个数
 
-osu! API 的 `beatmap.max_combo` 对 mania **不可信**。同一条成绩（bid 5493536）：
+**同一个谱面有两个「满连」，对 mania 而已 API 给的那个不是 stable 那个。**
 
-| 来源 | 值 |
-|---|---|
-| API 的 `beatmap.max_combo` | 3243 ← **不用这个** |
-| 数 `.osu` 的 HitObjects：2478 个对象（2034 普通键 + 444 长条，长条算 2 combo） | **2922** |
-| 玩家这局的 `max_combo`（`is_perfect_combo` = true） | 2922 |
-| 六个判定之和 | 2922 |
+| 来源 | bid 5493536 | bid 5327306 |
+|---|---|---|
+| 数 `.osu` 的 HitObjects：普通键 ×1 + 长条 ×2（2034+444 / 1184+624） | **2922** | **2432** |
+| 同样的谱面，不带 mod、`is_perfect_combo` 的成绩在榜单上打出来的连击 | 2922 | 2432 |
+| API 的 `beatmap.max_combo`（lazer 口径：长条连 ticks 一起算） | 3243 | 2763 |
+| 带 `CL`（Classic）的 lazer 成绩能打到的连击 | 3243 | 2757 |
 
-**卡片用的是 2922。** 决定这么定：API 那个 3243 大概是 Lazer 口径（Lazer 的
-LN 尾巴单独算一个 combo），而这个模板、这群玩家看的都是 stable。
+5327306 这一列把话说死了：**不带 mod、`is_perfect_combo = true`** 的成绩恰好是
+2432，而 lazer 的 CL 成绩能到 2757，API 说 2763。两边都是「对的数」，只是计数规则
+不同。卡片显示的是 stable 成绩的连击，所以取 stable 那个 —— 也就是数文件数出来的。
 
-实现上不额外下载 `.osu`：`card.py` 在 `is_perfect_combo` 且玩家有 `max_combo` 时
-直接取玩家的值 —— 满连时玩家的连击**就是**谱面满连，和数文件的结果一致。
-`card.count_map_max_combo(osu_text)` 是那个计数器，留着给「非满连也想显示精确
-满连」的场景用，目前没接进渲染路径。
+**卡片用哪个，按这个顺序（降级顺序写死在 `card.resolve_map_max_combo()`）：**
+
+1. **满连**（`is_perfect_combo` 且有 `max_combo`）→ 玩家自己的连击。
+   它就是谱面满连，精确，而且**不下载任何东西**（最常见的一条路）。
+2. **下载 `.osu` 自己数** → `https://osu.ppy.sh/osu/<bid>`（公开端点，不需要任何授权，
+   和游戏客户端下载的是同一个文件），交给 `card.count_map_max_combo()` 数。
+   私服不走这条：SB 的谱面真值在 `/v1/get_map_info` 里，那一次调用
+   `_sb_score_bundle()` 已经做过了。
+3. **数不出来** → 退回 `beatmap.max_combo`（不精确，但至少是个数）。
+4. **都没有** → 显示 `--`。
+
+**任何情况下都不会出现 `0x`。** 0 是「没测到」的伪装：官服的成绩响应里
+`max_combo` 这个键可以**整个不存在**，旧代码 `.get("max_combo", 0)` 于是把
+`0x` 印在卡上 —— 那就是用户截图上的 bug。
+
+另有一条**否决规则**：候选值如果比玩家自己这局的连击还小，就直接丢掉。
+谱面满连不可能小于已经有人在它上面打出来的连击，这种值是错的，不能印。
+它保护的是 lazer 成绩：bid 5327306 上一条 CL 成绩连击 2757，stable 满连只有
+2432 —— 2432 会被否决，退回 API 的 2763。**代价**：那种成绩如果来自一个内嵌
+`beatmap` 里没有 `max_combo` 的响应（`r` / `p` 走的那条路），两个候选都会被否决，
+那一格显示 `--`。诚实，但确实没有数 —— 这是这个方案目前唯一已知的缺口。
+
+`card.py` 保持纯函数、不做任何 I/O：下载和缓存都在 `map_combo.py`，
+由 `main.py` 在渲染前调一次。
+
+### 满连的缓存
+
+`.osu` 一个几十到一百多 KB，同一个谱面的满连不会变，所以数出来就存下来：
+
+- 文件：`data/plugin_data/astrbot_plugin_osu_scorecard/map_combo_cache.json`
+  —— 和 `bindings.json` / `players.json` 同一层，**不在插件目录里**
+  （插件目录会被 AstrBot 升级覆盖，而且它在 git 里）。
+- 内容：`{"5327306": {"max_combo": 2432, "notes": 1184, "holds": 624, "fetched_at": ...}}`
+- 默认 30 天（配置项 `map_combo_cache_days`，填 0 = 不缓存）。
+- **失败不写缓存**：下载失败多半是网络抖动，缓存住会让一次抖动变成三十天的 `--`。
+- 原子写（临时文件 + `os.replace`），写不进去也不影响出卡。
+
+实测：冷启动 0.72 s（下载 + 数），命中缓存 0.0000 s。
+
+yumu-bot 走的是同一条路（Rust 的 `rosu-pp`，本质也是下载谱面本体自己算），
+它也带一个 `BeatmapStarRatingCache`。本模块是那个思路的 Python 版。
+
+配置项 `map_combo_fetch` 可以整条关掉，退回「直接用 API 的值」的旧行为。
 
 ### 准确率 99.53 vs 99.54
 
@@ -429,7 +480,11 @@ API 的 `accuracy` = `0.99536`。标准四舍五入是 99.54%，osu! 官网显�
 
 - `pp_max`（理论最大 PP）：osu! API 没有这个字段，插件按 mania 的 pp 公式自己算
   「全 320 判定 + 满连」的值；算不出来或者算出来比实际 pp 还小时显示 `--`（见下）。
-- `rank_change`：图层名看着像 PP 变化，但 API 只给 `rank_global`（榜位），卡片显示 `#165`。
+- `rank_change`：**图层名叫 `rank_change`，但它不是 PP 变化** —— osu! 的 API 里
+  根本没有「PP 变化」这个字段（没有历史 PP，就没有 delta）。这一格填的是
+  `rank_global`，也就是**这局成绩在谱面排行榜上的名次**（`#165` = 该谱面第 165 名）。
+  玩家名字下面显示 `--` 是 API 没给这个字段时的正确行为，不是 bug。
+  图层名保留不改：改它要连带动模板和 `layer_mapping.json`，不值得。
 - 背景/头像下载失败时静默跳过，卡片其余部分照常出。
 
 ---
@@ -446,7 +501,7 @@ API 的 `accuracy` = `0.99536`。标准四舍五入是 99.54%，osu! 官网显�
    加一段加粗警告。dashboard 会给带 `obvious_hint` 且带 `hint` 的项渲染一个 ‼️ 标记。
 3. **多了几个配置项**：`osu_credential_file`、`assets_path`、`renderer_path`、
    `auto_link`、`render_timeout_seconds`、`renderer`、`pp_max_mode`、`spec_path`、
-   `sb_api_url`。
+   `sb_api_url`、`map_combo_fetch`、`map_combo_cache_days`。
 4. **`photoshop_path` 是兜底用途**：正常情况 COM 会自己拉起 Photoshop，
    这个路径只在 COM 没拉起来时用来手动启动一次再重试。
 5. **`-sb` 写在每条指令最后**（规格是这么定的）。识别用了正则
@@ -460,7 +515,8 @@ API 的 `accuracy` = `0.99536`。标准四舍五入是 99.54%，osu! 官网显�
 | 文件 | 作用 |
 |---|---|
 | `main.py` | 插件入口：指令、绑定、缓存、发送 |
-| `card.py` | 成绩 JSON → 卡片字段（纯函数，可离线测） |
+| `card.py` | 成绩 JSON → 卡片字段（纯函数，可离线测；满连的降级顺序在 `resolve_map_max_combo()`） |
+| `map_combo.py` | 下载 `.osu` 数真实满连 + 磁盘缓存（唯一的网络/IO 那一半，`card.py` 保持纯函数） |
 | `sb_api.py` | SB 私服 API 客户端 + 数据归一化（两个成绩接口的形状差异在这里处理） |
 | `oauth.py` | 官服 OAuth：回调 HTTP 服务、`state` 表、回调页面 |
 | `raster.py` | 星级条 / OD-HP 条 / 头像 / mod 徽章 / 背景（Pillow） |
@@ -470,6 +526,7 @@ API 的 `accuracy` = `0.99536`。标准四舍五入是 99.54%，osu! 官网显�
 | `tests/make_fixture.py` | 拉一次真实成绩冻成 fixture（只需跑一次） |
 | `tests/fixture_score.json` | 冻结的真实 API 响应，公开数据 |
 | `tests/fixture_sb_score.json` | 冻结的私服响应：成绩 / 谱面 / 玩家三层都在里面 |
+| `tests/fixture_beatmap_*.osu` | 冻结的谱面本体（`osu.ppy.sh/osu/<bid>` 原样字节，md5 = API 的 `checksum`），给满连计数当离线基准 |
 
 数据写在 `data/plugin_data/astrbot_plugin_osu_scorecard/`，**不写插件安装目录**
 （升级时会被替换）。渲染产物在 `output/`，超过 `output_keep` 张就删最旧的。

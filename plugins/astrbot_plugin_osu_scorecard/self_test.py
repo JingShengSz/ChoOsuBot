@@ -818,6 +818,284 @@ def stage_sb() -> None:
     check("官服标记是灰色", d_osu.server_tag_color, "#8C96A9")
 
 
+# ─────────────────────────────── stage: map combo ───────────────────────────────
+
+# MAP COMBO 那一格的期望值。写死在常量里（不放行内注释），自检对着它跑。
+MAP_COMBO_EXPECTED = {
+    "synthetic_notes": 5,
+    "synthetic_holds": 2,
+    "synthetic_combo": 9,
+    "synthetic_missing_section": None,
+    "synthetic_no_objects": None,
+    "counted_slot": "2,432x",
+    "counted_source": "osu_file",
+    "fc_slot": "2,922x",
+    "fc_source": "perfect_combo",
+    "api_slot": "2,763x",
+    "api_source": "api",
+    "impossible_slot": "--",
+    "impossible_source": "none",
+    "empty_slot": "--",
+    "empty_source": "none",
+    "player_slot_when_absent": "--",
+    "forbidden": "0x",
+    "cache_combo": 2432,
+    "cache_notes": 1184,
+    "cache_holds": 624,
+    "cache_file": "map_combo_cache.json",
+}
+
+# 两个真实谱面（文件是官服 osu.ppy.sh/osu/<bid> 的原样字节，md5 等于 API 的
+# checksum）。stable 一栏是「数文件」的结果，也是不带 mod、is_perfect_combo 的
+# 成绩在排行榜上实际打出来的连击；api 一栏是 API 给的 beatmap.max_combo，
+# 那是 lazer 口径（长条连 ticks 一起算），两者对 mania 本来就不是一个数。
+MAP_COMBO_FIXTURES = [
+    {
+        "bid": 5493536,
+        "file": "fixture_beatmap_5493536.osu",
+        "md5": "3449b5b02da2f821777d9940c8847dd2",
+        "notes": 2034,
+        "holds": 444,
+        "stable_max_combo": 2922,
+        "api_max_combo": 3243,
+    },
+    {
+        "bid": 5327306,
+        "file": "fixture_beatmap_5327306.osu",
+        "md5": "f5bf50d635a01ebb6047de89ced76216",
+        "notes": 1184,
+        "holds": 624,
+        "stable_max_combo": 2432,
+        "api_max_combo": 2763,
+    },
+]
+
+
+def stage_map_combo() -> None:
+    """MAP COMBO：计数、降级顺序、缓存。全部离线。
+
+    这一节盯的是线上那个真 bug：非满连的成绩，`beatmap.max_combo` 在官服返回里
+    可以**整个字段都不存在**，旧代码 `.get("max_combo", 0)` 于是把 `0x` 印在卡上
+    —— 一个看起来像数据的假数字。下面每一个分支都在检查「不许出现 0x」。
+
+    真实谱面用冻结在 tests/ 里的 .osu（官服原样字节，md5 对得上 API 的 checksum），
+    所以 2922 / 2432 这两个数是**离线可复现**的，不靠「当时网通」。
+    """
+    import hashlib
+    import tempfile
+
+    import card as cardmod
+    import map_combo as map_combomod
+
+    print("\n── 7b. 谱面满连（MAP COMBO）")
+
+    # ── (1) 纯计数 ─────────────────────────────────────────────────────
+    synthetic = (
+        "osu file format v14\n"
+        "\n"
+        "[HitObjects]\n"
+        + "64,192,100,1,0,0:0:0:0:\n" * (MAP_COMBO_EXPECTED["synthetic_notes"] - 1)
+        + "64,192,200,5,0,0:0:0:0:\n"          # 5 = 1|4：普通键 + 新连击段，仍是 1 连
+        + "64,192,300,128,0,400:0:0:0:0:\n" * (MAP_COMBO_EXPECTED["synthetic_holds"] - 1)
+        + "64,192,900,128,0,1000:0:0:0:0:\n"
+    )
+    check("数出普通键与长条",
+          cardmod.count_hit_objects(synthetic),
+          (MAP_COMBO_EXPECTED["synthetic_notes"], MAP_COMBO_EXPECTED["synthetic_holds"]))
+    check("满连 = 普通键 + 长条*2",
+          cardmod.count_map_max_combo(synthetic), MAP_COMBO_EXPECTED["synthetic_combo"])
+    check("没有 [HitObjects] -> None",
+          cardmod.count_map_max_combo("osu file format v14\n[General]\n"),
+          MAP_COMBO_EXPECTED["synthetic_missing_section"])
+    check("有段落但没有物件 -> None",
+          cardmod.count_map_max_combo("[HitObjects]\n\n\n"),
+          MAP_COMBO_EXPECTED["synthetic_no_objects"])
+
+    # ── (2) 真实谱面：文件没被改过、数得对、并且确实和 API 不是一个数 ──
+    texts: dict[int, str] = {}
+    for row in MAP_COMBO_FIXTURES:
+        bid = row["bid"]
+        path = HERE / "tests" / row["file"]
+        if not path.is_file():
+            FAILURES.append(f"缺少谱面 fixture: {path}")
+            print(f"  FAIL  找不到 {path.name}")
+            continue
+        raw = path.read_bytes()
+        text = raw.decode("utf-8", "replace")
+        texts[bid] = text
+        check(f"[bid {bid}] fixture 是官服原样字节（md5 = API checksum）",
+              hashlib.md5(raw).hexdigest(), row["md5"])
+        check(f"[bid {bid}] 物件数",
+              cardmod.count_hit_objects(text), (row["notes"], row["holds"]))
+        check(f"[bid {bid}] stable 满连（数文件）",
+              cardmod.count_map_max_combo(text), row["stable_max_combo"])
+        print(f"   bid {bid}: {row['notes']} 键 + {row['holds']} 长条 -> "
+              f"{row['stable_max_combo']}  |  API 说 {row['api_max_combo']}（lazer 口径）")
+
+    # ── (3) 降级顺序：喂生产同一个 build_card ──────────────────────────
+    payload = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    real_score = payload["score"]
+    real_map = real_score.get("beatmap") or {}
+
+    def slot(sc: dict, bm: dict, counted):
+        d = cardmod.build_card(sc, bm, payload.get("beatmapset") or {}, {},
+                               pp_max_mode="dash", real_max_combo=counted)
+        return d.to_layers().get("map_max_combo"), d.map_max_combo_source
+
+    fc_slot, fc_src = slot(real_score, real_map, None)
+    check("满连走玩家自己的连击", fc_slot, MAP_COMBO_EXPECTED["fc_slot"])
+    check("满连的来源标成 perfect_combo", fc_src, MAP_COMBO_EXPECTED["fc_source"])
+
+    nonfc = dict(real_score)
+    nonfc["is_perfect_combo"] = False
+    nonfc["max_combo"] = 1479
+
+    # 官服那条路上的真实形状：内嵌 beatmap 里**没有** max_combo 这个键。
+    # 旧代码在这里输出 "0x"，就是用户截图上的那个 bug。
+    stripped = {k: v for k, v in real_map.items() if k != "max_combo"}
+    check("[非满连] 内嵌 beatmap 确实没有 max_combo 键", "max_combo" in stripped, False)
+
+    counted_slot, counted_src = slot(nonfc, stripped, MAP_COMBO_EXPECTED["cache_combo"])
+    check("非满连时用数出来的满连", counted_slot, MAP_COMBO_EXPECTED["counted_slot"])
+    check("来源标成 osu_file", counted_src, MAP_COMBO_EXPECTED["counted_source"])
+
+    empty_slot, empty_src = slot(nonfc, stripped, None)
+    check("数不出来又没有 API 值 -> --（不是 0x）",
+          empty_slot, MAP_COMBO_EXPECTED["empty_slot"])
+    check("来源标成 none", empty_src, MAP_COMBO_EXPECTED["empty_source"])
+
+    api_slot, api_src = slot(nonfc, dict(stripped, max_combo=2763), None)
+    check("数不出来时退回 API 值", api_slot, MAP_COMBO_EXPECTED["api_slot"])
+    check("来源标成 api", api_src, MAP_COMBO_EXPECTED["api_source"])
+
+    # 候选值不可能小于玩家已经打出来的连击 —— 那种值是错的，不能印。
+    # 实测场景：bid 5327306 的 lazer 成绩连击 2757，stable 满连只有 2432。
+    lazer = dict(nonfc, max_combo=2757)
+    impossible_slot, impossible_src = slot(lazer, dict(stripped, max_combo=2763),
+                                           MAP_COMBO_EXPECTED["cache_combo"])
+    check("比玩家连击还小的候选被否决，退回 API 值",
+          impossible_slot, f"{2763:,}x")
+    check("两个候选都比玩家连击小 -> --（不硬凑一个数）",
+          slot(lazer, stripped, MAP_COMBO_EXPECTED["cache_combo"]),
+          (MAP_COMBO_EXPECTED["impossible_slot"], MAP_COMBO_EXPECTED["impossible_source"]))
+
+    # 0 不是测量值：它必须被当成「没数」而不是「满连是 0」。
+    check("real_max_combo=0 当成没数",
+          slot(nonfc, stripped, 0), (MAP_COMBO_EXPECTED["empty_slot"],
+                                     MAP_COMBO_EXPECTED["empty_source"]))
+    check("beatmap.max_combo=0 也不会印成 0x",
+          slot(nonfc, dict(stripped, max_combo=0), None),
+          (MAP_COMBO_EXPECTED["empty_slot"], MAP_COMBO_EXPECTED["empty_source"]))
+
+    # 玩家连击缺失时，玩家那一格也不能是 0x（同一个「假装有数据」的毛病）
+    no_combo = dict(nonfc)
+    no_combo.pop("max_combo", None)
+    d_nc = cardmod.build_card(no_combo, dict(stripped, max_combo=2763),
+                              payload.get("beatmapset") or {}, {}, pp_max_mode="dash")
+    check("玩家连击缺失 -> --",
+          d_nc.to_layers().get("max_combo"), MAP_COMBO_EXPECTED["player_slot_when_absent"])
+
+    # ── (4) 任何一条路都不许输出 0x ────────────────────────────────────
+    seen = [fc_slot, counted_slot, empty_slot, api_slot, impossible_slot,
+            d_nc.to_layers().get("max_combo"),
+            d_nc.to_layers().get("map_max_combo")]
+    check("全部路径都没有出现 0x",
+          MAP_COMBO_EXPECTED["forbidden"] in [str(v) for v in seen], False)
+
+    # ── (5) 缓存：落盘、读回、过期、失败不写 ───────────────────────────
+    import shutil
+    tmp = Path(tempfile.mkdtemp())
+    try:
+        resolver = map_combomod.MapComboResolver(tmp)
+        resolver.put(MAP_COMBO_FIXTURES[1]["bid"],
+                     MAP_COMBO_EXPECTED["cache_combo"],
+                     MAP_COMBO_EXPECTED["cache_notes"],
+                     MAP_COMBO_EXPECTED["cache_holds"])
+        check("缓存读回", resolver.cached(5327306), MAP_COMBO_EXPECTED["cache_combo"])
+        check("缓存真的落盘了（重建实例仍在）",
+              map_combomod.MapComboResolver(tmp).cached(5327306),
+              MAP_COMBO_EXPECTED["cache_combo"])
+        check("缓存写在 data 目录里，不在插件目录",
+              (tmp / MAP_COMBO_EXPECTED["cache_file"]).is_file(), True)
+        check("ttl=0 等于不缓存",
+              map_combomod.MapComboResolver(tmp, ttl_days=0).cached(5327306), None)
+
+        if 5327306 in texts:
+            check("count_objects 的分解和缓存一致",
+                  map_combomod.count_objects(texts[5327306]),
+                  (MAP_COMBO_EXPECTED["cache_combo"],
+                   MAP_COMBO_EXPECTED["cache_notes"],
+                   MAP_COMBO_EXPECTED["cache_holds"]))
+
+        # 下载失败必须返回 None 且**不写**缓存 —— 否则一次网络抖动会变成
+        # 三十天的 "--"。
+        import osu_api as osu_apimod
+        original = osu_apimod.fetch_beatmap_file
+        osu_apimod.fetch_beatmap_file = lambda *a, **k: (_ for _ in ()).throw(
+            RuntimeError("self_test: 假装下载失败"))
+        try:
+            failing = map_combomod.MapComboResolver(tmp)
+            check("下载失败 -> None", failing.resolve(999999999), None)
+            check("下载失败不写缓存", failing.cached(999999999), None)
+            check("失败留下了原因（供日志）", bool(failing.last_error), True)
+        finally:
+            osu_apimod.fetch_beatmap_file = original
+        check("非数字 bid 直接拒绝，不发请求",
+              map_combomod.MapComboResolver(tmp).resolve("not-a-number"), None)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+    # ── (6) 生产接线：两条短路必须真的不下载 ───────────────────────────
+    #
+    # 用真的插件类（按 AstrBot 的包内导入方式加载 main.py），不是替身 ——
+    # 「满连不下载」「私服不下载」这两条短路只有跑真方法才算验过。
+    # 判定标准是 `downloads` 必须为空：把下载换成会抛异常的替身，真发了就记下来。
+    import asyncio
+    import importlib.util
+    import osu_api as osu_apimod
+    import types as _types
+
+    pkg_name = "_osucard_combo_selftest"
+    pkg = _types.ModuleType(pkg_name)
+    pkg.__path__ = [str(HERE)]
+    sys.modules[pkg_name] = pkg
+    main_spec = importlib.util.spec_from_file_location(f"{pkg_name}.main", HERE / "main.py")
+    main_mod = importlib.util.module_from_spec(main_spec)
+    sys.modules[f"{pkg_name}.main"] = main_mod
+    try:
+        main_spec.loader.exec_module(main_mod)
+    except Exception as exc:  # noqa: BLE001
+        FAILURES.append(f"[combo] main.py 无法导入: {type(exc).__name__}: {exc}")
+        print(f"  FAIL  main.py 导入失败: {type(exc).__name__}: {exc}")
+        return
+
+    class _Ctx:
+        async def send_message(self, umo, chain):
+            return True
+
+    tmp2 = Path(tempfile.mkdtemp())
+    downloads: list = []
+    original_fetch = osu_apimod.fetch_beatmap_file
+    try:
+        plugin = main_mod.OsuScoreCardPlugin(
+            _Ctx(), {"osu_data_path": str(tmp2 / "x.psd")})
+        plugin.data_dir = tmp2
+
+        def _no_download(*args, **kwargs):
+            downloads.append(args)
+            raise AssertionError("self_test: 这条路径不该下载 .osu")
+
+        osu_apimod.fetch_beatmap_file = _no_download
+        check("[生产] 满连短路（不下载）",
+              asyncio.run(plugin._counted_map_combo(real_score, real_map, "osu")), None)
+        check("[生产] 私服短路（不下载）",
+              asyncio.run(plugin._counted_map_combo(nonfc, stripped, "sb")), None)
+        check("[生产] 短路时确实没发起下载", downloads, [])
+    finally:
+        osu_apimod.fetch_beatmap_file = original_fetch
+        shutil.rmtree(tmp2, ignore_errors=True)
+
+
 # ─────────────────────────────── stage: oauth ───────────────────────────────
 
 
@@ -1003,15 +1281,29 @@ def stage_oauth() -> None:
             check("未过期直接用缓存", await plugin._user_token("12345", "mania"), "FRESH")
             check("没绑定的人返回 None", await plugin._user_token("99999", "mania"), None)
 
-            # 文案
-            reply = plugin._needs_auth_reply("F6A8AF", "12345", "umo", "mania", True, "")
-            check("提示里带授权链接", "osu.ppy.sh/oauth/authorize" in reply, True)
+            # 文案。链接现在由 _send_oauth_link 单独发一条（这样那条才能定时
+            # 撤回），所以说明文字里**不该**再出现链接。
+            reply = plugin._needs_auth_reply("F6A8AF", True, "")
+            check("说明里不再内嵌链接", "osu.ppy.sh/oauth/authorize" not in reply, True)
+            check("说明里点明下面会单独发链接", "授权链接" in reply, True)
             check("提示说明替代方案", "s <成绩ID>" in reply, True)
             check("提示不含令牌", ("AT-" not in reply) and ("RT-" not in reply), True)
-            reply2 = plugin._needs_auth_reply("F6A8AF", "12345", "umo", "mania",
-                                              False, "端口被占用")
+            reply2 = plugin._needs_auth_reply("F6A8AF", False, "端口被占用")
             check("服务不可用时说明原因", "端口被占用" in reply2, True)
             check("服务不可用时不给链接", "oauth/authorize" not in reply2, True)
+
+            # 文案里的撤回秒数必须和配置一致，不能再说「15 分钟内有效」
+            plugin.config["oauth_recall_seconds"] = 30
+            link_reply = plugin._oauth_link_reply("12345", "umo", "mania", True, "")
+            check("链接文案说 30 秒后撤回", "30 秒后自动撤回" in link_reply, True)
+            check("链接文案不再提 15 分钟", "15 分钟" not in link_reply, True)
+            check("链接文案里确实有链接",
+                  "osu.ppy.sh/oauth/authorize" in link_reply, True)
+            plugin.config["oauth_recall_seconds"] = 0
+            check("撤回关掉时改回说有效期",
+                  "15 分钟" in plugin._oauth_link_reply("12345", "umo", "mania", True, ""),
+                  True)
+            plugin.config["oauth_recall_seconds"] = 30
 
             # 停止 + 端口占用
             await plugin._oauth_server.stop()
@@ -1037,7 +1329,8 @@ def main() -> int:
     ap.add_argument("--full", action="store_true",
                     help="全量渲染：含背景、头像、mod 徽章、辉光（需要联网）")
     ap.add_argument("--only",
-                    choices=["map", "raster", "render", "full", "plugin", "sb", "oauth"],
+                    choices=["map", "raster", "render", "full", "plugin", "sb",
+                             "combo", "oauth"],
                     default=None)
     ap.add_argument("--template", default=r"D:\Cho Osu Bot\template\osu_score_template_v1.psd")
     ap.add_argument("--assets", default=r"D:\Cho Osu Bot\template\assets")
@@ -1063,6 +1356,8 @@ def main() -> int:
         stage_new_engines(info)
     if args.only in (None, "sb"):
         stage_sb()
+    if args.only in (None, "combo"):
+        stage_map_combo()
     if args.only in (None, "oauth"):
         stage_oauth()
 

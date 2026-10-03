@@ -83,17 +83,12 @@ def _fmt_acc(value) -> str:
         return "--"
 
 
-def count_map_max_combo(osu_text: str) -> int | None:
-    """Real max combo of a mania beatmap, counted from the .osu itself.
+def count_hit_objects(osu_text: str) -> tuple[int, int] | None:
+    """(普通键数, 长条数) of a mania .osu, or None when there is nothing to count.
 
-    osu!'s `beatmap.max_combo` is unreliable for mania. For bid 5493536 the API
-    reports 3243, but the file holds 2478 objects (2034 notes + 444 holds) and a
-    hold is worth 2 combo, so the true maximum is 2922 — which is exactly the
-    player's max_combo, their perfect-combo flag, and the sum of all six
-    judgements. The 321 gap is unexplained and is not any multiple of the hold
-    count, so it is not simply a lazer-vs-stable counting difference.
-
-    Returns None when the text has no [HitObjects] section.
+    The one place that parses [HitObjects]. count_map_max_combo() and the cache
+    both go through it — a second parser written for the cache is how the two
+    would quietly disagree later.
     """
     idx = osu_text.find("[HitObjects]")
     if idx < 0:
@@ -116,7 +111,98 @@ def count_map_max_combo(osu_text: str) -> int | None:
             notes += 1
     if notes == 0 and holds == 0:
         return None
+    return notes, holds
+
+
+def count_map_max_combo(osu_text: str) -> int | None:
+    """Max combo of a mania beatmap counted from the .osu itself — the STABLE rule.
+
+    osu!'s `beatmap.max_combo` is a **lazer** number for mania: it counts hold
+    ticks as well as the head and the tail. This function counts the way the
+    stable client does (a note is 1 combo, a hold is 2), which is the number
+    that belongs beside a stable play's own combo.
+
+    Measured against the live API and both maps' leaderboards (2026-10):
+
+        bid      notes  holds  here  API   stable plays          lazer "CL" plays
+        5493536   2034    444   2922  3243  2922 (is_perfect_combo)  3243
+        5327306   1184    624   2432  2763  2432 (is_perfect_combo)  2757+
+
+    For 5327306 the leaderboard settles it outright: plays with no mods and
+    `is_perfect_combo` = true report exactly 2432, while lazer "CL" plays report
+    2757 and the API says 2763. Two counting rules, two correct numbers — the
+    card is showing a stable play's combo, so it wants the stable maximum.
+
+    Returns None when there is nothing to count (no [HitObjects], an osu!std
+    file, a truncated download).
+    """
+    counts = count_hit_objects(osu_text)
+    if counts is None:
+        return None
+    notes, holds = counts
     return notes + holds * 2
+
+
+def as_positive_int(value) -> int | None:
+    """Anything a payload or a fixture might hand us -> a positive int, else None.
+
+    `0` is deliberately NOT a value. On this card zero means "nothing was
+    measured", and printing it renders as `0x` — a number that looks like data
+    but is not. That is the bug this whole file's combo handling exists to
+    avoid, so the guard lives here rather than at each call site.
+    """
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        return None
+    return number if number > 0 else None
+
+
+def _fmt_combo(value) -> str:
+    """Combo slot: `2,922x`, or `--` when there is no measurement."""
+    number = as_positive_int(value)
+    return f"{number:,}x" if number else "--"
+
+
+def resolve_map_max_combo(score: dict, beatmap: dict,
+                          counted: int | None = None) -> tuple[int | None, str]:
+    """The MAP COMBO slot, in the order we trust the sources.
+
+    Returns (value, source); value None means "no measurement" and the caller
+    prints `--`. `source` is kept for tests and for the log line — it is how we
+    tell "the .osu was counted" from "we fell back to the API".
+
+    The order, and why:
+
+      1. `perfect_combo` — on a full combo the player's own `max_combo` IS the
+         map's maximum, exactly, and it costs nothing. This is also the only
+         case where the number is beyond argument.
+      2. `osu_file` — `counted`, the value a caller obtained by downloading the
+         .osu and running count_map_max_combo() on it. Accurate, but it needs
+         the file, so the caller (not this pure function) does the fetching.
+      3. `api` — `beatmap.max_combo`. For mania this is the **lazer** maximum
+         (see count_map_max_combo): right for a lazer play, systematically too
+         high for a stable one. It is a last resort, not a source of truth.
+      4. `none` — nothing usable, so the card shows `--`.
+
+    Two of those three sources can be *contradicted by the score itself*: a map's
+    maximum can never be smaller than a combo someone already reached on it. A
+    candidate below the score's own `max_combo` is therefore not merely
+    imprecise, it is impossible, and it is discarded — which is what keeps a
+    lazer play (combo 2757 on bid 5327306) from being handed the stable maximum
+    of 2432, and lets the API's 2763 through instead. Rejecting a value we can
+    prove wrong is not the same as trusting the API; it is the cheapest honest
+    check available without a second download.
+    """
+    player = as_positive_int((score or {}).get("max_combo"))
+    if player and (score or {}).get("is_perfect_combo"):
+        return player, "perfect_combo"
+
+    for value, source in ((as_positive_int(counted), "osu_file"),
+                          (as_positive_int((beatmap or {}).get("max_combo")), "api")):
+        if value and (player is None or value >= player):
+            return value, source
+    return None, "none"
 
 
 def _fmt_date(value) -> str:
@@ -351,6 +437,10 @@ class CardData:
     max_combo: str = ""
     map_max_combo: str = ""
 
+    # 不是文本层：`map_max_combo` 这个数是从哪条路来的
+    # （perfect_combo / osu_file / api / none）。给自检和日志看，卡片不画它。
+    map_max_combo_source: str = "none"
+
     counts: dict[str, int] = field(default_factory=dict)
     mods: list[str] = field(default_factory=list)
 
@@ -423,12 +513,18 @@ def _pick(d: dict, *keys, default=""):
 
 def build_card(score: dict, beatmap: dict, beatmapset: dict,
                player: dict | None = None,
-               pp_max_mode: str = "computed") -> CardData:
+               pp_max_mode: str = "computed",
+               real_max_combo: int | None = None) -> CardData:
     """Assemble a CardData from a /scores/<id> payload plus optional user profile.
 
     `beatmap`/`beatmapset` are the objects the score already embeds, so a score
     fetch needs no follow-up requests. `player` is a full /users/... profile and is
     the only source of TOTAL PP; without it that slot falls back to a dash.
+
+    `real_max_combo` is the map's maximum combo as counted from the .osu itself
+    (card.count_map_max_combo), supplied by the caller because this module does
+    no I/O. None means "not counted" and the slot falls back as described in
+    resolve_map_max_combo().
 
     `pp_max_mode`: 'computed' 算理论最大 PP（全 320 + 满连）,'dash' 退回 "--"。
     """
@@ -456,12 +552,12 @@ def build_card(score: dict, beatmap: dict, beatmapset: dict,
     if total_pp is None:
         total_pp = (player or {}).get("total_pp")
 
-    # See count_map_max_combo(): the API's beatmap.max_combo drifts for mania, so on a
-    # full combo trust the player's own max_combo instead.
-    if score.get("is_perfect_combo") and score.get("max_combo"):
-        _map_max_combo = score.get("max_combo")
-    else:
-        _map_max_combo = beatmap.get("max_combo", 0)
+    # MAP COMBO. The old code was `beatmap.get("max_combo", 0)` on every
+    # non-full-combo play, and the official API does not always put that key on
+    # the score's embedded beatmap at all — so the card printed `0x`. The order
+    # of sources, and the impossibility check, are in resolve_map_max_combo().
+    _map_max_combo, _map_max_combo_src = resolve_map_max_combo(
+        score, beatmap, counted=real_max_combo)
 
     # 理论最大 PP。老调用方不传 pp_max_mode，默认按 computed 走。
     _pp_max_mode = str(pp_max_mode or "computed").strip().lower()
@@ -519,9 +615,11 @@ def build_card(score: dict, beatmap: dict, beatmapset: dict,
         player_name=str(_pick(score.get("user") or {}, "username",
                               default=_pick(player or {}, "username", default="?"))),
         total_pp=_fmt_pp(total_pp),
-        # rank_global is the score's position on the map leaderboard. The layer is
-        # named `rank_change`, which reads like a PP delta — the API offers no such
-        # number, so this slot shows the leaderboard rank instead.
+        # 玩家名字下面那一格。图层名是 `rank_change`，但它显示的**不是 PP 变化**
+        # —— osu! API 根本没有「PP 变化」这个字段（没有历史 PP 就没有 delta）。
+        # 这一格填的是 `rank_global`：**这局成绩在谱面排行榜上的名次**（#165 =
+        # 该谱面第 165 名）。API 没给这个字段时显示 `--`，那是正确行为，不是 bug。
+        # 图层名保留不改：改它要连带动模板和 layer_mapping.json，不值得。
         rank_change=(f"#{score['rank_global']}" if score.get("rank_global") else "--"),
         play_date=_fmt_date(_pick(score, "ended_at", "created_at")),
 
@@ -533,12 +631,13 @@ def build_card(score: dict, beatmap: dict, beatmapset: dict,
         pp_max=_pp_max_text,
         accuracy=_fmt_acc(stable_accuracy(counts)),
         accuracy_lazer=_fmt_acc(lazer),
-        max_combo=f"{_fmt_int(score.get('max_combo', 0))}x",
-        # The API's beatmap.max_combo drifts for mania (3243 vs the true 2922 here —
-        # see count_map_max_combo). On a full combo the player's own max_combo IS the
-        # map's true maximum, so prefer it; otherwise fall back to the API value.
-        # Count the .osu with count_map_max_combo() when an exact non-FC value matters.
-        map_max_combo=f"{_fmt_int(_map_max_combo)}x",
+        max_combo=_fmt_combo(score.get("max_combo")),
+        # MAP COMBO = 谱面满连。取数顺序（满连 -> 数 .osu -> API -> "--"）和
+        # 「候选值不能小于玩家自己的连击」这条否决规则，都写在
+        # resolve_map_max_combo() 上面。**任何情况下都不出现 `0x`** ——
+        # 0 是「没测到」的伪装，看起来像真数据。
+        map_max_combo=_fmt_combo(_map_max_combo),
+        map_max_combo_source=_map_max_combo_src,
 
         counts=counts,
         mods=mods,

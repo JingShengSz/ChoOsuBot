@@ -17,6 +17,49 @@ from pathlib import Path
 OSU_AUTHORIZE = "https://osu.ppy.sh/oauth/authorize"
 OSU_TOKEN = "https://osu.ppy.sh/oauth/token"
 
+#: The .osu download. `https://osu.ppy.sh/osu/<beatmap id>` is the beatmap file
+#: itself: public, no OAuth, no application token, no rate-limit header games.
+#: It is what the game client downloads, so its md5 equals the beatmap's
+#: `checksum` — which is how you can prove you counted the right difficulty.
+OSU_BEATMAP_FILE = "https://osu.ppy.sh/osu/{beatmap_id}"
+
+#: A 4K map is 20-250 KB of text. Anything past this is not a beatmap file.
+_MAX_OSU_BYTES = 4 * 1024 * 1024
+
+
+def fetch_beatmap_file(beatmap_id, proxy: str = "", timeout: int = 30) -> str:
+    """Download one beatmap's .osu text. Public endpoint — no credentials at all.
+
+    Deliberately a module function rather than an `OsuApi` method: `OsuApi.__init__`
+    refuses to exist without client credentials, and this call needs none. A card
+    must still be able to count a map on a machine that has never been given an
+    osu! key.
+
+    Goes through `effective_proxies()` and its own opener for the reason spelled
+    out there — the global opener is shared state, and on this machine a direct
+    connection to osu.ppy.sh does not resolve at all (Cloudflare answers curl
+    with 403), while the proxy answers in under a second.
+    """
+    text = str(beatmap_id or "").strip()
+    if not text.isdigit():
+        raise ValueError("Expected a numeric osu! beatmap id")
+    url = OSU_BEATMAP_FILE.format(beatmap_id=text)
+    opener = urllib.request.build_opener(
+        urllib.request.ProxyHandler(effective_proxies(proxy)))
+    request = urllib.request.Request(url, headers={"User-Agent": "mania-render/0.1"})
+    try:
+        with opener.open(request, timeout=timeout) as response:
+            raw = response.read(_MAX_OSU_BYTES + 1)
+    except urllib.error.HTTPError as exc:
+        # 404 is the ordinary "no such map" answer and callers treat it as such.
+        raise RuntimeError(f"osu! .osu download HTTP {exc.code} for beatmap {text}") from None
+    except Exception as exc:  # noqa: BLE001
+        raise RuntimeError(f"osu! .osu download failed for beatmap {text}: "
+                           f"{type(exc).__name__}") from None
+    if len(raw) > _MAX_OSU_BYTES:
+        raise RuntimeError(f"osu! .osu for beatmap {text} is implausibly large")
+    return raw.decode("utf-8", "replace")
+
 
 @dataclass(frozen=True)
 class PlayerProfile:

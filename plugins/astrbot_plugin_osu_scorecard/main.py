@@ -38,6 +38,7 @@ import astrbot.api.message_components as Comp
 
 try:  # 正常情况：AstrBot 按包导入，相对导入成立
     from . import card as cardmod
+    from . import map_combo as map_combomod
     from . import oauth as oauthmod
     from . import osu_api
     from . import raster
@@ -47,6 +48,7 @@ try:  # 正常情况：AstrBot 按包导入，相对导入成立
     from .store import DEFAULT_SERVER, SERVER_LABEL, Store, norm_server
 except ImportError:  # 兜底：被当顶层模块加载时，走绝对导入
     import card as cardmod
+    import map_combo as map_combomod
     import oauth as oauthmod
     import osu_api
     import raster
@@ -146,9 +148,17 @@ class OsuScoreCardPlugin(Star):
         self._api_error: str | None = None
         self._sb_client = None
 
+        # 谱面满连的解析器（下载 .osu 自己数 + 磁盘缓存）。懒建：建它要读配置文件，
+        # 而绝大多数消息根本不出卡。
+        self._map_combo: map_combomod.MapComboResolver | None = None
+
         # OAuth (official server only — the private one needs no authorization).
         self._pending = oauthmod.PendingAuth(self.data_dir / "oauth_pending.json")
         self._oauth_server: oauthmod.OAuthCallbackServer | None = None
+
+        # 待执行的「若干秒后撤回」任务。必须留着强引用，否则事件循环只持弱引用，
+        # 任务可能在 sleep 中途被 GC —— 表现为「有时候撤了有时候没撤」。
+        self._recall_tasks: set = set()
 
     # ─────────────────────────── configuration ───────────────────────────
 
@@ -207,6 +217,30 @@ class OsuScoreCardPlugin(Star):
         跑到这行就抛 AttributeError，渲染直接失败。）
         """
         return str(self._cfg("pp_max_mode", "computed")).strip().lower()
+
+    @property
+    def map_combo_cache_days(self) -> float:
+        """谱面满连缓存的有效期（天）。0 = 不缓存，每次都重新下载 .osu。
+
+        一个 bid 的满连不会变，所以默认给 30 天；这个开关只是给「谱面被改过」
+        和排查留一条路。
+        """
+        try:
+            return max(0.0, float(self._cfg("map_combo_cache_days", 30)))
+        except (TypeError, ValueError):
+            return 30.0
+
+    @property
+    def map_combo_fetch(self) -> bool:
+        """关掉之后不再下载 .osu，满连直接走 API 的值（旧行为）。
+
+        留着是因为它是唯一一处「出卡会多发一个网络请求」的地方 ——
+        用户要是嫌慢或者网络环境差，得能一键退回去。
+        """
+        value = self._cfg("map_combo_fetch", True)
+        if isinstance(value, str):
+            return value.strip().lower() not in ("0", "false", "no", "off", "")
+        return bool(value)
 
     @property
     def template_path(self) -> Path:
@@ -332,6 +366,64 @@ class OsuScoreCardPlugin(Star):
     def _any_client(self, server: str):
         """按服取客户端。官服是 OsuApi，私服是 SbApi。"""
         return self._sb() if norm_server(server) == "sb" else self._client()
+
+    def _map_combo_resolver(self):
+        """谱面满连解析器（下载 .osu 自己数 + 磁盘缓存）。
+
+        缓存落在 `data/plugin_data/<插件名>/map_combo_cache.json` —— 和
+        bindings.json / players.json 同一个地方，**不在插件目录里**：
+        插件目录会被 AstrBot 升级覆盖，而且它在 git 里。
+
+        代理在构造时定下来，和 `_sb()` / `_client()` 一样。配置改了要重启插件
+        （这两个客户端本来也是这个行为，保持一致）。
+        """
+        if self._map_combo is None:
+            self._map_combo = map_combomod.MapComboResolver(
+                self.data_dir,
+                ttl_days=self.map_combo_cache_days,
+                proxy=self.http_proxy,
+                enable_cache=self.map_combo_cache_days > 0)
+        return self._map_combo
+
+    async def _counted_map_combo(self, score: dict, beatmap: dict,
+                                 server: str) -> int | None:
+        """这一局的谱面满连，用 .osu 数出来的那个值（数不出来就是 None）。
+
+        规则与降级顺序见 `card.resolve_map_max_combo()`；这里只负责「值从哪来」：
+
+        · 满连（`is_perfect_combo`）时**不下载** —— 玩家自己的连击就是满连，
+          精确且零成本，这是最常见的路径。
+        · 官服：`https://osu.ppy.sh/osu/<bid>`，公开端点，不需要任何授权。
+        · 私服：**不**走这里。SB 的谱面真值在 `/v1/get_map_info` 里
+          （成绩内嵌的 `beatmap.max_combo` 是脏数据），那一次调用已经在
+          `_sb_score_bundle()` 做过，`beatmap["max_combo"]` 拿到的就是它。
+        · 失败一律返回 None，由卡片退回 API 的值或 "--"。**绝不让满连这一格
+          把整张卡弄挂**：为了一个数字丢掉整张成绩卡是不划算的。
+        """
+        if not self.map_combo_fetch:
+            return None
+        if score.get("is_perfect_combo") and cardmod.as_positive_int(score.get("max_combo")):
+            return None
+        if norm_server(server) == "sb":
+            return None
+        # 官服成绩对象的谱面 id 有两个位置：内嵌 beatmap.id（`/scores/<id>` 有），
+        # 顶层 beatmap_id（部分形状只有这个）。取不到就没得数。
+        bid = beatmap.get("id") or score.get("beatmap_id") or (
+            (score.get("beatmap") or {}).get("id"))
+        if not bid:
+            return None
+        try:
+            resolver = self._map_combo_resolver()
+            value = await self._call(resolver.resolve, bid)
+        except Exception as exc:  # noqa: BLE001
+            logger.info(f"[scorecard] 谱面满连数不出来（{type(exc).__name__}），"
+                        f"退回 API 值")
+            return None
+        if value:
+            logger.info(f"[scorecard] 谱面满连 bid={bid} 数 .osu 得到 {value}")
+        elif getattr(resolver, "last_error", ""):
+            logger.info(f"[scorecard] 谱面满连 bid={bid} 数不出来：{resolver.last_error}")
+        return value
 
     def _client(self):
         """官服 API 客户端。
@@ -675,8 +767,12 @@ class OsuScoreCardPlugin(Star):
             except Exception as exc:  # noqa: BLE001
                 logger.info(f"[scorecard] 取玩家资料失败，TOTAL PP 留空：{type(exc).__name__}")
 
+        # 谱面满连：非满连时去数 .osu（见 _counted_map_combo）。放在 build_card
+        # 之前，因为它决定了卡片上 MAP COMBO 那一格填什么。
+        counted_combo = await self._counted_map_combo(score, beatmap, srv)
         data = cardmod.build_card(score, beatmap, beatmapset, profile,
-                                  pp_max_mode=self.pp_max_mode)
+                                  pp_max_mode=self.pp_max_mode,
+                                  real_max_combo=counted_combo)
         return await self._render(event, data, session)
 
     async def _recent_scores(self, username: str, include_fails: bool,
@@ -844,32 +940,24 @@ class OsuScoreCardPlugin(Star):
             return
         yield self._image_reply(event, png)
 
-    def _needs_auth_reply(self, username: str, qq: str, umo: str, ruleset: str,
-                          server_ok: bool, reason: str) -> str:
+    def _needs_auth_reply(self, username: str, server_ok: bool, reason: str) -> str:
         """官服最近成绩查不了时的回复。
 
-        这条以前是一段写死的、没有针对性的提示 —— 用户因此以为「绑定没生效」。
-        现在：能发链接就直接发链接（一步就能解决），发不了才退回到「用链接 / s」。
+        这里**只给说明，不带链接** —— 链接由 `_send_oauth_link` 单独发一条，
+        这样那条消息才能在 N 秒后自动撤回。以前链接是拼在这段文字里的，走的是
+        普通回复路径，于是 `p` / `r` 触发的链接永远不会被撤回（只有 `bind` /
+        `authorize` 那条路径会撤），用户看到的就是「链接一直挂在群里」。
         """
         head = f"{username} 绑好了，但官服的最近成绩还差一次授权。\n"
         if server_ok:
-            try:
-                url = self._oauth_link(qq, umo, ruleset)
-            except Exception as exc:  # noqa: BLE001
-                url = ""
-                reason = self._explain(exc, "生成授权链接失败")
-            if url:
-                return (
-                    head
-                    + "点开下面这个链接，点「Authorize」授权一次就行：\n"
-                    + url + "\n"
-                    + f"\n（链接 {oauthmod.PENDING_TTL // 60} 分钟内有效；"
-                      "过期了就再发一次 authorize）\n"
-                      "\n"
-                      "授权只给「读取公开数据」的权限，插件拿不到你的密码，"
-                      "也改不了你的账号。\n"
-                      "\n"
-                      "不想授权也能用：直接贴成绩链接，或者 s <成绩ID>。")
+            return (
+                head
+                + "下面单独发一条授权链接给你，点开、点「Authorize」就行。\n"
+                "\n"
+                "授权只给「读取公开数据」的权限，插件拿不到你的密码，"
+                "也改不了你的账号。\n"
+                "\n"
+                "不想授权也能用：直接贴成绩链接，或者 s <成绩ID>。")
         return (
             head
             + f"（现在发不出授权链接：{reason}）\n"
@@ -979,6 +1067,17 @@ class OsuScoreCardPlugin(Star):
         self._pending.prune()
         return self._client().authorize_url(self.oauth_redirect_uri, state)
 
+    def _recall_delay(self) -> int:
+        """授权链接那条消息发出后多少秒撤回；0 = 不撤回。
+
+        文案必须和这个数保持一致。之前写死「链接 15 分钟内有效」而实际 30 秒
+        就撤回，用户回头去点发现消息没了，会以为链接本身也失效了。
+        """
+        try:
+            return max(0, int(self._cfg("oauth_recall_seconds", AUTO_RECALL_SECONDS) or 0))
+        except (TypeError, ValueError):
+            return AUTO_RECALL_SECONDS
+
     def _oauth_link_reply(self, qq: str, umo: str, ruleset: str,
                           server_ok: bool, reason: str) -> str:
         """发链接时要说清楚「点完才算绑定好」，否则用户会以为没生效。"""
@@ -989,12 +1088,16 @@ class OsuScoreCardPlugin(Star):
             url = self._oauth_link(qq, umo, ruleset)
         except Exception as exc:  # noqa: BLE001
             return f"生成授权链接失败：{self._explain(exc, '请检查 osu! 凭据配置')}"
+        delay = self._recall_delay()
+        tail = (f"（这条消息 {delay} 秒后自动撤回，请尽快点开）"
+                if delay > 0 else
+                f"（链接 {oauthmod.PENDING_TTL // 60} 分钟内有效）")
         return (
             "还差一步 —— 官服的最近成绩需要你授权一次：\n"
             f"{url}\n"
             "\n"
             "点开 → 点「Authorize」→ 看到「授权完成」就好了。\n"
-            f"（链接 {oauthmod.PENDING_TTL // 60} 分钟内有效）")
+            f"{tail}")
 
     async def _user_token(self, qq: str, ruleset: str) -> str | None:
         """这个 QQ 的官服用户令牌；过期就自动刷新。没授权过返回 None。
@@ -1041,13 +1144,16 @@ class OsuScoreCardPlugin(Star):
         就没法撤回。所以这里直接调 OneBot 的 send_group_msg / send_private_msg，
         从回包里取 message_id，再起一个后台任务定时 delete_msg。
 
-        单独发一条而不是拼在绑定提示后面，是为了撤回时不会把
-        「绑定成功」那条一起撤掉。发失败就返回 False，调用方回退成普通回复。
+        单独发一条而不是拼在别的回复后面，是为了撤回时不会把
+        「绑定成功」那条一起撤掉。发失败就返回 False，调用方回退成普通回复
+        （那种情况下撤不了，会在日志里留一条记录）。
+
+        返回 True 表示消息已经发出去了，调用方不要再 yield 一遍，否则会重复。
         """
-        delay = int(self._cfg("oauth_recall_seconds", AUTO_RECALL_SECONDS) or 0) \
-            if delay is None else delay
+        delay = self._recall_delay() if delay is None else delay
         bot = getattr(event, "bot", None)
         if bot is None or not hasattr(bot, "call_action"):
+            logger.info("[scorecard] 平台没有 call_action，授权链接无法自动撤回（改走普通回复）")
             return False
         gid = event.get_group_id()
         try:
@@ -1059,31 +1165,48 @@ class OsuScoreCardPlugin(Star):
                                             user_id=int(event.get_sender_id()),
                                             message=text)
         except Exception as exc:  # noqa: BLE001
-            logger.info(f"[scorecard] 直接发授权链接失败（{type(exc).__name__}），改用普通回复")
+            logger.info(f"[scorecard] 直接发授权链接失败（{type(exc).__name__}），"
+                        f"改用普通回复（这条撤不了）")
             return False
         mid = res.get("message_id") if isinstance(res, dict) else None
-        if mid is not None:
-            asyncio.create_task(self._recall_after(event, int(mid), gid, delay))
+        if mid is None:
+            logger.info("[scorecard] 授权链接已发出，但回包里没有 message_id，撤不了")
+            return True
+        logger.info(f"[scorecard] 授权链接已发出 message_id={mid}，将在 {delay}s 后撤回")
+        if delay > 0:
+            # 必须留一份强引用：只写 asyncio.create_task(...) 的话，事件循环只持
+            # 弱引用，任务可能在 sleep 到一半时被 GC 掉 —— 表现就是「有时候撤了、
+            # 有时候没撤」。这就是之前 19:04 成功、19:11 没撤的原因之一。
+            task = asyncio.create_task(self._recall_after(event, int(mid), gid, delay))
+            self._recall_tasks.add(task)
+            task.add_done_callback(self._recall_tasks.discard)
         return True
 
     async def _recall_after(self, event: AstrMessageEvent, message_id: int,
                             group_id, delay: int) -> None:
-        """delay 秒后撤回那条消息。失败只写日志，不影响任何功能。"""
+        """delay 秒后撤回那条消息。
+
+        撤回失败（机器人没权限、消息太旧、平台不支持……）只写一条日志，
+        绝不让它冒出来影响别的流程。
+        """
         if delay <= 0:
             return
-        await asyncio.sleep(delay)
-        bot = getattr(event, "bot", None)
-        if bot is None or not hasattr(bot, "call_action"):
-            return
         try:
+            await asyncio.sleep(delay)
+            bot = getattr(event, "bot", None)
+            if bot is None or not hasattr(bot, "call_action"):
+                logger.info(f"[scorecard] 撤回 {message_id} 跳过：平台没有 call_action")
+                return
             if group_id:
                 await bot.call_action("delete_msg",
                                       message_id=message_id, group_id=int(group_id))
             else:
                 await bot.call_action("delete_msg", message_id=message_id)
             logger.info(f"[scorecard] 授权链接消息 {message_id} 已按 {delay}s 自动撤回")
+        except asyncio.CancelledError:
+            raise
         except Exception as exc:  # noqa: BLE001
-            logger.info(f"[scorecard] 撤回消息 {message_id} 失败：{type(exc).__name__}")
+            logger.info(f"[scorecard] 撤回消息 {message_id} 失败（{type(exc).__name__}）：{exc}")
 
     # ─────────────────────────── sending ───────────────────────────
 
@@ -1343,10 +1466,14 @@ class OsuScoreCardPlugin(Star):
             return
 
         if status == "needs_user_token":
+            # 说明走普通回复（留着），链接单独发一条并定时撤回。
+            # 两条分开是刻意的：撤回只撤链接那条，说明不会被一起撤掉；
+            # 而且不管是 bind 还是 p/r 触发的链接，都会经过同一个撤回路径。
             ok, reason = await self._ensure_oauth_server()
-            yield event.plain_result(
-                self._needs_auth_reply(username, qq, event.unified_msg_origin,
-                                       rs, ok, reason))
+            yield event.plain_result(self._needs_auth_reply(username, ok, reason))
+            if ok:
+                async for r in self._send_oauth_link(event, qq, rs):
+                    yield r
             return
         if status == "empty":
             yield event.plain_result(
