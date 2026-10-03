@@ -1,4 +1,4 @@
-﻿<#
+<#
     node-launcher.ps1 — the backend behind the two Desktop launchers
     ===============================================================
 

@@ -1,4 +1,4 @@
-﻿<#
+<#
     mania-render node supervisor  (Windows)
     ======================================
 

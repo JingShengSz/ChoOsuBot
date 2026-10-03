@@ -138,7 +138,7 @@ that listener binds to the VPS loopback only. Verified, not assumed:
 $ ss -lntp | grep 8760            # on the VPS
 LISTEN 0 128 127.0.0.1:8760 0.0.0.0:* users:(("sshd",pid=...))
 LISTEN 0 128    [::1]:8760    [::]:* users:(("sshd",pid=...))
-$ curl http://www.liuliyue.com:8760/  # public IP -> refused
+$ curl http://www.liuliyue.com:8760/  # via the public hostname -> refused
 ```
 
 ## Why not autossh
