@@ -209,12 +209,37 @@ class OsuApi:
         an application token whatever the request shape, so without a USER token
         the call cannot work at all. `authorize_url()` / `exchange_code()` below
         are how that token is obtained.
+
+        路径是 `/users/{user}/scores/recent`，模式走 `mode` **查询参数**。
+        把模式写成路径段（`/users/{user}/{ruleset}/scores/recent`）会 404，
+        而且**应用令牌和用户令牌都 404** —— 极易被误判成「权限不够」，
+        让人白做一遍 OAuth。实测（2026-10-03，同一条命令只换路径）：
+            404  /users/32749965/mania/scores/recent
+            200  /users/32749965/scores/recent?mode=mania
+        加不加 `x-api-version`、参数叫 mode 还是 ruleset，都不影响结论。
+
+        **第二层坑：这个端点只认数字 id，不认用户名。**
+            404  /users/F6A8AF/scores/recent?mode=mania      <- body 是 {"error":null}
+            200  /users/32749965/scores/recent?mode=mania
+        两个 404 长得一模一样，而「没授权」也是 404，于是一个纯粹的参数
+        问题会被报成「你还差一次授权」。所以这里对非数字的 `user` 先做一次
+        `/users/{user}/{ruleset}` 把 id 解析出来再查。
         """
         if ruleset not in ("osu", "taiko", "fruits", "mania"):
             raise ValueError("Unknown osu! ruleset")
+        ident = str(user).strip()
+        if not ident.isdigit():
+            # `/users/{name}/{mode}` 接受用户名，借它换成数字 id。
+            resolved = self.user_by_name(ident, ruleset) or {}
+            ident = str(resolved.get("id") or "").strip()
+            if not ident.isdigit():
+                raise RuntimeError(
+                    f"osu! did not resolve '{user}' to a user id for {ruleset}")
         rows = self.get(
-            f"/users/{self._user_segment(user)}/{ruleset}/scores/recent",
-            {"include_fails": 1 if include_fails else 0, "limit": max(1, min(100, limit))},
+            f"/users/{ident}/scores/recent",
+            {"mode": ruleset,
+             "include_fails": 1 if include_fails else 0,
+             "limit": max(1, min(100, limit))},
             token=user_token,
         )
         return rows if isinstance(rows, list) else []
