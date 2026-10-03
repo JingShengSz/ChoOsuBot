@@ -138,10 +138,16 @@
     "default": 6199,
     "hint": "端口被占用时换一个。这个端口必须能被用户的浏览器访问到。"
   },
+  "oauth_recall_seconds": {
+    "description": "授权链接多少秒后自动撤回",
+    "type": "int",
+    "default": 30,
+    "hint": "链接是单独一条消息发出去的，到点自动撤回，不影响同一轮里的其他回复。填 0 = 不撤回。"
+  },
   "oauth_redirect_base": {
     "description": "授权回调的外部基地址",
     "type": "string",
     "default": "",
-    "hint": "留空 = 用 host:port 拼本机地址。部署到公网时填成 https://你的域名。填什么就要在 osu! 后台把 Callback URL 登记成 这个基地址 + /oauth/callback（必须一字不差，osu! 是字面比较）。"
+    "hint": "留空 = 用 host:port 拼本机地址。部署到公网时填成 https://你的域名。填什么就要在 osu! 后台把应用回调链接登记成 这个基地址 + /oauth/callback，必须一字不差。⚠️ 如果 osu! 后台那个应用的回调链接是空的、或者和这里对不上，点开授权链接只会看到 {\"error\":\"invalid_client\"} —— 这是 osu! 在说「这个回调地址我不认识」，不是密钥错了。"
   }
 }

@@ -57,6 +57,10 @@ except ImportError:  # 兜底：被当顶层模块加载时，走绝对导入
 
 PLUGIN_NAME = "astrbot_plugin_osu_scorecard"
 
+#: 授权链接那条消息发出后多少秒自动撤回。0 = 不撤回。
+#: 链接本身是给别人点的，留在群里碍眼，所以默认 30 秒收掉。
+AUTO_RECALL_SECONDS = 30
+
 # osu! 的四个规则集。`mode` 指令接受这些值。
 RULESETS = ("osu", "taiko", "fruits", "mania")
 RULESET_LABEL = {
@@ -990,10 +994,7 @@ class OsuScoreCardPlugin(Star):
             f"{url}\n"
             "\n"
             "点开 → 点「Authorize」→ 看到「授权完成」就好了。\n"
-            f"（链接 {oauthmod.PENDING_TTL // 60} 分钟内有效）\n"
-            "\n"
-            "授权只给读取公开成绩的权限，插件拿不到你的密码。\n"
-            "不想授权也能用：直接贴成绩链接，或者 s <成绩ID>。")
+            f"（链接 {oauthmod.PENDING_TTL // 60} 分钟内有效）")
 
     async def _user_token(self, qq: str, ruleset: str) -> str | None:
         """这个 QQ 的官服用户令牌；过期就自动刷新。没授权过返回 None。
@@ -1028,8 +1029,61 @@ class OsuScoreCardPlugin(Star):
     async def _send_oauth_link(self, event: AstrMessageEvent, qq: str,
                                ruleset: str) -> None:
         ok, reason = await self._ensure_oauth_server()
-        yield event.plain_result(
-            self._oauth_link_reply(qq, event.unified_msg_origin, ruleset, ok, reason))
+        text = self._oauth_link_reply(qq, event.unified_msg_origin, ruleset, ok, reason)
+        if not await self._send_then_recall(event, text):
+            yield event.plain_result(text)
+
+    async def _send_then_recall(self, event: AstrMessageEvent, text: str,
+                                delay: int | None = None) -> bool:
+        """单独发一条授权链接，N 秒后自动撤回。
+
+        为什么不用 `event.send()`：AstrBot 那个方法不返回 message_id，拿不到 id
+        就没法撤回。所以这里直接调 OneBot 的 send_group_msg / send_private_msg，
+        从回包里取 message_id，再起一个后台任务定时 delete_msg。
+
+        单独发一条而不是拼在绑定提示后面，是为了撤回时不会把
+        「绑定成功」那条一起撤掉。发失败就返回 False，调用方回退成普通回复。
+        """
+        delay = int(self._cfg("oauth_recall_seconds", AUTO_RECALL_SECONDS) or 0) \
+            if delay is None else delay
+        bot = getattr(event, "bot", None)
+        if bot is None or not hasattr(bot, "call_action"):
+            return False
+        gid = event.get_group_id()
+        try:
+            if gid:
+                res = await bot.call_action("send_group_msg",
+                                            group_id=int(gid), message=text)
+            else:
+                res = await bot.call_action("send_private_msg",
+                                            user_id=int(event.get_sender_id()),
+                                            message=text)
+        except Exception as exc:  # noqa: BLE001
+            logger.info(f"[scorecard] 直接发授权链接失败（{type(exc).__name__}），改用普通回复")
+            return False
+        mid = res.get("message_id") if isinstance(res, dict) else None
+        if mid is not None:
+            asyncio.create_task(self._recall_after(event, int(mid), gid, delay))
+        return True
+
+    async def _recall_after(self, event: AstrMessageEvent, message_id: int,
+                            group_id, delay: int) -> None:
+        """delay 秒后撤回那条消息。失败只写日志，不影响任何功能。"""
+        if delay <= 0:
+            return
+        await asyncio.sleep(delay)
+        bot = getattr(event, "bot", None)
+        if bot is None or not hasattr(bot, "call_action"):
+            return
+        try:
+            if group_id:
+                await bot.call_action("delete_msg",
+                                      message_id=message_id, group_id=int(group_id))
+            else:
+                await bot.call_action("delete_msg", message_id=message_id)
+            logger.info(f"[scorecard] 授权链接消息 {message_id} 已按 {delay}s 自动撤回")
+        except Exception as exc:  # noqa: BLE001
+            logger.info(f"[scorecard] 撤回消息 {message_id} 失败：{type(exc).__name__}")
 
     # ─────────────────────────── sending ───────────────────────────
 
@@ -1119,20 +1173,21 @@ class OsuScoreCardPlugin(Star):
             f"您可以输入 mode (mode) 来切换绑定的模式，输入 help 获取简洁的帮助信息。"
             + (f"\n你当前的绑定：{tail}" if tail else ""))
 
-        # 官服还差一次授权才能查最近成绩。绑完立刻把链接给出去 —— 让用户自己
-        # 去翻 help 找 authorize 是不现实的，他只会觉得「绑了怎么还用不了」。
+        yield event.plain_result(text)
+
+        # 官服还差一次授权才能查最近成绩。绑定提示先单独发完，再单独发授权链接 ——
+        # 分两条是为了 30 秒后只撤回链接那一条，不动「绑定成功」的提示。
+        # （让用户自己去翻 help 找 authorize 是不现实的，他会觉得「绑了怎么还用不了」。）
         if server == DEFAULT_SERVER:
             if self.store.oauth_for(qq, "osu"):
-                text += "\n\n官服已授权，p / r 可以直接用了。"
+                yield event.plain_result("官服已授权，p / r 可以直接用了。")
             elif self.oauth_ready:
-                ok, reason = await self._ensure_oauth_server()
-                text += "\n\n" + self._oauth_link_reply(
-                    qq, event.unified_msg_origin, ruleset, ok, reason)
+                async for r in self._send_oauth_link(event, qq, ruleset):
+                    yield r
             else:
-                text += ("\n\n官服凭据没配好，暂时发不出授权链接；"
-                         "不过 s <成绩ID> 和贴成绩链接不受影响。")
-
-        yield event.plain_result(text)
+                yield event.plain_result(
+                    "官服凭据没配好，暂时发不出授权链接；"
+                    "不过 s <成绩ID> 和贴成绩链接不受影响。")
 
     @filter.command("authorize", alias={"授权", "oauth", "!authorize", "！授权"})
     async def authorize(self, event: AstrMessageEvent):
