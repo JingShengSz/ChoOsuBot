@@ -115,8 +115,10 @@ mode mania -sb        -> 只改私服那条
 |---|---|
 | Adobe Photoshop | 装了就行，插件通过 COM 自己把它拉起来 |
 | `D:\Cho Osu Bot\template\` | 模板 PSD + 素材（`assets/mods/ready`、`assets/rank_svg`、`assets/signboards`） |
-| `D:\Cho Osu Bot\renderer\` | 只为复用里面的 `mania_render/osu_api.py`（osu! API 客户端），不重写一份 |
 | osu! OAuth 凭据 | 见下面「配置」和「官服授权」 |
+
+osu! API 客户端（`osu_api.py`）已经 **vendored 进插件目录**，纯标准库实现，
+所以插件是自包含的：**不需要**外部的 `renderer/` 目录，服务器上也不用额外装渲染器。
 
 Python 侧不需要额外装东西 —— AstrBot 自带的虚拟环境已经有 Pillow / aiohttp / pywin32：
 
@@ -138,7 +140,7 @@ Python 侧不需要额外装东西 —— AstrBot 自带的虚拟环境已经有
 | `osu_client_secret` | 空 | 同上。**敏感信息**，不要发到聊天里 |
 | `osu_data_path` | `D:\Cho Osu Bot\template\osu_score_template_v1.psd` | 模板路径 |
 | `assets_path` | 空 | 留空 = 模板同级的 `assets/` |
-| `renderer_path` | `D:\Cho Osu Bot\renderer` | 用来 import `mania_render.osu_api` |
+| `renderer_path` | 空 | **已弃用**，留着只为兼容旧配置。API 客户端已内置，填了也不读 |
 | `photoshop_path` | `D:\Photoshop\Adobe Photoshop 2026\Photoshop.exe` | COM 没拉起来时的兜底启动路径 |
 | `default_ruleset` | `mania` | 模板是 mania 的，改别的模式版式不会跟着变 |
 | `auto_link` | `true` | 消息里的成绩链接自动出图 |

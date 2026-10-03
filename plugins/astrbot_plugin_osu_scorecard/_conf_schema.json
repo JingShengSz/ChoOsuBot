@@ -34,10 +34,10 @@
     "default": ""
   },
   "renderer_path": {
-    "description": "渲染器目录",
-    "hint": "osu! API 客户端复用渲染器里的 mania_render/osu_api.py，不重复实现一份。默认 D:\\Cho Osu Bot\\renderer。路径不对时插件会直接提示，不会静默失败。",
+    "description": "渲染器目录（已弃用，无需填写）",
+    "hint": "留空即可。官服 API 客户端已经 vendored 进插件（插件目录下的 osu_api.py，纯标准库），插件完全自包含，不再依赖外部渲染器目录。此项仅为兼容旧配置保留，填了也不会被读取。",
     "type": "string",
-    "default": "D:\\Cho Osu Bot\\renderer"
+    "default": ""
   },
   "photoshop_path": {
     "description": "Photoshop 可执行文件路径",

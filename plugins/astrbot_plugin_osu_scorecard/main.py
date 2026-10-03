@@ -39,6 +39,7 @@ import astrbot.api.message_components as Comp
 try:  # 正常情况：AstrBot 按包导入，相对导入成立
     from . import card as cardmod
     from . import oauth as oauthmod
+    from . import osu_api
     from . import raster
     from . import render as rendermod
     from . import sb_api
@@ -47,6 +48,7 @@ try:  # 正常情况：AstrBot 按包导入，相对导入成立
 except ImportError:  # 兜底：被当顶层模块加载时，走绝对导入
     import card as cardmod
     import oauth as oauthmod
+    import osu_api
     import raster
     import render as rendermod
     import sb_api
@@ -228,10 +230,6 @@ class OsuScoreCardPlugin(Star):
         return self.template_path.parent / "layer_mapping.json"
 
     @property
-    def renderer_path(self) -> Path:
-        return Path(str(self._cfg("renderer_path", r"D:\Cho Osu Bot\renderer")))
-
-    @property
     def credential_file(self) -> Path:
         """The local osu! OAuth file, when one exists.
 
@@ -332,32 +330,36 @@ class OsuScoreCardPlugin(Star):
         return self._sb() if norm_server(server) == "sb" else self._client()
 
     def _client(self):
-        """The renderer's own API client, imported lazily so a missing renderer
-        path shows up as a readable message rather than an import crash."""
+        """官服 API 客户端。
+
+        用的是插件自带的 `osu_api.py`（从渲染器 vendored 进来，纯标准库、无外部依赖），
+        所以插件是自包含的：不再需要 renderer_path，服务器上也不用额外装渲染器。
+
+        之前这里是从 `mania_render.osu_api` 导入的，服务器上没那个包，
+        结果官服查询直接抛 ModuleNotFoundError —— 那就是 bind 报错的根因。
+        """
         if self._api is not None:
             return self._api
         if self._api_error:
             raise RuntimeError(self._api_error)
-        path = self.renderer_path
-        if not path.is_dir():
-            self._api_error = (
-                f"渲染器目录不存在：{path}。请在插件配置里把 renderer_path 指向 "
-                f"osu-mania-render / Cho Osu Bot 的 renderer 目录。")
-            raise RuntimeError(self._api_error)
-        if str(path) not in sys.path:
-            sys.path.insert(0, str(path))
-        try:
-            from mania_render.osu_api import OsuApi  # noqa: PLC0415
-        except Exception as exc:  # noqa: BLE001
-            self._api_error = f"无法从 {path} 导入 mania_render.osu_api：{type(exc).__name__}"
-            raise RuntimeError(self._api_error) from None
+        OsuApi = osu_api.OsuApi
         cred = self.credential_file
         if cred.is_file():
-            self._api = OsuApi.from_file(cred, proxy=self.http_proxy)
+            try:
+                self._api = OsuApi.from_file(cred, proxy=self.http_proxy)
+            except Exception as exc:  # noqa: BLE001
+                self._api_error = f"凭据文件读不了：{cred.name}（{type(exc).__name__}）"
+                raise RuntimeError(self._api_error) from None
         else:
-            self._api = OsuApi(self._cfg("osu_client_id", ""),
-                                   self._cfg("osu_client_secret", ""),
-                                   proxy=self.http_proxy)
+            cid = str(self._cfg("osu_client_id", "")).strip()
+            secret = str(self._cfg("osu_client_secret", "")).strip()
+            if not cid or not secret:
+                self._api_error = (
+                    "官服还没配凭据。请在插件配置里填 osu_client_id / osu_client_secret，"
+                    "或把 osu_credential_file 指向本机的 osu_oauth.local.json。"
+                    "查成绩卡和绑定只要客户端凭据；p / r 查最近成绩才需要额外做 OAuth 授权。")
+                raise RuntimeError(self._api_error)
+            self._api = OsuApi(cid, secret, proxy=self.http_proxy)
         return self._api
 
     async def _call(self, fn, *args, **kwargs):
@@ -1336,7 +1338,7 @@ class OsuScoreCardPlugin(Star):
             return
         client = self._client()
         try:
-            from mania_render.osu_api import score_id  # noqa: PLC0415
+            from osu_api import score_id  # noqa: PLC0415
             sid = score_id(reference)
         except Exception:  # noqa: BLE001
             yield event.plain_result(
