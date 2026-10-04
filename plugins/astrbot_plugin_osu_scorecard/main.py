@@ -44,6 +44,7 @@ try:  # 正常情况：AstrBot 按包导入，相对导入成立
     from . import raster
     from . import render as rendermod
     from . import sb_api
+    from .play_history import PlayHistory, played_at, recent_plays
     from .psd import PhotoshopError, ScoreCardRenderer
     from .store import DEFAULT_SERVER, SERVER_LABEL, Store, norm_server
 except ImportError:  # 兜底：被当顶层模块加载时，走绝对导入
@@ -54,6 +55,7 @@ except ImportError:  # 兜底：被当顶层模块加载时，走绝对导入
     import raster
     import render as rendermod
     import sb_api
+    from play_history import PlayHistory, played_at, recent_plays
     from psd import PhotoshopError, ScoreCardRenderer
     from store import DEFAULT_SERVER, SERVER_LABEL, Store, norm_server
 
@@ -82,9 +84,9 @@ SB_FLAG_RE = re.compile(r"(?:^|\s)--?sb\s*$|(?:^|\s)-私服\s*$", re.I)
 
 HELP_TEXT = (
     "osu! 成绩卡 —— 可用指令：\n"
-    "  p              最近【通过】的成绩（出成绩卡）\n"
-    "  r              最近【游玩】的成绩（没通过也算）\n"
-    "  s <成绩ID>     指定成绩，ID 或成绩链接都行\n"
+    "  p              最近24h内【通过】的成绩\n"
+    "  r              最近24h内【游玩】的成绩（没通过也算）\n"
+    "  s<谱面ID>      绑定账号在该谱面的最近一次成绩，也支持 s <谱面ID>\n"
     "  bind <名字>    把 osu! 用户名绑定到你的 QQ\n"
     "  mode <模式>    切换模式：osu / taiko / fruits / mania\n"
     "  authorize      重新拿一次官服授权链接（绑定后没授权时用）\n"
@@ -99,7 +101,8 @@ HELP_TEXT = (
     "\n"
     "【官服 p / r 需要授权一次】\n"
     "绑定时会给你一个 osu! 授权链接，点开点「Authorize」就行。\n"
-    "授权完成后 p / r 才能查最近成绩；s <成绩ID> 和贴链接不需要授权。\n"
+    "授权完成后 p / r 才能查最近成绩；s 需要先绑定账号。\n"
+    "p/r 返回的成绩会保存到记录库；s 在线查不到时使用已保存记录。\n"
     "没收到链接、或者链接过期了，发 authorize 重新要一个。\n"
     "私服（-sb）不需要任何授权，绑定后直接可用。\n"
     "\n"
@@ -140,6 +143,7 @@ class OsuScoreCardPlugin(Star):
         self.config = config or {}
         self.data_dir = _plugin_data_dir(getattr(self, "name", PLUGIN_NAME))
         self.store = Store(self.data_dir, cache_minutes=self.cache_minutes)
+        self.history = PlayHistory(self.data_dir / "plays.sqlite3")
 
         # Photoshop renders one document at a time; two people asking at once
         # would otherwise fight over the same application instance.
@@ -245,7 +249,7 @@ class OsuScoreCardPlugin(Star):
     @property
     def template_path(self) -> Path:
         return Path(str(self._cfg(
-            "osu_data_path", r"D:\Cho Osu Bot\template\osu_score_template_v1.psd")))
+            "osu_data_path", r"D:\Cho Osu Bot\template\osu_score_template_v2.psd")))
 
     @property
     def assets_dir(self) -> Path:
@@ -556,6 +560,8 @@ class OsuScoreCardPlugin(Star):
             # 服务器标记（官方 / SB 私服）自带颜色，不参与按评级上色。
             if name == "server_tag":
                 job["accent"] = getattr(data, "server_tag_color", None)
+            if name == "max_combo" and data.full_combo:
+                job["accent"] = "#FFD35A"
             jobs.append(job)
         return jobs
 
@@ -587,18 +593,25 @@ class OsuScoreCardPlugin(Star):
             except Exception as exc:  # noqa: BLE001
                 logger.warning(f"[scorecard] 背景解码失败 {type(exc).__name__}")
 
-        # --- avatar: clipped to the template's ellipse at (922,60) ---
+        # --- avatar: 右上角铭牌。右缘贴右轨 x=1240，顶线对齐主标题 y=74 ---
         av_bytes = await self._download(session, data.avatar_url)
         if av_bytes:
             try:
                 sheet = self._blank()
                 sheet.alpha_composite(
                     raster.render_avatar(Image.open(BytesIO(av_bytes)).convert("RGBA")),
-                    (922, 60))
+                    (1124, 74))
                 rasters.append({"layer": "player_avatar", "group": "player_info",
                                 "path": save(sheet, "avatar.png")})
             except Exception as exc:  # noqa: BLE001
                 logger.warning(f"[scorecard] 头像解码失败 {type(exc).__name__}")
+
+        rasters.append({"layer": "ui_extras", "group": "beatmap_info",
+                        "path": save(raster.render_ui_extras(
+                            self.assets_dir / "ui_extra", data.status_icon), "ui_extras.png")})
+        rasters.append({"layer": "score", "group": "secondary_stats",
+                        "path": save(raster.render_score_compact(
+                            data.score, data.score_suffix), "score.png")})
 
         # --- star strip: placed at the template's box origin (60,310) ---
         sheet = self._blank()
@@ -617,7 +630,7 @@ class OsuScoreCardPlugin(Star):
 
         # --- mod badges: all of them go on mod_1 as one sheet, the rest go blank ---
         mod_sheet, placed = raster.render_mod_row(
-            data.mods, self.assets_dir / "mods" / "ready")
+            data.mods, self.assets_dir / "mods" / "line_v1")
         rasters.append({"layer": "mod_1", "group": "mods_block",
                         "path": save(mod_sheet, "mods.png")})
         meta["mods"] = placed
@@ -724,6 +737,7 @@ class OsuScoreCardPlugin(Star):
             )
             return r.render(jobs, rasters, r.signboard_chain(grade), out)
 
+        rasters = [r for r in rasters if r.get("layer") != "score"]
         renderer = ScoreCardRenderer(
             template=self.template_path,
             work_dir=self.data_dir / "work",
@@ -826,6 +840,7 @@ class OsuScoreCardPlugin(Star):
             if "HTTP 404" in text or "HTTP 401" in text or "HTTP 403" in text:
                 return "needs_user_token", None, text
             raise
+        rows = recent_plays(rows)
         if not rows:
             return "empty", None, ""
         return "ok", rows[0], ""
@@ -901,6 +916,7 @@ class OsuScoreCardPlugin(Star):
             player_id=pid, name=None if pid else username,
             mode=ruleset, scope="recent", limit=50,
             include_failed=bool(include_fails))
+        rows = recent_plays(rows)
         if not rows:
             return "empty", None, ""
         # pid 显式传进去：get_player_scores 的成绩里没有 userid，不补的话
@@ -1223,7 +1239,7 @@ class OsuScoreCardPlugin(Star):
     @staticmethod
     def _args(event: AstrMessageEvent) -> str:
         """The message with its leading command word removed."""
-        text = (event.message_str or "").strip()
+        text = (event.message_str or "").strip().lstrip("/.．。")
         return re.sub(
             r"^(?:" + "|".join(re.escape(n) for n in COMMAND_NAMES) + r")\b\s*",
             "", text, count=1, flags=re.I,
@@ -1310,7 +1326,7 @@ class OsuScoreCardPlugin(Star):
             else:
                 yield event.plain_result(
                     "官服凭据没配好，暂时发不出授权链接；"
-                    "不过 s <成绩ID> 和贴成绩链接不受影响。")
+                    "不过按谱面查询 s 和贴成绩链接不受影响。")
 
     @filter.command("authorize", alias={"授权", "oauth", "!authorize", "！授权"})
     async def authorize(self, event: AstrMessageEvent):
@@ -1331,7 +1347,7 @@ class OsuScoreCardPlugin(Star):
         if not self.oauth_ready:
             yield event.plain_result(
                 "官服授权流程不可用（凭据没配好，或者配置里关掉了 oauth_enabled）。\n"
-                "s <成绩ID> 和直接贴成绩链接都不需要授权，可以先用。")
+                "绑定后可用 s <谱面ID>；直接贴成绩链接也不需要用户授权。")
             return
         if self.store.oauth_for(qq, "osu"):
             yield event.plain_result(
@@ -1476,10 +1492,10 @@ class OsuScoreCardPlugin(Star):
                     yield r
             return
         if status == "empty":
-            yield event.plain_result(
-                f"{username} 在{srv_label}没有找到{label}的成绩。\n"
-                f"（当前模式：{RULESET_LABEL.get(rs, rs)}）")
+            yield event.plain_result("24h没有游玩记录。")
             return
+        # Persist before rendering: a font/download failure must not lose a play.
+        self.history.record(qq, username, rs, server, payload)
         try:
             async with aiohttp.ClientSession() as session:
                 png = await self._render_score(event, payload, session)
@@ -1494,22 +1510,77 @@ class OsuScoreCardPlugin(Star):
 
     @filter.command("s")
     async def specific(self, event: AstrMessageEvent):
-        """渲染指定的一个成绩。
-
-        用法：s <成绩ID 或 成绩链接> [-sb]
-        例：s 6645548845
-        例：s https://osu.ppy.sh/scores/6645548845
-        例：s 5030104 -sb     （SB 私服的成绩 ID 是另一套编号）
-        """
+        """s <谱面ID> [-sb]：绑定账号在该谱面的最近一次已知成绩。"""
         raw, server = self._args_server(event)
         match = SCORE_URL_RE.search(raw)
-        target = match.group(0) if match else raw
-        if not target:
-            yield event.plain_result(
-                "用法：s <成绩ID 或 成绩链接> [-sb]\n例：s 6645548845")
+        if match:
+            async for result in self._score_card(event, match.group(0), server=server):
+                yield result
             return
-        async for r in self._score_card(event, target, server=server):
-            yield r
+        if not raw.isdecimal() or int(raw) <= 0:
+            yield event.plain_result("用法：s<谱面ID> 或 s <谱面ID>，私服加 -sb。")
+            return
+        async for result in self._map_card(event, int(raw), server):
+            yield result
+
+    @filter.regex(r"^[./。．]?s\d+(?:\s+(?:--?sb|-私服))?\s*$")
+    async def specific_compact(self, event: AstrMessageEvent):
+        text = event.message_str.strip().lstrip("/.．。")
+        server = "sb" if SB_FLAG_RE.search(text) else DEFAULT_SERVER
+        bid = int(re.match(r"s(\d+)", text).group(1))
+        if bid <= 0:
+            yield event.plain_result("谱面ID必须是正整数。")
+            return
+        async for result in self._map_card(event, bid, server):
+            yield result
+
+    async def _map_card(self, event, beatmap_id, server=DEFAULT_SERVER):
+        qq = str(event.get_sender_id())
+        username = self.store.username_for(qq, server)
+        if not username:
+            yield event.plain_result("请先绑定账号：bind <osu!用户名>" + (" -sb" if server == "sb" else ""))
+            return
+        rs = self._ruleset_for(qq, server)
+        cached = self.history.latest(qq, username, rs, server, beatmap_id)
+        score = None
+        api_failed = False
+        try:
+            if server == "sb":
+                pid = await self._sb_player_id(username)
+                rows = await self._call(self._sb().player_scores, player_id=pid,
+                                       name=None if pid else username, mode=rs,
+                                       scope="recent", limit=100, include_failed=True)
+                rows = [s for s in rows if int((s.get('beatmap') or {}).get('id') or 0) == beatmap_id]
+                if rows:
+                    raw = max(rows, key=lambda s: played_at(s) or 0)
+                    score = await self._sb_score_bundle(raw, username, uid=pid)
+            else:
+                client = self._client()
+                profile = await self._call(client.user_by_name, username, rs)
+                rows = await self._call(client.beatmap_user_scores, beatmap_id, profile['id'], rs)
+                if rows:
+                    score = max(rows, key=lambda s: played_at(s) or 0)
+                    beatmap = await self._call(client.get, f"/beatmaps/{beatmap_id}")
+                    score = dict(score, beatmap=beatmap, beatmapset=beatmap.get('beatmapset') or {},
+                                 user={'id':profile['id'], 'username':profile.get('username', username)})
+        except Exception as exc:
+            api_failed = True
+            logger.info(f"[scorecard] 谱面成绩查询失败，尝试记录库：{type(exc).__name__}")
+        from_history = cached is not None and (score is None or (played_at(cached) or 0) >= (played_at(score) or 0))
+        if from_history:
+            score = cached
+        if score is None:
+            yield event.plain_result(("在线查询暂时失败，" if api_failed else "在线未找到该谱面的成绩，")
+                                     + "记录库也没有记录。请在游玩后24h内使用 p/r 保存成绩。")
+            return
+        if from_history:
+            yield event.plain_result("使用记录库中该谱面的最近一次成绩。")
+        try:
+            async with aiohttp.ClientSession() as session:
+                png = await self._render_score(event, score, session, ruleset=rs)
+            yield self._image_reply(event, png)
+        except Exception as exc:
+            yield event.plain_result(self._explain(exc, "渲染失败"))
 
     async def _score_card(self, event: AstrMessageEvent, reference: str,
                           server: str = DEFAULT_SERVER):

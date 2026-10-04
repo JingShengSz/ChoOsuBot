@@ -116,6 +116,7 @@ STRIP_DEFAULTS = {
 # ─────────────────────────────── fonts ───────────────────────────────
 
 _FONT_DIRS = [
+    Path(__file__).resolve().parent / "fonts",
     Path.home() / "AppData/Local/Microsoft/Windows/Fonts",
     Path("C:/Windows/Fonts"),
 ]
@@ -363,19 +364,48 @@ def render_stat_bar(value: float, vmin: float, vmax: float, width: int = 600,
 
 # ─────────────────────────────── avatar ───────────────────────────────
 
-AVATAR_BOX = (116, 116)  # layer_mapping.json: player_avatar 116x116 at (922,60)
+AVATAR_BOX = (116, 116)
 
 
 def render_avatar(square: Image.Image, size: tuple[int, int] = AVATAR_BOX) -> Image.Image:
-    """Clip a (already square) avatar into the template's ellipse."""
+    """Clip the avatar into a softly rounded square."""
     w, h = size
     src = square.convert("RGBA").resize((w * 4, h * 4), Image.LANCZOS)
     mask = Image.new("L", (w * 4, h * 4), 0)
-    ImageDraw.Draw(mask).ellipse([0, 0, w * 4 - 1, h * 4 - 1], fill=255)
+    ImageDraw.Draw(mask).rounded_rectangle([0, 0, w * 4 - 1, h * 4 - 1],
+                                            radius=22 * 4, fill=255)
     mask = mask.resize((w, h), Image.LANCZOS)
     out = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     out.paste(src.resize((w, h), Image.LANCZOS), (0, 0), mask)
     return out
+
+
+def render_score_compact(main: str, suffix: str) -> Image.Image:
+    sheet = Image.new("RGBA", (1920, 1080), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(sheet)
+    big, small = _font("bold", 46), _font("bold", 28)
+    x, baseline = 721, 540
+    draw.text((x, baseline), main, font=big, anchor="ls", fill="#EAEEF6")
+    if suffix:
+        tail_x = x + round(draw.textlength(main, font=big)) + 4
+        draw.text((tail_x, baseline), suffix, font=small, anchor="ls", fill="#8C97A9")
+    return sheet
+
+
+def render_ui_extras(assets_dir: Path, status_icon: str) -> Image.Image:
+    sheet = Image.new("RGBA", (1920, 1080), (0, 0, 0, 0))
+    for name, xy, size in (("length", (270, 402), 40),
+                           ("keys", (463, 402), 40),
+                           (status_icon, (61, 72), 36)):
+        if not name:
+            continue
+        path = assets_dir / f"{name}_{40 if name in ('length','keys') else 32}.png"
+        if path.is_file():
+            img = Image.open(path).convert("RGBA")
+            if img.size != (size, size):
+                img = img.resize((size, size), Image.LANCZOS)
+            sheet.alpha_composite(img, xy)
+    return sheet
 
 
 # ─────────────────────────────── mod badges ───────────────────────────────
@@ -401,10 +431,19 @@ def render_mod_row(codes: list[str], assets_dir: Path,
     for code in codes:
         if slot >= MOD_SLOTS:
             break
-        path = assets_dir / f"mod_{code.lower()}.png"
-        if not path.is_file():
-            continue
-        badge = Image.open(path).convert("RGBA")
+        path = assets_dir / f"mod_{code.lower()}_40.png"
+        if path.is_file():
+            badge = Image.new("RGBA", (100, 50))
+            badge.alpha_composite(Image.open(path).convert("RGBA"), (3, 4))
+            pen = ImageDraw.Draw(badge)
+            pen.text((47, 25), code.upper(), font=_font("regular", 25),
+                     anchor="lm", fill="#A8B2C4")
+        else:
+            # Unknown mods keep their slot and use the same line-icon colour.
+            badge = Image.new("RGBA", (100, 50))
+            pen = ImageDraw.Draw(badge)
+            pen.text((50, 25), str(code).upper()[:4], font=_font("regular", 25),
+                     anchor="mm", fill="#A8B2C4")
         scale = height / badge.height
         badge = badge.resize((max(1, round(badge.width * scale)), height), Image.LANCZOS)
         x = first_x + slot * pitch + 4  # +4 matches the template's placed badges

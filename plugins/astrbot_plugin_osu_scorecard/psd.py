@@ -203,6 +203,13 @@ _JS_TEMPLATE = """
       }
       out.textApplied++;
     }
+    // Keep the smaller score digits immediately after the variable-width K part.
+    var scoreMain = find(doc.layers, "score");
+    var scoreTail = find(doc.layers, "score_suffix");
+    if (scoreMain && scoreTail && scoreTail.kind === LayerKind.TEXT && scoreTail.textItem.contents !== "") {
+      var gap = scoreMain.bounds[2].as("px") + 4 - scoreTail.bounds[0].as("px");
+      scoreTail.translate(UnitValue(gap, "px"), UnitValue(0, "px"));
+    }
 
     /* ---- 2. rasters --------------------------------------------------- */
     // Every bitmap is a full-canvas 1920x1080 RGBA PNG, so duplicating it in

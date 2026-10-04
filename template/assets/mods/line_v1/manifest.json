@@ -73,6 +73,132 @@
       "name": "Perfect",
       "svg": "mod_pf.svg",
       "png": "mod_pf.png"
+    },
+    {
+      "key": "nc",
+      "label": "NC",
+      "name": "Nightcore",
+      "svg": "mod_nc.svg",
+      "png": "mod_nc.png"
+    },
+    {
+      "key": "cl",
+      "label": "CL",
+      "name": "Classic",
+      "svg": "mod_cl.svg",
+      "png": "mod_cl.png"
+    },
+    {
+      "key": "dc",
+      "label": "DC",
+      "name": "Daycore",
+      "svg": "mod_dc.svg",
+      "png": "mod_dc.png"
+    },
+    {
+      "key": "nr",
+      "label": "NR",
+      "name": "No Release",
+      "svg": "mod_nr.svg",
+      "png": "mod_nr.png"
+    },
+    {
+      "key": "fi",
+      "label": "FI",
+      "name": "Fade In",
+      "svg": "mod_fi.svg",
+      "png": "mod_fi.png"
+    },
+    {
+      "key": "co",
+      "label": "CO",
+      "name": "Cover",
+      "svg": "mod_co.svg",
+      "png": "mod_co.png"
+    },
+    {
+      "key": "ac",
+      "label": "AC",
+      "name": "Accuracy Challenge",
+      "svg": "mod_ac.svg",
+      "png": "mod_ac.png"
+    },
+    {
+      "key": "rd",
+      "label": "RD",
+      "name": "Random",
+      "svg": "mod_rd.svg",
+      "png": "mod_rd.png"
+    },
+    {
+      "key": "ds",
+      "label": "DS",
+      "name": "Dual Stages",
+      "svg": "mod_ds.svg",
+      "png": "mod_ds.png"
+    },
+    {
+      "key": "mr",
+      "label": "MR",
+      "name": "Mirror",
+      "svg": "mod_mr.svg",
+      "png": "mod_mr.png"
+    },
+    {
+      "key": "da",
+      "label": "DA",
+      "name": "Difficulty Adjust",
+      "svg": "mod_da.svg",
+      "png": "mod_da.png"
+    },
+    {
+      "key": "in",
+      "label": "IN",
+      "name": "Invert",
+      "svg": "mod_in.svg",
+      "png": "mod_in.png"
+    },
+    {
+      "key": "cs",
+      "label": "CS",
+      "name": "Constant Speed",
+      "svg": "mod_cs.svg",
+      "png": "mod_cs.png"
+    },
+    {
+      "key": "ho",
+      "label": "HO",
+      "name": "Hold Off",
+      "svg": "mod_ho.svg",
+      "png": "mod_ho.png"
+    },
+    {
+      "key": "wu",
+      "label": "WU",
+      "name": "Wind Up",
+      "svg": "mod_wu.svg",
+      "png": "mod_wu.png"
+    },
+    {
+      "key": "wd",
+      "label": "WD",
+      "name": "Wind Down",
+      "svg": "mod_wd.svg",
+      "png": "mod_wd.png"
+    },
+    {
+      "key": "mu",
+      "label": "MU",
+      "name": "Muted",
+      "svg": "mod_mu.svg",
+      "png": "mod_mu.png"
+    },
+    {
+      "key": "as",
+      "label": "AS",
+      "name": "Adaptive Speed",
+      "svg": "mod_as.svg",
+      "png": "mod_as.png"
     }
   ]
 }

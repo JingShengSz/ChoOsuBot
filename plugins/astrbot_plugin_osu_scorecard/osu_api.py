@@ -295,6 +295,13 @@ class OsuApi:
             raise ValueError("Unknown osu! ruleset")
         return self.get(f"/users/{int(user_id)}/{ruleset}")
 
+    def beatmap_user_scores(self, beatmap_id: int, user_id: int, ruleset: str) -> list[dict]:
+        if ruleset not in ("osu", "taiko", "fruits", "mania"):
+            raise ValueError("Unknown osu! ruleset")
+        data = self.get(f"/beatmaps/{int(beatmap_id)}/scores/users/{int(user_id)}/all",
+                        {"ruleset": ruleset, "legacy_only": 0})
+        return data.get("scores", []) if isinstance(data, dict) else []
+
     def player(self, user_id: int, ruleset: str) -> PlayerProfile:
         """Fetch reusable current player identity, avatar, mode PP and team."""
         return player_profile(self.user(user_id, ruleset), ruleset)

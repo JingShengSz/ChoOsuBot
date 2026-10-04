@@ -315,7 +315,12 @@ class PilScoreCardRenderer:
             ref = draw.textbbox((0, 0), example or str(value), font=font)
             ox = il - ref[0]
             oy = it - ref[1]
-            if spec.get("justify") == "center":
+            if spec.get("justify") == "right":
+                # 右对齐：实际墨迹的右缘贴到示例墨迹的右缘（ink[2]）。
+                # 数值长度会变，右对齐才能让右栏始终维持同一条竖线。
+                tw = draw.textbbox((0, 0), str(value), font=font)
+                ox = ink[2] - tw[2]
+            elif spec.get("justify") == "center":
                 # 居中：把示例墨迹的中心对齐到实际墨迹的中心
                 cx = (ink[0] + ink[2]) / 2.0
                 tw = draw.textbbox((0, 0), str(value), font=font)
@@ -392,13 +397,16 @@ class PilScoreCardRenderer:
             so = Image.open(static_p).convert("RGBA")
             if so.size != (W, H):
                 so = so.resize((W, H), Image.LANCZOS)
+            # The right accuracy label is dynamic; remove its baked-in wording.
+            ImageDraw.Draw(so).rectangle((976, 651, 1100, 674), fill=(0, 0, 0, 0))
+            ImageDraw.Draw(so).rectangle((714, 286, 815, 312), fill=(0, 0, 0, 0))
             card.alpha_composite(so)
             used.append("static_overlay")
         elif not self._static_warned:
             self._static_warned = True
 
         # 6. 位图（头像 / 星级条 / 属性条 / mod）
-        for nm in ("player_avatar", "star_strip", "od_bar", "hp_bar", "mod_1"):
+        for nm in ("player_avatar", "ui_extras", "star_strip", "od_bar", "hp_bar", "score", "mod_1"):
             r = by_layer.get(nm)
             if r:
                 im = Image.open(r["path"]).convert("RGBA")
@@ -408,6 +416,9 @@ class PilScoreCardRenderer:
                 used.append(nm)
 
         # 7. 文字
+        if "score" in by_layer:
+            text_layers = [item for item in text_layers
+                           if item.get("name") not in ("score", "score_suffix")]
         n_text = self._draw_texts(card, text_layers)
 
         out_png = Path(out_png)

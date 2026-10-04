@@ -56,19 +56,19 @@
    "kind": "text",
    "font": "Inter18pt-Bold",
    "cjkFont": "YuGothic-Medium",
-   "sizePx": 30,
+   "sizePx": 22,
    "color": "#EAEEF6",
-   "x": 932,
-   "y": 227,
-   "justify": "center",
+   "x": 860,
+   "y": 218,
+   "justify": "right",
    "example": "+1,204",
    "freeWidthPx": 28,
    "maxChars": 1,
    "ink": [
-    932,
-    227,
-    1030,
-    256
+    1032,
+    218,
+    1104,
+    239
    ]
   },
   {
@@ -77,19 +77,19 @@
    "kind": "text",
    "font": "Inter18pt-Bold",
    "cjkFont": "YuGothic-Medium",
-   "sizePx": 26,
+   "sizePx": 32,
    "color": "#EAEEF6",
-   "x": 926,
-   "y": 190,
-   "justify": "center",
+   "x": 860,
+   "y": 95,
+   "justify": "right",
    "example": "Cookiezi",
-   "freeWidthPx": 34,
+   "freeWidthPx": 365,
    "maxChars": 2,
    "ink": [
-    926,
-    190,
-    1033,
-    211
+    972,
+    95,
+    1104,
+    121
    ]
   },
   {
@@ -146,7 +146,7 @@
    "y": 409,
    "justify": "left",
    "example": "222.22",
-   "freeWidthPx": 853,
+   "freeWidthPx": 150,
    "maxChars": 42,
    "ink": [
     107,
@@ -268,16 +268,16 @@
    "cjkFont": "YuGothic-Medium",
    "sizePx": 36,
    "color": "#EAEEF6",
-   "x": 62,
+   "x": 104,
    "y": 74,
    "justify": "left",
    "example": "FREEDOM DiVE",
    "freeWidthPx": 898,
    "maxChars": 40,
    "ink": [
-    62,
+    104,
     74,
-    322,
+    364,
     102
    ]
   },
@@ -875,19 +875,19 @@
    "kind": "text",
    "font": "Inter18pt-Bold",
    "cjkFont": "YuGothic-Medium",
-   "sizePx": 30,
+   "sizePx": 26,
    "color": "#EAEEF6",
-   "x": 721,
-   "y": 315,
-   "justify": "left",
+   "x": 860,
+   "y": 172,
+   "justify": "right",
    "example": "12,345pp",
    "freeWidthPx": 239,
    "maxChars": 12,
    "ink": [
-    721,
-    315,
-    854,
-    344
+    987,
+    172,
+    1104,
+    198
    ]
   },
   {
@@ -898,17 +898,17 @@
    "cjkFont": "YuGothic-Medium",
    "sizePx": 15,
    "color": "#8C96A9",
-   "x": 720,
-   "y": 294,
-   "justify": "left",
+   "x": 860,
+   "y": 147,
+   "justify": "right",
    "example": "TOTAL PP",
    "freeWidthPx": 240,
    "maxChars": 25,
    "ink": [
-    720,
-    294,
-    790,
-    306
+    1034,
+    147,
+    1104,
+    159
    ]
   },
   {
@@ -1099,7 +1099,70 @@
     204,
     266
    ],
-   "note": "分服标识。官服 -> 「官方」#8C96A9；SB 私服 -> 「SB 私服」#4FC3F7。由 card.build_card 按成绩的 server 字段填（server_tag / server_tag_color），main._text_jobs 把颜色转成 accent 交给渲染器。"
+   "note": "分服标识。官服 Lazer / Stable 与 SB 私服共用这一格，由 card.build_card 按成绩的 server / stable 字段填「Lazer」「Stable」或「SB 私服」（server_tag / server_tag_color），main._text_jobs 把颜色转成 accent 交给渲染器。官服灰 #8C96A9，私服青 #4FC3F7。"
+  },
+  {
+   "group": "beatmap_stats",
+   "name": "length",
+   "kind": "text",
+   "font": "Inter18pt-Bold",
+   "cjkFont": "YuGothic-Medium",
+   "sizePx": 32,
+   "color": "#EAEEF6",
+   "x": 310,
+   "y": 409,
+   "justify": "left",
+   "example": "2:45",
+   "freeWidthPx": 150,
+   "maxChars": 42,
+   "ink": [
+    310,
+    409,
+    418,
+    434
+   ]
+  },
+  {
+   "group": "beatmap_stats",
+   "name": "keys",
+   "kind": "text",
+   "font": "Inter18pt-Bold",
+   "cjkFont": "YuGothic-Medium",
+   "sizePx": 32,
+   "color": "#EAEEF6",
+   "x": 508,
+   "y": 409,
+   "justify": "left",
+   "example": "4K",
+   "freeWidthPx": 150,
+   "maxChars": 42,
+   "ink": [
+    508,
+    409,
+    616,
+    434
+   ]
+  },
+  {
+   "group": "secondary_stats",
+   "name": "score_suffix",
+   "kind": "text",
+   "font": "Inter18pt-Bold",
+   "cjkFont": "YuGothic-Medium",
+   "sizePx": 28,
+   "color": "#8C97A9",
+   "x": 870,
+   "y": 516,
+   "justify": "left",
+   "example": ".979",
+   "freeWidthPx": 100,
+   "maxChars": 5,
+   "ink": [
+    870,
+    516,
+    927,
+    543
+   ]
   }
  ],
  "rasterSlots": [

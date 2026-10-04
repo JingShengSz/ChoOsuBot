@@ -164,6 +164,22 @@ def _fmt_combo(value) -> str:
     return f"{number:,}x" if number else "--"
 
 
+def _fmt_length(seconds) -> str:
+    try:
+        n = max(0, int(seconds))
+        return f"{n // 60}:{n % 60:02d}"
+    except (TypeError, ValueError, OverflowError):
+        return "--:--"
+
+
+def _score_parts(value) -> tuple[str, str]:
+    try:
+        n = max(0, int(value))
+    except (TypeError, ValueError, OverflowError):
+        return "--", ""
+    return (f"{n // 1000}K", f".{n % 1000:03d}") if n >= 1000 else (str(n), "")
+
+
 def resolve_map_max_combo(score: dict, beatmap: dict,
                           counted: int | None = None) -> tuple[int | None, str]:
     """The MAP COMBO slot, in the order we trust the sources.
@@ -327,6 +343,21 @@ def mod_acronyms(mods) -> list[str]:
     return out
 
 
+def mod_speed_multipliers(mods) -> list[float | None]:
+    """Use each speed mod's actual setting; unconfigured mods use game defaults."""
+    result = []
+    for mod in mods or []:
+        code = (mod if isinstance(mod, str) else mod.get("acronym", "")).upper()
+        default = SPEED_MOD_MULT.get(code)
+        value = (mod.get("settings") or {}).get("speed_change") if isinstance(mod, dict) else None
+        try:
+            speed = float(value) if value is not None else default
+            result.append(speed if speed is not None and 0 < speed <= 10 else default)
+        except (TypeError, ValueError):
+            result.append(default)
+    return result
+
+
 def judgements(score: dict) -> dict[str, int]:
     """Six judgement counts, tolerating either naming scheme."""
     stats = score.get("statistics") or {}
@@ -345,8 +376,7 @@ def stable_accuracy(counts: dict[str, int]) -> float | None:
     """osu!stable mania accuracy.
 
     On the stable scale MAX and 300 are both worth 300, 200->200, 100->100, 50->50.
-    This is the number the template's big ACCURACY readout shows, and it is NOT the
-    same as the lazer figure the API reports for the same play.
+    This is the stable-comparable accuracy shown on a lazer play's right side.
     """
     total = sum(counts.values())
     if total <= 0:
@@ -371,26 +401,32 @@ def lazer_accuracy(counts: dict[str, int]) -> float | None:
     return gain / (305 * total)
 
 
-def grade_of(counts: dict[str, int], mods: list[str]) -> str:
-    """osu! grade letter, including the silver (Hidden) variants.
+def grade_of(counts: dict[str, int], mods: list[str], accuracy=None) -> str:
+    """Mania fallback grade, using weighted accuracy rather than non-miss ratio.
 
-    Only used when the API did not hand us a grade. The server's own `rank` field
-    is preferred — see grade_from_api.
+    Use the API accuracy when available (lazer); otherwise use stable judgement
+    weights, including for SB payloads. Thresholds follow osu!'s ScoreProcessor:
+    https://github.com/ppy/osu/blob/master/osu.Game/Rulesets/Scoring/ScoreProcessor.cs
+    A missing/empty score must not be mistaken for a perfect play.
     """
-    hidden = "HD" in mods or "FL" in mods
-    if counts["count_miss"] == 0 and counts["count_50"] == 0 and counts["count_100"] == 0 \
-            and counts["count_200"] == 0 and counts["count_300"] == 0:
+    try:
+        accuracy = float(accuracy) if accuracy is not None else None
+    except (TypeError, ValueError):
+        accuracy = None
+    if accuracy is None or not 0 <= accuracy <= 1:
+        accuracy = stable_accuracy(counts)
+    if accuracy is None:
+        return "D"
+    hidden = any(mod in mods for mod in ("HD", "FL", "FI"))
+    if accuracy == 1:
         return "XH" if hidden else "SS"
-    if counts["count_miss"] == 0 and counts["count_50"] == 0 and counts["count_100"] == 0:
+    if accuracy >= 0.95:
         return "SH" if hidden else "S"
-    total = sum(counts.values()) or 1
-    hit = sum(c for k, c in counts.items() if k != "count_miss")
-    ratio = hit / total
-    if ratio > 0.90:
+    if accuracy >= 0.90:
         return "A"
-    if ratio > 0.80:
+    if accuracy >= 0.80:
         return "B"
-    if ratio > 0.70:
+    if accuracy >= 0.70:
         return "C"
     return "D"
 
@@ -399,15 +435,18 @@ def grade_of(counts: dict[str, int], mods: list[str]) -> str:
 _API_GRADE_ALIAS = {"X": "SS", "XH": "XH", "SS": "SS", "S": "S", "SH": "SH"}
 
 
-def grade_from_api(raw, mods: list[str], counts: dict[str, int]) -> str:
-    """Prefer the server's grade; fall back to counting judgements ourselves."""
+def grade_from_api(raw, mods: list[str], counts: dict[str, int], *,
+                   passed: bool | None = None, accuracy=None) -> str:
+    """Failure wins; preserve valid API grades before using mania fallback."""
+    if passed is False:
+        return "F"
     if isinstance(raw, str) and raw.strip():
         g = raw.strip().upper()
         if g in _API_GRADE_ALIAS:
             return _API_GRADE_ALIAS[g]
-        if len(g) == 1 and g in "ABCD":
+        if len(g) == 1 and g in "ABCDF":
             return g
-    return grade_of(counts, mods)
+    return grade_of(counts, mods, accuracy)
 
 
 @dataclass
@@ -420,6 +459,9 @@ class CardData:
     mapper: str = ""
     beatmap_id: str = ""
     bpm: str = ""
+    length: str = ""
+    keys: str = ""
+    status_icon: str = ""
     od: str = ""
     hp: str = ""
     star_rating: str = ""
@@ -430,10 +472,13 @@ class CardData:
     play_date: str = ""
 
     score: str = ""
+    score_suffix: str = ""
+    full_combo: bool = False
     pp: str = ""
     pp_max: str = ""
     accuracy: str = ""
     accuracy_lazer: str = ""
+    other_accuracy_label: str = "LAZER ACC"
     max_combo: str = ""
     map_max_combo: str = ""
 
@@ -443,6 +488,7 @@ class CardData:
 
     counts: dict[str, int] = field(default_factory=dict)
     mods: list[str] = field(default_factory=list)
+    mod_speeds: list[float | None] = field(default_factory=list)
 
     # 分服标识。官服和 SB 私服是两套独立数据，同一张卡上必须一眼能看出成绩来自哪边。
     # 文本为空时那一格不画（渲染器只画有内容的层）。
@@ -470,18 +516,23 @@ class CardData:
             # 紧挨着谱面 ID 的分服标识（官方 / SB 私服）
             "server_tag": self.server_tag,
             "bpm": self.bpm,
+            "length": self.length,
+            "keys": self.keys,
             "od": self.od,
             "hp": self.hp,
             "star_rating": self.star_rating,
             "player_name": self.player_name,
             "total_pp": self.total_pp,
+            "_deco_total_pp_label": "TOTAL PP",
             "rank_change": self.rank_change,
             "play_date": self.play_date,
             "score": self.score,
+            "score_suffix": self.score_suffix,
             "pp": self.pp,
             "pp_max": self.pp_max,
             "accuracy": self.accuracy,
             "accuracy_lazer": self.accuracy_lazer,
+            "_deco_accuracy_lazer_label": self.other_accuracy_label,
             "max_combo": self.max_combo,
             "map_max_combo": self.map_max_combo,
         }
@@ -497,7 +548,8 @@ class CardData:
         # ships `mod_2_mult` visible, so leaving it alone put a stale "x1.5" on
         # every no-mod card.
         for i, code in enumerate(self.mods):
-            mult = SPEED_MOD_MULT.get(code.upper())
+            mult = (self.mod_speeds[i] if i < len(self.mod_speeds)
+                    else SPEED_MOD_MULT.get(code.upper()))
             if mult is not None and 1 <= i + 1 <= 6:
                 out[f"mod_{i + 1}_mult"] = f"x{mult:g}"
         return out
@@ -533,6 +585,8 @@ def build_card(score: dict, beatmap: dict, beatmapset: dict,
     # 成绩来自官服还是 SB 私服。取数那一步会在 score 里打 `server` 标记；
     # 官服路径不打，所以默认 "osu"（保持既有行为不变）。
     _server = str(score.get("server") or "osu").strip().lower()
+    is_stable = (_server == "sb" or score.get("legacy_score_id") is not None
+                 or bool(score.get("legacy_total_score")))
     stars = beatmap.get("difficulty_rating")
     od = beatmap.get("accuracy")
     hp = beatmap.get("drain")
@@ -558,6 +612,18 @@ def build_card(score: dict, beatmap: dict, beatmapset: dict,
     # of sources, and the impossibility check, are in resolve_map_max_combo().
     _map_max_combo, _map_max_combo_src = resolve_map_max_combo(
         score, beatmap, counted=real_max_combo)
+    raw_score = _pick(score, "total_score", "legacy_total_score", "score", default=0)
+    score_main, score_suffix = _score_parts(raw_score)
+    combo = as_positive_int(score.get("max_combo"))
+    full_combo = bool(score.get("is_perfect_combo") or score.get("legacy_perfect"))
+    if not full_combo and combo and _map_max_combo:
+        full_combo = combo == _map_max_combo
+    status = str(_pick(beatmap, "status", default="")).lower()
+    if not status:
+        status = {2:"ranked",1:"ranked",3:"qualified",4:"loved",
+                  0:"pending",-2:"graveyard"}.get((beatmap or {}).get("ranked"), "")
+    status_icon = ("ranked" if status in ("ranked", "approved") else
+                   status if status in ("loved", "qualified", "pending", "graveyard") else "")
 
     # 理论最大 PP。老调用方不传 pp_max_mode，默认按 computed 走。
     _pp_max_mode = str(pp_max_mode or "computed").strip().lower()
@@ -593,13 +659,16 @@ def build_card(score: dict, beatmap: dict, beatmapset: dict,
         mapper=f"mapped by {_pick(beatmapset, 'creator', default='?')}",
         beatmap_id=f"#{_pick(beatmap, 'id', default='?')}",
         # 分服标识。`score["server"]` 由取数那一步打上（官服路径不打 -> osu）。
-        # 官服也显式写「官方」而不是留空 —— 「什么都不显示」这个约定太隐晦，
+        # 官服也显式写 Lazer / Stable 而不是留空 —— 「什么都不显示」这个约定太隐晦，
         # 用户看图时没法确定一张旧卡到底是哪边来的。
-        server_tag="SB 私服" if _server == "sb" else "官方",
+        server_tag=("SB 私服" if _server == "sb" else "Stable" if is_stable else "Lazer"),
         # 私服用青色：它和九套评级强调色（金/银/绿/蓝/紫/红/暗红）都不撞，
         # 一眼能看出「这不是普通的一张官服卡」。官服用三级灰，安静地待着。
         server_tag_color="#4FC3F7" if _server == "sb" else "#8C96A9",
         bpm=str(_pick(beatmap, "bpm", default="")),
+        length=_fmt_length(beatmap.get("total_length") or beatmap.get("hit_length")),
+        keys=(f"{float(beatmap['cs']):g}K" if beatmap.get("cs") is not None else "--"),
+        status_icon=status_icon,
         od=f"{float(od):g}" if od is not None else "",
         hp=f"{float(hp):g}" if hp is not None else "",
         # Deliberately EMPTY: the star strip raster already carries the "★ 3.88"
@@ -624,13 +693,16 @@ def build_card(score: dict, beatmap: dict, beatmapset: dict,
         play_date=_fmt_date(_pick(score, "ended_at", "created_at")),
 
         # v2 calls the raw score `total_score`; `score` is present but null.
-        score=_fmt_int(_pick(score, "total_score", "legacy_total_score", "score", default=0)),
+        score=score_main,
+        score_suffix=score_suffix,
+        full_combo=full_combo,
         pp=_fmt_pp(score.get("pp")),
         # 理论最大 PP = 全 320 判定 + 满连。公式见上面的 mania_pp()/max_pp()。
         # pp_max_mode 为 'dash' 时退回 "--"（公式随 osu! 版本会失准，留个逃生口）。
         pp_max=_pp_max_text,
-        accuracy=_fmt_acc(stable_accuracy(counts)),
-        accuracy_lazer=_fmt_acc(lazer),
+        accuracy=_fmt_acc(stable_accuracy(counts) if is_stable else lazer),
+        accuracy_lazer=_fmt_acc(lazer if is_stable else stable_accuracy(counts)),
+        other_accuracy_label="LAZER ACC" if is_stable else "STABLE ACC",
         max_combo=_fmt_combo(score.get("max_combo")),
         # MAP COMBO = 谱面满连。取数顺序（满连 -> 数 .osu -> API -> "--"）和
         # 「候选值不能小于玩家自己的连击」这条否决规则，都写在
@@ -641,8 +713,10 @@ def build_card(score: dict, beatmap: dict, beatmapset: dict,
 
         counts=counts,
         mods=mods,
+        mod_speeds=mod_speed_multipliers(score.get("mods")),
 
-        grade=grade_from_api(score.get("rank"), mods, counts),
+        grade=grade_from_api(score.get("rank"), mods, counts,
+                             passed=score.get("passed"), accuracy=score.get("accuracy")),
         star_value=float(stars or 0.0),
         od_value=float(od or 0.0),
         hp_value=float(hp or 0.0),

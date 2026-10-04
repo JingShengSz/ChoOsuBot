@@ -33,10 +33,11 @@ FIXTURE = HERE / "tests" / "fixture_score.json"
 # built from; `map_max_combo` is deliberately the API's number (see the note below).
 EXPECTED_TEXT = {
     "player_name":      "F6A8AF",
-    "score":            "984,196",
+    "score":            "984K",
+    "score_suffix":     ".196",
     "pp":               "148pp",
-    "accuracy":         "99.88%",     # stable scale, computed, TRUNCATED like osu!
-    "accuracy_lazer":   "99.53%",     # API 0.99536 truncated -> matches the osu! site
+    "accuracy":         "99.53%",     # lazer play: API value is primary
+    "accuracy_lazer":   "99.88%",     # stable-comparable value on the right
     "max_combo":        "2,922x",
     "map_max_combo":    "2,922x",     # FC -> the player max_combo (see card.py)
     "count_max":        "2,295",
@@ -809,12 +810,12 @@ def stage_sb() -> None:
           f"难度 {alt_layers.get('beatmap_difficulty')!r} / "
           f"满连 {alt_layers.get('map_max_combo')!r}")
 
-    # ── (7) 官服这条路上服务器标记必须是「官方」──
+    # ── (7) 官服这条路上服务器标记必须是「Lazer」（无 stable 标记时）──
     osu_score = dict(score)
     osu_score.pop("server", None)
     d_osu = cardmod.build_card(osu_score, beatmap, beatmapset, profile,
                                pp_max_mode="dash")
-    check("官服标记是「官方」", d_osu.to_layers().get("server_tag"), "官方")
+    check("官服标记是「Lazer」", d_osu.to_layers().get("server_tag"), "Lazer")
     check("官服标记是灰色", d_osu.server_tag_color, "#8C96A9")
 
 
@@ -1330,13 +1331,23 @@ def main() -> int:
                     help="全量渲染：含背景、头像、mod 徽章、辉光（需要联网）")
     ap.add_argument("--only",
                     choices=["map", "raster", "render", "full", "plugin", "sb",
-                             "combo", "oauth"],
+                             "combo", "oauth", "grade", "history"],
                     default=None)
-    ap.add_argument("--template", default=r"D:\Cho Osu Bot\template\osu_score_template_v1.psd")
+    ap.add_argument("--template", default=r"D:\Cho Osu Bot\template\osu_score_template_v2.psd")
     ap.add_argument("--assets", default=r"D:\Cho Osu Bot\template\assets")
     args = ap.parse_args()
 
     print(f"self_test  python={sys.version.split()[0]}\n")
+    if args.only in (None, "history"):
+        import unittest
+        suite = unittest.defaultTestLoader.discover(str(HERE / "tests"), pattern="test_history_commands.py")
+        if not unittest.TextTestRunner(verbosity=1).run(suite).wasSuccessful():
+            FAILURES.append("记录库与指令回归测试失败")
+    if args.only in (None, "map", "grade"):
+        import unittest
+        suite = unittest.defaultTestLoader.discover(str(HERE / "tests"), pattern="test_grades.py")
+        if not unittest.TextTestRunner(verbosity=1).run(suite).wasSuccessful():
+            FAILURES.append("评级回归测试失败")
     # The raster and render stages both need the mapped card, so the mapping stage
     # always runs first — it is pure and takes milliseconds.
     info = stage_mapping() if args.only in (None, "map", "raster", "full") else {}
