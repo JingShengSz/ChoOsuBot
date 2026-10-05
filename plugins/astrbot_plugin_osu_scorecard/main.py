@@ -38,6 +38,8 @@ import astrbot.api.message_components as Comp
 
 try:  # 正常情况：AstrBot 按包导入，相对导入成立
     from . import card as cardmod
+    from .beatmap_media import BeatmapMedia
+    from . import heading
     from . import map_combo as map_combomod
     from . import oauth as oauthmod
     from . import osu_api
@@ -49,6 +51,8 @@ try:  # 正常情况：AstrBot 按包导入，相对导入成立
     from .store import DEFAULT_SERVER, SERVER_LABEL, Store, norm_server
 except ImportError:  # 兜底：被当顶层模块加载时，走绝对导入
     import card as cardmod
+    from beatmap_media import BeatmapMedia
+    import heading
     import map_combo as map_combomod
     import oauth as oauthmod
     import osu_api
@@ -88,6 +92,9 @@ HELP_TEXT = (
     "  r              最近24h内【游玩】的成绩（没通过也算）\n"
     "  s<谱面ID>      绑定账号在该谱面的最近一次成绩，也支持 s <谱面ID>\n"
     "  bind <名字>    把 osu! 用户名绑定到你的 QQ\n"
+    "  unbind         解绑账号，私服使用 unbind -sb\n"
+    "  bg[谱面ID]     谱面背景；省略 ID 使用本聊天最近 p/r 的谱面\n"
+    "  song[谱面ID]   同上，发送从 osu! 预览起点开始的 30 秒语音\n"
     "  mode <模式>    切换模式：osu / taiko / fruits / mania\n"
     "  authorize      重新拿一次官服授权链接（绑定后没授权时用）\n"
     "  help           这条帮助\n"
@@ -114,7 +121,7 @@ HELP_TEXT = (
 SCORE_URL_RE = re.compile(r"osu\.ppy\.sh/(?:#/)?(?:community/)?scores/(\d{3,})", re.I)
 
 # Used to keep the automatic link handler from double-handling an explicit command.
-COMMAND_NAMES = ("p", "r", "s", "bind", "mode", "authorize")
+COMMAND_NAMES = ("p", "r", "s", "bg", "song", "unbind", "解绑", "bind", "mode", "authorize")
 
 OUTPUT_PREFIX = "scorecard_"
 
@@ -544,7 +551,8 @@ class OsuScoreCardPlugin(Star):
         """
         return Image.new("RGBA", (1920, 1080), (0, 0, 0, 0))
 
-    def _text_jobs(self, data: cardmod.CardData) -> list[dict]:
+    def _text_jobs(self, data: cardmod.CardData,
+                   wrapped_heading: bool = False) -> list[dict]:
         """Layer name -> new string, with a CJK font swap where the text needs one.
 
         Inter has no CJK glyphs at all, and Photoshop silently substitutes some
@@ -553,7 +561,11 @@ class OsuScoreCardPlugin(Star):
         """
         jobs = []
         for name, value in data.to_layers().items():
+            if re.fullmatch(r"mod_[1-6]_mult", name):
+                continue  # drawn on mod_1 raster, above the Density heading
             text = "" if value is None else str(value)
+            if wrapped_heading and name in ("beatmap_title", "beatmap_artist"):
+                text = ""
             job = {"name": name, "value": text, "font": None, "accent": None}
             if any(ord(ch) > 0x2E7F for ch in text):
                 job["font"] = "YuGothic-Medium"
@@ -566,7 +578,8 @@ class OsuScoreCardPlugin(Star):
         return jobs
 
     async def _build_rasters(self, session: aiohttp.ClientSession,
-                             data: cardmod.CardData) -> tuple[list[dict], dict]:
+                             data: cardmod.CardData,
+                             heading_overlay: Image.Image | None = None) -> tuple[list[dict], dict]:
         """Every bitmap the card needs, each pre-composited onto a 1920x1080 canvas.
 
         Doing the compositing here (rather than positioning layers inside
@@ -606,9 +619,12 @@ class OsuScoreCardPlugin(Star):
             except Exception as exc:  # noqa: BLE001
                 logger.warning(f"[scorecard] 头像解码失败 {type(exc).__name__}")
 
+        ui_extras = raster.render_ui_extras(
+            self.assets_dir / "ui_extra", data.status_icon)
+        if heading_overlay is not None:
+            ui_extras.alpha_composite(heading_overlay)
         rasters.append({"layer": "ui_extras", "group": "beatmap_info",
-                        "path": save(raster.render_ui_extras(
-                            self.assets_dir / "ui_extra", data.status_icon), "ui_extras.png")})
+                        "path": save(ui_extras, "ui_extras.png")})
         rasters.append({"layer": "score", "group": "secondary_stats",
                         "path": save(raster.render_score_compact(
                             data.score, data.score_suffix), "score.png")})
@@ -631,6 +647,11 @@ class OsuScoreCardPlugin(Star):
         # --- mod badges: all of them go on mod_1 as one sheet, the rest go blank ---
         mod_sheet, placed = raster.render_mod_row(
             data.mods, self.assets_dir / "mods" / "line_v1")
+        mod_sheet.alpha_composite(raster.render_mod_speed_labels(
+            data.mod_speeds, placed))
+        mod_sheet.alpha_composite(raster.render_density_panel(
+            data.density_counts, data.fail_progress, data.ratio_text,
+            data.star_value))
         rasters.append({"layer": "mod_1", "group": "mods_block",
                         "path": save(mod_sheet, "mods.png")})
         meta["mods"] = placed
@@ -678,8 +699,10 @@ class OsuScoreCardPlugin(Star):
     async def _render(self, event: AstrMessageEvent, data: cardmod.CardData,
                       session: aiohttp.ClientSession) -> Path:
         async with self._render_lock:
-            rasters, _meta = await self._build_rasters(session, data)
-            jobs = self._recolor_accent(self._text_jobs(data), data.grade)
+            heading_overlay = heading.render_wrapped_heading(data.title, data.artist)
+            rasters, _meta = await self._build_rasters(session, data, heading_overlay)
+            jobs = self._recolor_accent(
+                self._text_jobs(data, heading_overlay is not None), data.grade)
             out = self.output_dir / f"{OUTPUT_PREFIX}{int(time.time() * 1000)}.png"
 
             # 引擎选择。默认 auto = 先试 Pillow，失败才退回 Photoshop。
@@ -784,9 +807,52 @@ class OsuScoreCardPlugin(Star):
         # 谱面满连：非满连时去数 .osu（见 _counted_map_combo）。放在 build_card
         # 之前，因为它决定了卡片上 MAP COMBO 那一格填什么。
         counted_combo = await self._counted_map_combo(score, beatmap, srv)
+        bpm_range = None
+        if srv == "osu":
+            bid = beatmap.get("id") or score.get("beatmap_id")
+            if bid:
+                try:
+                    bpm_range = await self._call(self._map_combo_resolver().resolve_bpm, bid)
+                except Exception as exc:  # noqa: BLE001
+                    logger.info(f"[scorecard] BPM 区间取不到，退回 API 基准值：{type(exc).__name__}")
+        # Density is based on the .osu object's start times (26 equal-duration
+        # bins, as in yumu). For a failed play, judgement count selects the
+        # approximate last object reached. The resolver shares the map cache.
+        density_counts, fail_progress = [], None
+        bid = beatmap.get("id") or score.get("beatmap_id")
+        if bid and self.map_combo_fetch:
+            judged = (sum(cardmod.judgements(score).values())
+                      if score.get("passed") is False else None)
+            try:
+                density_counts, fail_progress = await self._call(
+                    self._map_combo_resolver().resolve_density, bid, judged)
+            except Exception as exc:  # noqa: BLE001
+                logger.info(f"[scorecard] 密度曲线取不到：{type(exc).__name__}")
+        if score.get("passed") is False and score.get("progress") is not None:
+            try:
+                explicit = float(score["progress"])
+                if 0 <= explicit <= 100:
+                    fail_progress = explicit / (100 if explicit > 1 else 1)
+            except (TypeError, ValueError):
+                pass
+        modded_star_rating = None
+        if srv == "osu" and bid and cardmod.mod_acronyms(score.get("mods")):
+            rid = score.get("ruleset_id")
+            score_ruleset = (("osu", "taiko", "fruits", "mania")[rid]
+                             if rid in (0, 1, 2, 3) else ruleset or "mania")
+            try:
+                modded_star_rating = await self._call(
+                    self._client().beatmap_star_rating, bid,
+                    score.get("mods"), score_ruleset)
+            except Exception as exc:  # noqa: BLE001
+                logger.info(f"[scorecard] mod 后星数取不到，退回谱面基础星数：{type(exc).__name__}")
         data = cardmod.build_card(score, beatmap, beatmapset, profile,
                                   pp_max_mode=self.pp_max_mode,
-                                  real_max_combo=counted_combo)
+                                  real_max_combo=counted_combo,
+                                  bpm_range=bpm_range,
+                                  density_counts=density_counts,
+                                  fail_progress=fail_progress,
+                                  modded_star_rating=modded_star_rating)
         return await self._render(event, data, session)
 
     async def _recent_scores(self, username: str, include_fails: bool,
@@ -1506,7 +1572,56 @@ class OsuScoreCardPlugin(Star):
             logger.warning(f"[scorecard] 渲染出错 {type(exc).__name__}: {exc}")
             yield event.plain_result(f"渲染失败：{type(exc).__name__}")
             return
+        bid = (payload.get('beatmap') or {}).get('id') or payload.get('beatmap_id')
+        if bid:
+            self.history.remember_chat_map(self._media_chat(event), bid)
         yield self._image_reply(event, png)
+
+    @staticmethod
+    def _media_chat(event):
+        return getattr(event, 'unified_msg_origin', None) or str(event.get_sender_id())
+
+    @filter.command('unbind', alias={'解绑'})
+    async def unbind(self, event: AstrMessageEvent):
+        _, server = self._args_server(event)
+        removed = self.store.unbind(event.get_sender_id(), server)
+        yield event.plain_result(('已解绑' if removed else '尚未绑定') + (' SB 私服账号。' if server == 'sb' else '官服账号。'))
+
+    async def _media_reply(self, event, kind, raw):
+        if raw and (not raw.isdecimal() or int(raw) <= 0):
+            yield event.plain_result(f'用法：{kind} 或 {kind}<谱面ID>')
+            return
+        bid = int(raw) if raw else self.history.chat_map(self._media_chat(event))
+        if not bid:
+            yield event.plain_result('本聊天还没有成功发送过 p/r 成绩，请先使用 p/r，或在指令后加谱面ID。')
+            return
+        try:
+            media = BeatmapMedia(self.data_dir / 'beatmap_media', proxy=self.http_proxy)
+            path = await self._call(media.background if kind == 'bg' else media.song, bid)
+            if kind == 'bg':
+                yield event.image_result(str(path))
+            else:
+                yield event.chain_result([Comp.Record.fromFileSystem(str(path))])
+        except Exception as exc:
+            logger.warning(f'[scorecard] {kind} 媒体生成失败：{type(exc).__name__}')
+            yield event.plain_result(self._explain(exc, '获取背景失败' if kind == 'bg' else '获取音乐预览失败'))
+
+    @filter.command('bg')
+    async def background(self, event: AstrMessageEvent):
+        async for result in self._media_reply(event, 'bg', self._args(event)):
+            yield result
+
+    @filter.command('song')
+    async def song(self, event: AstrMessageEvent):
+        async for result in self._media_reply(event, 'song', self._args(event)):
+            yield result
+
+    @filter.regex(r'^[./。．]?(?:bg|song)\d+\s*$')
+    async def media_compact(self, event: AstrMessageEvent):
+        match = re.fullmatch(r'(bg|song)(\d+)', event.message_str.strip().lstrip('/.．。'))
+        if match:
+            async for result in self._media_reply(event, match[1], match[2]):
+                yield result
 
     @filter.command("s")
     async def specific(self, event: AstrMessageEvent):

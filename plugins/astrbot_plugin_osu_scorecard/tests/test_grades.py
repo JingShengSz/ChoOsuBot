@@ -5,9 +5,18 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from card import build_card
+from map_combo import parse_bpm_range
 
 
 class GradeTests(unittest.TestCase):
+    def test_variable_bpm_uses_uninherited_timing_points(self):
+        osu = "[TimingPoints]\n0,705.8823529411765,4,2,0,100,1,0\n1,-50,4,2,0,100,0,0\n2,189.2744479495268,4,2,0,100,1,0\n[HitObjects]\n"
+        bpm_range = parse_bpm_range(osu)
+        self.assertEqual(tuple(round(v) for v in bpm_range), (85, 317))
+        card = build_card({}, {'bpm': 214}, {}, bpm_range=bpm_range)
+        self.assertEqual(card.bpm, '85–317')
+        self.assertEqual(build_card({}, {'bpm': 214}, {}).bpm, '214')
+
     def grade(self, **score):
         return build_card(score, {}, {}).grade
 
@@ -32,6 +41,10 @@ class GradeTests(unittest.TestCase):
         stable = build_card({'mods': ['DT'], 'legacy_score_id': 123}, {}, {})
         self.assertEqual(stable.to_layers()['mod_1_mult'], 'x1.5')
         self.assertEqual(stable.server_tag, 'Stable')
+        ht = build_card({'mods': [{'acronym': 'HT'}]}, {}, {})
+        self.assertEqual(ht.to_layers()['mod_1_mult'], 'x0.75')
+        dc = build_card({'mods': ['DC']}, {}, {})
+        self.assertEqual(dc.to_layers()['mod_1_mult'], 'x0.75')
 
     def test_recent_lazer_accuracy_and_stable_comparison(self):
         score = {'accuracy': .880597, 'legacy_score_id': None,

@@ -151,6 +151,7 @@ class OsuApi:
             raise ValueError("Fill osu_client_id and osu_client_secret in the local configuration")
         self._token = ""
         self._expires = 0.0
+        self._attributes_cache: dict[tuple, tuple[float, float]] = {}
         # 自建 opener 并显式带上系统代理。
         # 不能依赖 urllib.request.urlopen()：它用的是全局 opener，任何库调一次
         # install_opener() 都可能把它换成不带 ProxyHandler 的版本，请求就会直连。
@@ -289,6 +290,48 @@ class OsuApi:
 
     def score(self, reference: str) -> dict:
         return self.get(f"/scores/{score_id(reference)}")
+
+    def beatmap_star_rating(self, beatmap_id: int, mods, ruleset: str) -> float | None:
+        """Official star rating for this beatmap, ruleset and exact mod settings.
+
+        The beatmap object embedded in a score only has its base star rating.
+        osu!'s attributes endpoint applies DT/HT and other difficulty mods.
+        """
+        if ruleset not in ("osu", "taiko", "fruits", "mania"):
+            raise ValueError("Unknown osu! ruleset")
+        bid = int(beatmap_id)
+        if bid <= 0:
+            raise ValueError("Expected a positive beatmap id")
+        normalized = []
+        for mod in mods or []:
+            if isinstance(mod, str):
+                normalized.append(mod.upper())
+            elif isinstance(mod, dict) and mod.get("acronym"):
+                normalized.append({"acronym": str(mod["acronym"]).upper(),
+                                   **({"settings": mod["settings"]}
+                                      if mod.get("settings") else {})})
+        body = {"mods": normalized, "ruleset": ruleset}
+        key = (bid, ruleset, json.dumps(normalized, sort_keys=True))
+        cached = self._attributes_cache.get(key)
+        if cached and time.time() - cached[0] < 3600:
+            return cached[1]
+        url = f"https://osu.ppy.sh/api/v2/beatmaps/{bid}/attributes"
+        request = urllib.request.Request(
+            url, json.dumps(body).encode("utf-8"),
+            {"Accept": "application/json", "Content-Type": "application/json",
+             "User-Agent": "mania-render/0.1",
+             "Authorization": f"Bearer {self._token_value()}",
+             "x-api-version": "20220705"})
+        try:
+            with self._opener.open(request, timeout=45) as response:
+                payload = json.load(response)
+        except urllib.error.HTTPError as exc:
+            raise RuntimeError(f"osu! API HTTP {exc.code} at /beatmaps/{bid}/attributes") from None
+        raw = (payload.get("attributes") or {}).get("star_rating")
+        rating = float(raw) if raw is not None else None
+        if rating is not None and rating > 0:
+            self._attributes_cache[key] = (time.time(), rating)
+        return rating
 
     def user(self, user_id: int, ruleset: str) -> dict:
         if ruleset not in ("osu", "taiko", "fruits", "mania"):

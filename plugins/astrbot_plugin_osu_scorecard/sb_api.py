@@ -434,6 +434,9 @@ def score_to_osu(raw: dict, map_info: dict | None = None,
         "mods": decode_mods(raw.get("mods")),
         "statistics": counts,
         "rank": raw.get("grade"),
+        # SB has no `passed` boolean; an F grade denotes an ended failed play.
+        # The density marker uses this flag and the judgement count.
+        "passed": str(raw.get("grade") or "").upper() != "F",
         "ruleset_id": raw.get("mode", 3),
         "ended_at": raw.get("play_time"),
         "user": {"id": raw.get("userid"), "username": username},

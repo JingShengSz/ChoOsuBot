@@ -38,6 +38,16 @@ class PlayHistory:
                 PRIMARY KEY(server,qq,account,ruleset,score_key))''')
             db.execute('CREATE INDEX IF NOT EXISTS map_recent ON plays '
                        '(server,qq,account,ruleset,beatmap_id,played_at DESC)')
+            db.execute('CREATE TABLE IF NOT EXISTS chat_maps (chat TEXT PRIMARY KEY, beatmap_id INTEGER NOT NULL)')
+
+    def remember_chat_map(self, chat, beatmap_id):
+        with closing(self.connect()) as db, db:
+            db.execute('INSERT INTO chat_maps VALUES (?,?) ON CONFLICT(chat) DO UPDATE SET beatmap_id=excluded.beatmap_id', (str(chat), int(beatmap_id)))
+
+    def chat_map(self, chat):
+        with closing(self.connect()) as db:
+            row = db.execute('SELECT beatmap_id FROM chat_maps WHERE chat=?', (str(chat),)).fetchone()
+        return row[0] if row else None
 
     def connect(self):
         return sqlite3.connect(self.path, timeout=10)

@@ -100,15 +100,23 @@ class MapComboResolver:
         return int(value) if isinstance(value, int) and value > 0 else None
 
     def put(self, beatmap_id, max_combo: int, notes: int = 0,
-            holds: int = 0) -> None:
+            holds: int = 0, bpm_range: tuple[float, float] | None = None,
+            times: list[int] | None = None) -> None:
         if not self.enable_cache or self.ttl <= 0:
             return
-        self._cache[str(beatmap_id)] = {
+        entry = {
             "max_combo": int(max_combo),
             "notes": int(notes),
             "holds": int(holds),
             "fetched_at": time.time(),
         }
+        if bpm_range:
+            entry["bpm_min"], entry["bpm_max"] = bpm_range
+        if times:
+            import density
+            entry["density"] = density.buckets(times)
+            entry["hit_times"] = density.encode_times(times)
+        self._cache[str(beatmap_id)] = entry
         if len(self._cache) > MAX_ENTRIES:
             ordered = sorted(self._cache.items(),
                              key=lambda kv: kv[1].get("fetched_at") or 0)
@@ -151,8 +159,91 @@ class MapComboResolver:
             return None
 
         combo, notes, holds = value
-        self.put(text, combo, notes, holds)
+        import density
+        self.put(text, combo, notes, holds, parse_bpm_range(osu_text),
+                 density.hit_object_times(osu_text))
         return combo
+
+    def resolve_bpm(self, beatmap_id) -> tuple[float, float] | None:
+        """Read uninherited timing points; cache alongside the map combo."""
+        text = str(beatmap_id or "").strip()
+        if not text.isdigit():
+            return None
+        entry = self._cache.get(text) if self.enable_cache else None
+        if isinstance(entry, dict) and time.time() - float(entry.get("fetched_at") or 0) <= self.ttl:
+            low, high = entry.get("bpm_min"), entry.get("bpm_max")
+            if isinstance(low, (int, float)) and isinstance(high, (int, float)):
+                return float(low), float(high)
+        try:
+            import osu_api
+            osu_text = osu_api.fetch_beatmap_file(text, proxy=self.proxy)
+            bpm_range = parse_bpm_range(osu_text)
+            if bpm_range and self.enable_cache and self.ttl > 0:
+                combo = count_objects(osu_text)
+                if combo:
+                    import density
+                    self.put(text, *combo, bpm_range=bpm_range,
+                             times=density.hit_object_times(osu_text))
+            return bpm_range
+        except Exception:  # noqa: BLE001
+            return None
+
+    def resolve_density(self, beatmap_id, judged_objects: int | None = None
+                        ) -> tuple[list[int], float | None]:
+        """Return yumu-style 26-bin density and an estimated fail position.
+
+        Existing cache entries predate density and are upgraded on first use.
+        Download errors leave the chart empty without blocking score rendering.
+        """
+        import density
+
+        text = str(beatmap_id or "").strip()
+        if not text.isdigit():
+            return [], None
+        entry = self._cache.get(text) if self.enable_cache else None
+        if isinstance(entry, dict) and time.time() - float(entry.get("fetched_at") or 0) <= self.ttl:
+            values = entry.get("density")
+            times = density.decode_times(entry.get("hit_times") or "")
+            if (isinstance(values, list) and len(values) == density.BUCKETS
+                    and all(isinstance(v, int) and v >= 0 for v in values)
+                    and (judged_objects is None or times)):
+                progress = density.fail_progress(times, judged_objects) if judged_objects else None
+                return values, progress
+        try:
+            import osu_api
+            osu_text = osu_api.fetch_beatmap_file(text, proxy=self.proxy)
+            times = density.hit_object_times(osu_text)
+            if not times:
+                return [], None
+            value = count_objects(osu_text)
+            if value:
+                self.put(text, *value, bpm_range=parse_bpm_range(osu_text), times=times)
+            return density.buckets(times), (density.fail_progress(times, judged_objects)
+                                            if judged_objects else None)
+        except Exception:  # noqa: BLE001
+            return [], None
+
+
+def parse_bpm_range(osu_text: str) -> tuple[float, float] | None:
+    """BPM extremes from red timing lines in the .osu [TimingPoints] section."""
+    in_timing = False
+    values = []
+    for raw in osu_text.splitlines():
+        line = raw.strip()
+        if line.startswith("[") and line.endswith("]"):
+            in_timing = line == "[TimingPoints]"
+            continue
+        if not in_timing or not line or line.startswith("//"):
+            continue
+        fields = line.split(",")
+        try:
+            if len(fields) > 6 and fields[6].strip() == "1":
+                beat_length = float(fields[1])
+                if beat_length > 0:
+                    values.append(60000 / beat_length)
+        except ValueError:
+            continue
+    return (min(values), max(values)) if values else None
 
 
 def count_objects(osu_text: str) -> tuple[int, int, int] | None:

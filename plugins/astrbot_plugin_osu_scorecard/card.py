@@ -172,6 +172,14 @@ def _fmt_length(seconds) -> str:
         return "--:--"
 
 
+def _fmt_bpm(beatmap: dict, bpm_range: tuple[float, float] | None) -> str:
+    if bpm_range:
+        low, high = bpm_range
+        if round(low) != round(high):
+            return f"{round(low)}–{round(high)}"
+    return str(_pick(beatmap, "bpm", default=""))
+
+
 def _score_parts(value) -> tuple[str, str]:
     try:
         n = max(0, int(value))
@@ -239,7 +247,7 @@ def _fmt_date(value) -> str:
 
 # Score multiplier shown under a mod badge. Speed-changing mods only — see the
 # note in CardData.to_layers() for why the others are deliberately omitted.
-SPEED_MOD_MULT = {"DT": 1.5, "NC": 1.5, "HT": 0.5, "DC": 0.5}
+SPEED_MOD_MULT = {"DT": 1.5, "NC": 1.5, "HT": 0.75, "DC": 0.75}
 
 
 # ───────────────────────── osu!mania pp ─────────────────────────
@@ -489,6 +497,10 @@ class CardData:
     counts: dict[str, int] = field(default_factory=dict)
     mods: list[str] = field(default_factory=list)
     mod_speeds: list[float | None] = field(default_factory=list)
+    # Drawn in the open space below MODS by raster.render_density_panel().
+    density_counts: list[int] = field(default_factory=list)
+    fail_progress: float | None = None
+    ratio_text: str = "--"
 
     # 分服标识。官服和 SB 私服是两套独立数据，同一张卡上必须一眼能看出成绩来自哪边。
     # 文本为空时那一格不画（渲染器只画有内容的层）。
@@ -566,7 +578,11 @@ def _pick(d: dict, *keys, default=""):
 def build_card(score: dict, beatmap: dict, beatmapset: dict,
                player: dict | None = None,
                pp_max_mode: str = "computed",
-               real_max_combo: int | None = None) -> CardData:
+               real_max_combo: int | None = None,
+               bpm_range: tuple[float, float] | None = None,
+               density_counts: list[int] | None = None,
+               fail_progress: float | None = None,
+               modded_star_rating: float | None = None) -> CardData:
     """Assemble a CardData from a /scores/<id> payload plus optional user profile.
 
     `beatmap`/`beatmapset` are the objects the score already embeds, so a score
@@ -582,12 +598,16 @@ def build_card(score: dict, beatmap: dict, beatmapset: dict,
     """
     mods = mod_acronyms(score.get("mods"))
     counts = judgements(score)
+    ratio_text = (f"{counts['count_max'] / counts['count_300']:.1f}"
+                  if counts['count_300'] > 0 else "--")
     # 成绩来自官服还是 SB 私服。取数那一步会在 score 里打 `server` 标记；
     # 官服路径不打，所以默认 "osu"（保持既有行为不变）。
     _server = str(score.get("server") or "osu").strip().lower()
     is_stable = (_server == "sb" or score.get("legacy_score_id") is not None
                  or bool(score.get("legacy_total_score")))
-    stars = beatmap.get("difficulty_rating")
+    # The score's embedded beatmap carries the *unmodded* rating. The caller
+    # resolves score-specific attributes from osu! when mods are present.
+    stars = modded_star_rating if modded_star_rating is not None else beatmap.get("difficulty_rating")
     od = beatmap.get("accuracy")
     hp = beatmap.get("drain")
     da = "DA" in mods or "DifficultyAdjust" in mods
@@ -665,7 +685,7 @@ def build_card(score: dict, beatmap: dict, beatmapset: dict,
         # 私服用青色：它和九套评级强调色（金/银/绿/蓝/紫/红/暗红）都不撞，
         # 一眼能看出「这不是普通的一张官服卡」。官服用三级灰，安静地待着。
         server_tag_color="#4FC3F7" if _server == "sb" else "#8C96A9",
-        bpm=str(_pick(beatmap, "bpm", default="")),
+        bpm=_fmt_bpm(beatmap, bpm_range),
         length=_fmt_length(beatmap.get("total_length") or beatmap.get("hit_length")),
         keys=(f"{float(beatmap['cs']):g}K" if beatmap.get("cs") is not None else "--"),
         status_icon=status_icon,
@@ -714,6 +734,9 @@ def build_card(score: dict, beatmap: dict, beatmapset: dict,
         counts=counts,
         mods=mods,
         mod_speeds=mod_speed_multipliers(score.get("mods")),
+        density_counts=list(density_counts or []),
+        fail_progress=fail_progress if score.get("passed") is False else None,
+        ratio_text=ratio_text,
 
         grade=grade_from_api(score.get("rank"), mods, counts,
                              passed=score.get("passed"), accuracy=score.get("accuracy")),

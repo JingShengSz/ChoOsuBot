@@ -15,6 +15,12 @@ renderer/data/osu_oauth.local.json
 *.token
 .env
 .env.*
+*.sqlite
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+**/bindings.json
+**/players.json
 
 # ─────────────────────────────────────────────────────────────
 # 商业字体 —— 不能随仓库分发
@@ -79,3 +85,6 @@ Thumbs.db
 .idea/
 .vscode/
 design/
+# 本地成绩预览与设计审阅产物
+template/build/*preview*.png
+template/assets/ui_extra/status_review/

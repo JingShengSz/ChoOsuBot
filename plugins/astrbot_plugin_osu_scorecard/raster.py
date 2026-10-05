@@ -453,6 +453,109 @@ def render_mod_row(codes: list[str], assets_dir: Path,
     return sheet, placed
 
 
+def render_mod_speed_labels(speeds: list[float | None],
+                            placed: list[dict]) -> Image.Image:
+    """Place speed multipliers just below badges, clear of Density at y=914.
+
+    Drawing these on the mod raster also gives Pillow and Photoshop identical
+    positions; the old PSD text layers are omitted by main._text_jobs().
+    """
+    sheet = Image.new("RGBA", (1920, 1080))
+    pen = ImageDraw.Draw(sheet)
+    font = _font("regular", 15)
+    for index, badge in enumerate(placed):
+        speed = speeds[index] if index < len(speeds) else None
+        if speed is not None:
+            pen.text((badge["x"], 892), f"x{speed:g}", font=font,
+                     anchor="mt", fill="#8C97A9")
+    return sheet
+
+
+def render_density_panel(counts: list[int], fail_progress: float | None,
+                         ratio_text: str, star_value: float = 0.0) -> Image.Image:
+    """Transparent card-sized overlay for the open strip below MODS.
+
+    The graph occupies x=60..1140, y=914..1006. Its 26 time buckets and
+    translucent area echo yumu's Density chart. On failed plays the colored
+    area stops at the estimated fail time; the full map remains in gray.
+    """
+    scale = 2  # keep the 26-point curve and small labels crisp
+    width, height = 1080, 92
+    panel = Image.new("RGBA", (width * scale, height * scale))
+    pen = ImageDraw.Draw(panel)
+    pen.text((0, 0), "DENSITY", font=_font("medium", 17 * scale),
+             fill="#A8B2C4")
+    pen.text((width * scale, 0), f"RATIO  {ratio_text}",
+             font=_font("medium", 18 * scale), anchor="ra", fill="#EAEEF6")
+
+    left, right = 4 * scale, (width - 4) * scale
+    top, bottom = 31 * scale, 87 * scale
+    for fraction in (0, .25, .5, .75, 1):
+        x = round(left + (right - left) * fraction)
+        pen.line((x, top, x, bottom), fill=(168, 178, 196, 24), width=1 * scale)
+    pen.line((left, bottom, right, bottom), fill=(168, 178, 196, 65), width=1 * scale)
+
+    if len(counts) >= 2 and max(counts) > 0:
+        # Same vertical scaling used by yumu's score Density panel.
+        density_scale = (0.1 if star_value <= 1 else
+                         math.sqrt((star_value - 1) / 7 * .9 + .1)
+                         if star_value <= 8 else 1.0)
+        ceiling = max(counts) / density_scale
+        smooth = [(.25 * counts[max(0, i - 1)] + .5 * value
+                   + .25 * counts[min(len(counts) - 1, i + 1)])
+                  for i, value in enumerate(counts)]
+        knots = [(left + (right - left) * i / (len(smooth) - 1),
+                  bottom - (value / ceiling) * (bottom - top))
+                 for i, value in enumerate(smooth)]
+        points = []
+        for i in range(len(knots) - 1):
+            p0, p1 = knots[max(0, i - 1)], knots[i]
+            p2, p3 = knots[i + 1], knots[min(len(knots) - 1, i + 2)]
+            for step in range(8):
+                t = step / 8
+                # Catmull-Rom interpolation for a smooth chart, clamped to the
+                # visible range so sharp density changes do not overshoot.
+                x = p1[0] + (p2[0] - p1[0]) * t
+                y = .5 * ((2 * p1[1]) + (-p0[1] + p2[1]) * t
+                          + (2*p0[1] - 5*p1[1] + 4*p2[1] - p3[1]) * t*t
+                          + (-p0[1] + 3*p1[1] - 3*p2[1] + p3[1]) * t*t*t)
+                points.append((round(x), round(max(top, min(bottom, y)))))
+        points.append((round(knots[-1][0]), round(knots[-1][1])))
+        marker_x = (left + (right - left) * max(0.0, min(1.0, fail_progress))
+                    if fail_progress is not None else right)
+        # The gray path covers the complete map; blue means already played.
+        pen.polygon(points + [(right, bottom), (left, bottom)],
+                    fill=(168, 178, 196, 18))
+        pen.line(points, fill=(168, 178, 196, 135), width=3 * scale,
+                 joint="curve")
+        played = [point for point in points if point[0] <= marker_x]
+        if marker_x < right and played:
+            after = next((p for p in points if p[0] > marker_x), points[-1])
+            before = played[-1]
+            amount = ((marker_x - before[0]) / (after[0] - before[0])
+                      if after[0] != before[0] else 0)
+            played.append((round(marker_x), round(before[1] + amount * (after[1] - before[1]))))
+        if len(played) >= 2:
+            pen.polygon(played + [(played[-1][0], bottom), (left, bottom)],
+                        fill=(100, 190, 241, 63))
+            pen.line(played, fill="#68C6F5", width=3 * scale, joint="curve")
+        if fail_progress is not None:
+            x = round(marker_x)
+            pen.line((x, top - 3*scale, x, bottom),
+                     fill="#ED6C9E", width=2 * scale)
+            y = played[-1][1] if played else bottom
+            pen.ellipse((x - 4*scale, y - 4*scale, x + 4*scale, y + 4*scale),
+                        fill="#ED6C9E")
+    else:
+        pen.text((width * scale // 2, (top + bottom) // 2), "NO MAP DATA",
+                 font=_font("regular", 14 * scale), anchor="mm",
+                 fill="#8C96A9")
+
+    sheet = Image.new("RGBA", (1920, 1080))
+    sheet.alpha_composite(panel.resize((width, height), Image.LANCZOS), (60, 914))
+    return sheet
+
+
 # ─────────────────────────────── background ───────────────────────────────
 
 
