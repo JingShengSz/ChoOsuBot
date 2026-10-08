@@ -13,7 +13,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse, unquote
 
 from .fetch import (fetch_audio, fetch_meta, fetch_osu_text, load_beatmap_by_id,
-                    lookup_bid_by_md5, looks_like_audio, parse_range)
+                    lookup_bid_by_md5, looks_like_audio, parse_range, audio_cache_path)
 from .osr import parse_osr
 
 # `build_geometry` / `Renderer` / `load_skin` / `cli._pick_skin` pull in Pillow and numpy and
@@ -733,13 +733,9 @@ class Handler(BaseHTTPRequestHandler):
             if len(parts) != 2:
                 return _json(self, 400, {"error": "need /api/media/{sid}/{filename}"})
             sid, filename = parts
-            audio_dir = CACHE / "audio"
-            cached = None
-            for p in list(audio_dir.glob(f"{sid}.*")):
-                if p.suffix.lower() in (".mp3", ".ogg", ".wav", ".flac", ".m4a") and looks_like_audio(p):
-                    cached = p
-                    break
-            if not cached:
+            filename = unquote(filename)
+            cached = audio_cache_path(CACHE, sid, filename)
+            if not cached.is_file() or not looks_like_audio(cached):
                 return _json(self, 404, {"error": f"no cached audio for sid={sid}"})
             _api_log(f"media 200 sid={sid} bytes={cached.stat().st_size} "
                      f"range={self.headers.get('Range')!r} client={self.client_address[0]}")
@@ -852,27 +848,14 @@ class Handler(BaseHTTPRequestHandler):
             # failed" is the whole question when a client reports `Failed to fetch`.
             _api_log(f"audio -> sid={sid} name={filename!r} client={self.client_address[0]} "
                      f"ua={self.headers.get('User-Agent','')[:40]!r}")
-            audio_dir = CACHE / "audio"
-            audio_dir.mkdir(parents=True, exist_ok=True)
-            # check cache first — but the cache is keyed by glob, so a stub left by an
-            # earlier failed download would be served as audio forever. Validate it, and
-            # purge anything that is not really a track so the fetch below can retry.
-            cached = None
-            for p in list(audio_dir.glob(f"{sid}.*")):
-                if p.suffix.lower() not in (".mp3", ".ogg", ".wav", ".flac", ".m4a"):
-                    continue
-                if looks_like_audio(p):
-                    cached = p
-                    break
-                try:
-                    p.unlink()
-                except OSError:
-                    pass
+            filename = unquote(filename)
+            cached = audio_cache_path(CACHE, sid, filename)
+            if cached.is_file() and not looks_like_audio(cached):
+                cached.unlink()
             # Fetch (if needed) inside the try, then serve OUTSIDE it: once _serve_file has
             # sent a status line a later exception must not try to send a 502 on top of it.
             try:
-                if not cached:
-                    cached = audio_dir / f"{sid}{Path(filename).suffix or '.mp3'}"
+                if not cached.is_file():
                     fetch_audio(sid, filename, cached)
                     src = "fetched"
                 else:

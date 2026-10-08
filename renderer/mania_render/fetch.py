@@ -286,6 +286,14 @@ def looks_like_audio(path: Path) -> bool:
     return head[:3] in (b"ID3", b"Ogg") or head[:4] in (b"RIFF", b"fLaC") or head[:1] == b"\xff"
 
 
+def audio_cache_path(cache: Path, sid: str, audio_filename: str) -> Path:
+    """A set may contain several songs; cache each named track separately."""
+    normalized = audio_filename.strip().replace("\\", "/")
+    key = hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:24]
+    ext = Path(normalized).suffix.lower() or ".mp3"
+    return cache / "audio" / f"{sid}-{key}{ext}"
+
+
 def fetch_audio(sid: str, audio_filename: str, dest: Path) -> Path:
     name = urllib.parse.quote(audio_filename)
     # NOTE (fresh-deployment fix): a new install has no cache/audio directory yet. The
@@ -323,20 +331,6 @@ def fetch_audio(sid: str, audio_filename: str, dest: Path) -> Path:
                         dest.write_bytes(zf.read(n))
                         if looks_like_audio(dest):
                             return dest
-            # last resort: largest audio
-            best = None
-            best_sz = -1
-            with zipfile.ZipFile(osz) as zf:
-                for n in zf.namelist():
-                    low = n.lower()
-                    if low.endswith((".mp3", ".ogg", ".wav", ".flac")) and "hit" not in low:
-                        sz = zf.getinfo(n).file_size
-                        if sz > best_sz:
-                            best_sz, best = sz, n
-            if best:
-                dest.write_bytes(zipfile.ZipFile(osz).read(best))
-                if looks_like_audio(dest):
-                    return dest
         except Exception:
             pass
         finally:
@@ -481,8 +475,7 @@ def load_beatmap_by_id(
         if not audio_path.is_file():
             raise FileNotFoundError(audio_path)
     else:
-        ext = Path(bm.audio_filename).suffix or ".mp3"
-        audio_path = cache / "audio" / f"{sid}{ext}"
+        audio_path = audio_cache_path(cache, sid, bm.audio_filename)
         if not audio_path.is_file():
             fetch_audio(sid, bm.audio_filename, audio_path)
 
