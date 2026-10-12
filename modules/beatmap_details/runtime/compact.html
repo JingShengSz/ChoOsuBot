@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>3108847 · 谱面详情精简版</title>
+<style>
+@font-face{font-family:Torus;src:url('../../upstream/ManiaMapAnalyser%20by%20Leo_Black/styles/fonts/Torus-Regular.otf') format('opentype');font-weight:400}
+@font-face{font-family:Torus;src:url('../../upstream/ManiaMapAnalyser%20by%20Leo_Black/styles/fonts/Torus-Bold.otf') format('opentype');font-weight:700 900}
+*{box-sizing:border-box}body{margin:0;background:#050914;color:#f4f7ff;font-family:Torus,'Microsoft YaHei UI','Microsoft YaHei',sans-serif;font-variant-numeric:tabular-nums}
+#card{width:1920px;height:1080px;padding:45px 58px 28px;overflow:hidden;position:relative;background:radial-gradient(circle at 86% 0%,#26365a 0,transparent 33%),radial-gradient(circle at 11% 100%,#162949 0,transparent 34%),linear-gradient(130deg,#111827,#090e19 78%)}
+#card:before{content:'';position:absolute;left:0;right:0;top:0;height:7px;background:linear-gradient(90deg,#6cddff,#a69cff,#f176b4)}
+.head{height:137px;display:flex;justify-content:space-between;align-items:flex-start;gap:25px}.over{color:#64d4ff;font-size:16px;font-weight:800;letter-spacing:.23em}.title{font-size:45px;font-weight:800;line-height:1.13;letter-spacing:-.01em;margin-top:12px}.subtitle{font-size:24px;color:#aebed0;margin-top:8px}.id{border:1px solid #537b9f;border-radius:17px;background:#15263e;padding:14px 20px;min-width:170px;text-align:right;color:#78dfff;font-size:19px;font-weight:800}.id small{display:block;font-size:13px;color:#a7b8d1;font-weight:500;margin-top:4px}
+.cyan{color:#6edcff}.pink{color:#f386bb}.gold{color:#ffd280}.purple{color:#aaa1ff}.muted{color:#a5b6cc}.mixed-result{font-size:29px!important;white-space:nowrap}
+.columns{display:grid;grid-template-columns:1138px 1fr;gap:20px}.left,.right{display:flex;flex-direction:column;gap:18px}.panel{background:linear-gradient(145deg,#162237ed,#111a2aef);border:1px solid #304059;border-radius:19px;padding:19px 23px}.panel h2{font-size:20px;margin:0 0 14px;display:flex;gap:10px;align-items:center}.panel h2:before{content:'';width:5px;height:21px;border-radius:4px;background:#67d7ff}.small{font-size:14px;color:#9eb0c5}.algorithm{height:243px}.alg-grid{display:grid;grid-template-columns:1.01fr .92fr .92fr;gap:13px}.alg{padding:14px 17px;border-radius:13px;background:#1b2b42;border:1px solid #324760;min-height:145px}.alg .lbl{font-size:14px;color:#a8bad0}.alg .big{font-size:39px;font-weight:800;line-height:1.15;margin:8px 0 3px}.alg .detail{font-size:14px;color:#c1d0e0;line-height:1.25}.alg-note{font-size:14px;color:#b6c8db;margin-top:11px}.density{height:551px}.chartbox{height:446px;border:1px solid #2b4058;border-radius:13px;background:#0c192a;padding:13px 16px 9px}.chart-head{display:flex;justify-content:space-between;align-items:baseline}.chart-head b{font-size:18px}.chart-head span{font-size:15px;color:#a5b9ce}#density-chart{width:100%;height:377px;display:block}.chart-foot{display:flex;justify-content:space-between;font-size:13px;color:#8da3bb}
+.msd{height:319px}.msd-head{display:flex;justify-content:space-between;align-items:center}.msd-head .hint{font-size:13px;color:#95a8bf}.msd-grid{display:grid;grid-template-columns:1fr 1fr;column-gap:15px;row-gap:10px}.skill{display:grid;grid-template-columns:100px 1fr 50px;align-items:center;gap:8px;font-size:14px;color:#b8c8da}.skill .rail{height:7px;border-radius:6px;background:#2d3d56;overflow:hidden}.skill .rail b{display:block;height:100%;background:linear-gradient(90deg,#746ffc,#b8acff)}.skill strong{text-align:right;color:#c0baff;font-size:16px}.msd-overall{margin-top:17px;border-top:1px solid #30415a;padding-top:12px;display:flex;justify-content:space-between;color:#aabed2;font-size:14px}.msd-overall b{color:#bbb2ff;font-size:20px}
+.pp{height:166px}.pp-row{display:flex;justify-content:space-between;align-items:flex-end}.pp-big{font-size:45px;color:#ffd280;font-weight:800;line-height:1}.pp-big small{font-size:18px}.pp-data{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:15px}.pp-data div{font-size:13px;color:#9fb1c7}.pp-data b{display:block;font-size:16px;color:#e1ecf8;margin-top:2px}
+.pattern{height:181px}.pattern-grid{display:grid;grid-template-columns:1.1fr .8fr;gap:10px}.pattern .kind{font-size:25px;font-weight:800;color:#6edcff}.pattern .mode{font-size:14px;color:#9eb3c7;margin-top:3px}.top-patterns{font-size:14px;color:#c8d8e7;line-height:1.55}.top-patterns b{color:#f4f7ff}.foot{margin-top:12px;border-top:1px solid #2e3e54;padding-top:10px;display:flex;justify-content:flex-end;color:#8fa5bc;font-size:14px}.foot strong{color:#c7d8e8;font-weight:500}
+/* Aligned from the user's editable layout: 600px left column, 20px gutter. */
+#card{padding:0}.columns,.left,.right{display:contents}.head,.panel{position:absolute;margin:0}
+.head{left:58px;top:29px;width:1804px;height:130px}
+.estimate-display{position:absolute;left:58px;top:184px;width:600px;height:250px;display:flex;align-items:center;gap:18px;padding:8px 10px;background:none;border:0}
+.estimate-icon-wrap{position:relative;width:170px;height:224px;flex:none;display:flex;align-items:center;justify-content:center}.estimate-icon{width:170px;height:210px;overflow:visible;filter:drop-shadow(0 7px 12px #04091599)}.estimate-suffix{position:absolute;right:0;bottom:11px;width:52px;height:52px;filter:drop-shadow(0 4px 5px #040915b3)}
+.estimate-copy{min-width:0}.estimate-eyebrow{color:#8faac7;font-size:15px;letter-spacing:.06em}.estimate-name{font-size:36px;font-weight:700;line-height:1.1;color:#f4f7ff;margin:10px 0 7px;white-space:nowrap}.estimate-number{font-size:15px;color:#a8bad0}.estimate-display.vibro .estimate-icon-wrap{width:220px}.estimate-display.vibro .estimate-icon{width:220px;height:176px}.estimate-display.vibro .estimate-name{color:#81e8f3}
+.msd{left:678px;top:184px;width:1184px;height:250px}.msd-grid{grid-template-columns:repeat(4,minmax(0,1fr));column-gap:18px;row-gap:16px}.skill{grid-template-columns:91px 1fr 48px}
+.sunny{left:678px;top:451px;width:565px;height:155px}.sunny-body{display:flex;align-items:baseline;justify-content:space-between;gap:12px}.sunny-body strong{font-size:42px;line-height:1;color:#aaa1ff}.sunny-body span{font-size:18px;color:#c7d8e8}
+.pattern{left:1261px;top:451px;width:601px;height:155px}
+.density{left:678px;top:625px;width:1184px;height:420px}.density .chartbox{height:337px}.density #density-chart{height:270px}.density .chart-head b{font-family:'Microsoft YaHei UI','Microsoft YaHei',sans-serif;font-size:19px;font-weight:500;letter-spacing:.03em}
+</style><link rel="stylesheet" href="../../assets/detail_green.css"></head><body>
+<div id="card"><img class="character" src="../../assets/characters/detail_green.png" alt="镜像立绘，指向估算难度图案"><header class="head"><div><div class="over">OSU!MANIA　/　BEATMAP DETAIL　/　COMPACT</div><div class="title" id="title"></div><div class="subtitle" id="subtitle"></div></div><div class="id" id="map-id"></div></header>
+<div class="columns"><div class="left">
+<div class="estimate-display" id="estimate-display"><div class="estimate-icon-wrap" id="estimate-icon-wrap"></div><div class="estimate-copy"><div class="estimate-eyebrow" id="estimate-eyebrow"></div><div class="estimate-name" id="estimate-name"></div><div class="estimate-number" id="estimate-number"></div></div></div>
+<section class="panel density"><h2>音符密度 / DENSITY</h2><div class="chartbox"><div class="chart-head"><b id="segment-label"></b><span id="density-stats"></span></div><svg id="density-chart"></svg><div class="chart-foot"><span id="first-time"></span><span id="last-time"></span></div></div></section>
+</div><div class="right">
+<section class="panel msd"><div class="msd-head"><h2>MinaCalc / MSD</h2><span class="hint" id="msd-version"></span></div><div class="msd-grid" id="skills"></div><div class="msd-overall"><span id="msd-meta"></span><span>Overall <b id="overall"></b></span></div></section>
+<section class="panel sunny"><h2>SUNNY · 估算星数</h2><div class="sunny-body"><strong id="sunny-star"></strong><span id="sunny-diff"></span></div></section>
+<section class="panel pattern"><h2>键型 / PATTERNS</h2><div class="pattern-grid"><div><div class="kind" id="category"></div><div class="mode" id="mode"></div></div><div class="top-patterns" id="top-patterns"></div></div></section>
+</div></div></div>
+<script src="data.js"></script><script src="../../assets/dan_icons/icon_manifest.js"></script><script>
+const d=window.BEATMAP_DETAILS, s=d.algorithms.Sunny, mixed=d.algorithms.Mixed, c=d.companella, m=d.metadata;
+const f=(x,n=2)=>x==null?'—':Number(x).toFixed(n);
+const clock=ms=>{const cs=Math.round(Number(ms)/10);return `${Math.floor(cs/6000).toString().padStart(2,'0')}:${Math.floor(cs%6000/100).toString().padStart(2,'0')}.${(cs%100).toString().padStart(2,'0')}`};
+document.getElementById('title').textContent=m.Title;
+document.getElementById('subtitle').textContent=`${m.ArtistUnicode} / ${m.Artist}　·　${m.Version}　·　mapped by ${m.Creator}`;
+document.getElementById('map-id').innerHTML=`#${d.beatmapId}<small>SET #${m.BeatmapSetID}</small>`;
+const primaryDiff=String(s.rework.estDiff||'—').split(' || ')[0];
+const vibro=d.vibroDetection;
+const vibroEvidence=vibro?.msdVibro
+  ? `JackSpeed / Overall ${f(vibro.jackSpeedOverallRatio*100,1)}%`
+  : `仅名称含 Vibro · MSD ${f(vibro?.jackSpeedOverallRatio*100,1)}% 未达 95%`;
+const estimate=vibro?.isVibroMap
+  ? {label:`${String(vibro.estimator||'ROXY').toUpperCase()} · 谱面类型`,name:'VIBRO',number:vibroEvidence,icon:'question'}
+  : {label:`MIXED → ${mixed.actualEstimatorAlgorithm.toUpperCase()} · 推荐估算`,name:String(mixed.rework.estDiff||'—').split(' || ')[0],number:`数值难度 ${f(mixed.rework.numericDifficulty)}`};
+function rankIconKey(name){
+  const base=name.replace(/\s+(?:mid\/high|mid\/low|high|mid|low)$/i,'').trim();
+  if(/^Reform (?:[1-9]|10)$/i.test(base))return `reform${base.match(/\d+$/)[0]}`;
+  if(/^Thaumiel Eta$/i.test(base))return 'eta';
+  if(/^Emik Zeta$/i.test(base))return 'zeta';
+  if(/^CloverWisp Theta$/i.test(base))return 'theta';
+  if(/^(?:Hypersovae|Lnlism) LN (\d+)$/i.test(base))return `ln${base.match(/\d+$/)[0]}`;
+  if(/^LN \d+$/i.test(base))return `ln${base.match(/\d+$/)[0]}`;
+  if(/^[a-z]+$/i.test(base))return base.toLowerCase();
+  return null;
+}
+function iconSvg(key,cssClass){
+  const box=window.DAN_ICON_BOUNDS?.[key];if(!box)return '';
+  const [x1,y1,x2,y2]=box,pad=Math.max(x2-x1,y2-y1)*.035;
+  return `<svg class="${cssClass}" viewBox="${x1-pad} ${y1-pad} ${x2-x1+2*pad} ${y2-y1+2*pad}" role="img" aria-label="${key}"><image href="../../assets/dan_icons/${key}.webp" width="1920" height="1080"/></svg>`;
+}
+const display=document.getElementById('estimate-display');
+if(estimate.name==='VIBRO')display.classList.add('vibro');
+const iconKey=estimate.icon||rankIconKey(estimate.name);
+const artKey=window.DAN_ICON_BOUNDS?.[iconKey]?iconKey:'question';
+const suffix=estimate.name.match(/\s+(mid\/high|mid\/low|high|low)$/i)?.[1].toLowerCase();
+const suffixKey=suffix?.includes('high')?'plus':suffix?.includes('low')?'minus':null;
+document.getElementById('estimate-icon-wrap').innerHTML=iconSvg(artKey,'estimate-icon')+(suffixKey?iconSvg(suffixKey,'estimate-suffix'):'');
+document.getElementById('estimate-eyebrow').textContent=estimate.label;
+document.getElementById('estimate-name').textContent=estimate.name;
+document.getElementById('estimate-number').textContent=estimate.number;
+document.getElementById('sunny-star').textContent=`${f(s.rework.star,3)}★`;
+document.getElementById('sunny-diff').textContent=vibro?.isVibroMap?'Vibro 类型 · 段位未判定':primaryDiff;
+const density=d.density.counts, svg=document.getElementById('density-chart');
+const firstMs=d.density.firstMs,lastMs=d.density.lastMs;
+const segments=d.patternSegments?.segments||[];
+document.getElementById('segment-label').textContent=segments.length?`每 ${d.patternSegments.seconds} 秒键型 · 下方为音符密度`:'音符密度';
+const colorFor=label=>/Roll/i.test(label)?'#ffb454':/Handstream/i.test(label)?'#a69cff':/Jumptrill/i.test(label)?'#f386bb':/Jumpstream/i.test(label)?'#62d9ff':/Jack/i.test(label)?'#ffd280':'#8ee0b5';
+const shortName=label=>label==='Jumpstream Tech'?'JS Tech':label;
+const runs=[];for(const segment of segments){const last=runs.at(-1);if(last&&last.category===segment.category)last.endMs=segment.endMs;else runs.push({...segment})}
+function renderDensityChart(){
+  // The SVG coordinate system follows its actual CSS size. A fixed viewBox with
+  // preserveAspectRatio="none" stretches labels when the panel is resized.
+  const W=Math.round(svg.getBoundingClientRect().width),H=Math.round(svg.getBoundingClientRect().height);
+  if(!W||!H||!density.length)return;
+  svg.setAttribute('viewBox',`0 0 ${W} ${H}`);
+  const L=42,R=10,T=65,B=26,chartW=W-L-R,chartH=H-T-B;
+  const max=Math.max(10,Math.ceil(d.density.peak/10)*10);
+  const Xms=ms=>L+Math.max(0,Math.min(1,(ms-firstMs)/(lastMs-firstMs)))*chartW;
+  const X=i=>Xms(firstMs+i*1000),Y=v=>T+chartH-v/max*chartH;
+  let grid='';for(let j=0;j<=3;j++){const v=max*j/3,y=Y(v);grid+=`<line x1="${L}" x2="${W-R}" y1="${y}" y2="${y}" stroke="#2b4159"/><text x="${L-9}" y="${y+4}" text-anchor="end" fill="#8fa6bf" font-size="12">${Math.round(v)}</text>`}
+  const path=density.map((v,i)=>`${i?'L':'M'}${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join('')+` L${W-R},${Y(density.at(-1))}`;
+  const windowLines=segments.slice(1).map(segment=>`<line x1="${Xms(segment.startMs)}" x2="${Xms(segment.startMs)}" y1="45" y2="${T+chartH}" stroke="#9ab1c9" stroke-opacity=".28" stroke-dasharray="3 5"/>`).join('');
+  const patternBand=runs.map(run=>{
+    const x1=Xms(run.startMs),x2=Xms(run.endMs),width=x2-x1,color=colorFor(run.category);
+    const name=shortName(run.category);
+    const compact=name.replace(/Jumpstream/g,'JS').replace(/Handstream/g,'HS').replace(/Jumptrill/g,'JT').replace(/Coordination/g,'Coord.').replace(/Uncategorised/g,'Other').replace(/Minijacks/g,'MJ').replace(/Jacky WC/g,'WC').replace(/Wildcard/g,'WC').replace(/Density/g,'Dens.');
+    const words=width<100?compact.split(' '):[name];
+    const label=words.map((word,index)=>`<tspan x="${(x1+x2)/2}" y="${words.length===1?30:20+13*index}">${word}</tspan>`).join('');
+    return `<g><title>${run.category} · ${clock(run.startMs)}–${clock(run.endMs)}</title><rect x="${x1+2}" y="7" width="${Math.max(1,width-4)}" height="38" rx="6" fill="${color}" fill-opacity=".22" stroke="${color}" stroke-opacity=".75"/><text text-anchor="middle" fill="${color}" font-size="10" font-weight="700">${label}</text></g>`;
+  }).join('');
+  svg.innerHTML=`${grid}${windowLines}<path d="${path} L${W-R},${T+chartH} L${L},${T+chartH} Z" fill="#b9e790" opacity=".17"/><path d="${path}" fill="none" stroke="#b9e790" stroke-width="3" stroke-linejoin="round"/>${patternBand}`;
+}
+renderDensityChart();
+new ResizeObserver(renderDensityChart).observe(svg);
+document.getElementById('density-stats').textContent=`平均 ${f(d.density.mean)} NPS　·　峰值 ${d.density.peak} NPS`;
+document.getElementById('first-time').textContent=`首物件 ${clock(d.objectStats.firstStartMs)}`;
+document.getElementById('last-time').textContent=`末物件 ${clock(d.objectStats.lastStartMs)}`;
+const skills=['Stream','Jumpstream','Handstream','Stamina','JackSpeed','Chordjack','Technical'];
+const skillMax=Math.max(25,...Object.values(d.ettResult.values));
+document.getElementById('skills').innerHTML=skills.map(k=>`<div class="skill"><span>${k}</span><div class="rail"><b style="width:${Math.min(100,d.ettResult.values[k]/skillMax*100)}%"></b></div><strong>${f(d.ettResult.values[k])}</strong></div>`).join('');
+document.getElementById('overall').textContent=f(d.ettResult.values.Overall);
+document.getElementById('msd-version').textContent=`${d.ettResult.etternaVersion||'—'} · scoreGoal 0.93`;
+document.getElementById('msd-meta').textContent=`${d.ettResult.keycount}K · ${d.ettResult.rowCount.toLocaleString()} rows · ${d.ettResult.engine}`;
+document.getElementById('category').textContent=d.patternReport.Category;
+document.getElementById('mode').textContent=`Mode ${d.patternReport.ModeTag} · ${d.patternReport.Clusters.length} 键型簇 · HB row ${f(d.patternReport.HBRowRatio*100,1)}%`;
+document.getElementById('top-patterns').innerHTML='<b>主要簇</b><br>'+d.patternReport.Clusters.slice(0,3).map(x=>x.Pattern).join(' · ');
+</script><script src="../../assets/detail_ranks.js"></script></body></html>

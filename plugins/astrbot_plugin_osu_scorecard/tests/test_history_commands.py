@@ -77,7 +77,7 @@ class CommandTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('请先绑定',reply[0])
 
     async def test_command_spellings(self):
-        async def lookup(event,bid,server): yield (bid,server)
+        async def lookup(event,bid,server,target=""): yield (bid,server)
         self.p._map_card=lookup
         for text,method in [('s 42',self.p.specific),('s42',self.p.specific_compact),
                             ('.s42 -sb',self.p.specific_compact),('.s 42 -sb',self.p.specific)]:

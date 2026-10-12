@@ -13,6 +13,13 @@ renderer/data/osu_oauth.local.json
 # 通用兜底
 *.secret
 *.token
+**/*.local.json
+**/credentials*.json
+**/secrets*.json
+**/*_token.txt
+*.db
+*.db-wal
+*.db-shm
 .env
 .env.*
 *.sqlite
@@ -42,11 +49,14 @@ template/assets/fonts/
 # ─────────────────────────────────────────────────────────────
 renderer/cache/
 renderer/out/
+renderer/vendor/mania-replay-master/
 renderer/data/temp/
 renderer/tools/_engine_cutover/
 **/chrome-gpu-profile/
 **/chrome-profile/
 scratch/
+**/node_modules/
+plugins/**/dist/
 **/__pycache__/
 *.pyc
 *.pyo
@@ -62,6 +72,13 @@ template/*.psd
 template/assets/signboards/character_*.png
 # 原始美术素材归档
 sources/
+modules/beatmap_details/visuals/
+modules/beatmap_details/reports/
+modules/beatmap_details/assets/dan_icons/deprecated/
+modules/beatmap_details/assets/dan_icons/reform_sources/
+modules/beatmap_details/assets/dan_icons/*preview*
+modules/beatmap_details/assets/dan_icons/*_mask.json
+template/build/server_badge_preview/
 
 # ─────────────────────────────────────────────────────────────
 # 重复副本（renderer/ 下是插件的工作镜像，权威副本在 plugins/）

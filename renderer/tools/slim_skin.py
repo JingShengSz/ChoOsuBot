@@ -30,7 +30,7 @@ ALWAYS_EXACT = {"skin.ini", "mainhudcomponents.json", "playfield.json"}
 # skin.ini keys whose value is a sprite path we must keep.
 INI_PATH_KEYS = {
     "lightingn", "lightingl", "stagelight", "stagehint", "leftstageimage",
-    "rightstageimage", "bottomstageimage", "warningarrow", "hit300g", "hit300",
+    "rightstageimage", "bottomstageimage", "stageleft", "stageright", "stagebottom", "warningarrow", "hit300g", "hit300",
     "hit200", "hit100", "hit50", "hit0",
 }
 

@@ -9,9 +9,12 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import hashlib
 import json
+import io
 import re
 import time
+import zipfile
 from pathlib import Path
 from urllib.parse import unquote
 
@@ -19,6 +22,13 @@ import aiohttp
 
 from astrbot.api import AstrBotConfig, logger
 from astrbot.api.event import AstrMessageEvent, filter
+try:
+    from .command_filter import command as insensitive_command
+except ImportError:
+    import sys
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from command_filter import command as insensitive_command
+
 from astrbot.api.star import Context, Star
 import astrbot.api.message_components as Comp
 
@@ -190,6 +200,13 @@ class ManiaRenderPlugin(Star):
         # Keep detached render tasks referenced: an unreferenced task can be garbage
         # collected mid-flight, which would drop the video without a trace.
         self._background: set[asyncio.Task] = set()
+        self._osz_cache_file = self.data_dir / "osz_sources.json"
+        try:
+            self._osz_sources = json.loads(self._osz_cache_file.read_text(encoding="utf-8"))
+            if not isinstance(self._osz_sources, dict):
+                self._osz_sources = {}
+        except (OSError, ValueError):
+            self._osz_sources = {}
 
     # ─────────────────────────── configuration ───────────────────────────
 
@@ -319,7 +336,7 @@ class ManiaRenderPlugin(Star):
         for comp in getattr(event.message_obj, "message", []) or []:
             if isinstance(comp, Comp.File):
                 name = getattr(comp, "name", "") or getattr(comp, "file", "") or ""
-                if str(name).lower().endswith(".osr"):
+                if str(name).lower().endswith((".osr", ".mr", ".mrv")):
                     found.append(comp)
         return found
 
@@ -450,19 +467,17 @@ class ManiaRenderPlugin(Star):
 
     @staticmethod
     def _osr_segment(segments) -> dict | None:
-        """The `file` segment most likely to be a replay, else the first file segment."""
+        """Select only replay files, so chart packages cannot become fake replays."""
         if not isinstance(segments, list):
             return None
-        fallback = None
         for seg in segments:
             if not isinstance(seg, dict) or seg.get("type") != "file":
                 continue
             data = seg.get("data") or {}
             blob = " ".join(str(data.get(k) or "") for k in ("file", "name", "file_id", "url"))
-            if ".osr" in blob.lower():
+            if re.search(r'\.(?:osr|mr|mrv)(?:\b|$)', blob.lower()):
                 return seg
-            fallback = fallback or seg
-        return fallback
+        return None
 
     async def _fetch_replied_osr(self, event: AstrMessageEvent) -> bytes | None:
         """Fetch the .osr out of the message the user replied to, if there is one."""
@@ -486,6 +501,8 @@ class ManiaRenderPlugin(Star):
                            f"{str(info)[:400]}")
             return None
         data = segment.get("data") or {}
+        replay_name = str(data.get('name') or data.get('file') or '')
+        setattr(event, '_mania_replay_extension', '.mrv' if replay_name.lower().endswith('.mrv') else '.mr' if replay_name.lower().endswith('.mr') else '.osr')
         timeout = aiohttp.ClientTimeout(total=120)
         async with aiohttp.ClientSession(timeout=timeout) as session:
             got = await self._download_file_segment(session, event, data)
@@ -513,6 +530,8 @@ class ManiaRenderPlugin(Star):
             comps = self._osr_components(event)
             if comps:
                 tried = True
+                replay_name = str(getattr(comps[0], 'name', '') or getattr(comps[0], 'file', ''))
+                setattr(event, '_mania_replay_extension', '.mrv' if replay_name.lower().endswith('.mrv') else '.mr' if replay_name.lower().endswith('.mr') else '.osr')
                 got = await self._fetch_osr(session, event, comps[0])
                 if got:
                     return got
@@ -525,8 +544,9 @@ class ManiaRenderPlugin(Star):
                     continue
                 data = seg.get("data") or {}
                 blob = " ".join(str(data.get(k) or "") for k in ("file", "name", "file_id", "url"))
-                if ".osr" not in blob.lower():
+                if not re.search(r'\.(?:osr|mr|mrv)(?:\b|$)', blob.lower()):
                     continue
+                setattr(event, '_mania_replay_extension', '.mrv' if re.search(r'\.mrv(?:\b|$)', blob.lower()) else '.mr' if re.search(r'\.mr(?:\b|$)', blob.lower()) else '.osr')
                 tried = True
                 got = await self._download_file_segment(session, event, data)
                 if got:
@@ -539,6 +559,157 @@ class ManiaRenderPlugin(Star):
             # usage text, which reads as "you did not send anything".
             raise RuntimeError("收到了 .osr 文件，但读不出内容（具体原因见 AstrBot 日志）")
         return await self._fetch_replied_osr(event)
+
+    async def _collect_osz(self, event, *, details_only=False):
+        segments = list(self._raw_segments(event))
+        rid = self._reply_message_id(event)
+        client = getattr(event, 'bot', None)
+        if rid and client is not None and hasattr(client, 'api'):
+            reply = await client.api.call_action('get_msg', message_id=int(rid) if rid.isdigit() else rid)
+            segments += (reply or {}).get('message') or []
+        for seg in segments:
+            if not isinstance(seg, dict) or seg.get('type') != 'file': continue
+            data = seg.get('data') or {}
+            name = str(data.get('name') or data.get('file') or '')
+            if not name.lower().endswith(('.osz', '.mcz', '.zip', '.mc')): continue
+            # A replied-to QQ message or a protocol file ID identifies the exact package.
+            # The display name alone is unsafe: two different uploads may share it.
+            source_id = rid or data.get('file_id') or data.get('url')
+            source = json.dumps((str(getattr(event,'unified_msg_origin','')),
+                                 str(source_id or ''), name, str(data.get('size') or ''), details_only),
+                                ensure_ascii=False)
+            source_key = hashlib.sha256(source.encode('utf-8')).hexdigest() if source_id else None
+            cached = self._osz_sources.get(source_key) if source_key else None
+            if (isinstance(cached, dict) and cached.get('server') == self.server
+                    and time.time() - cached.get('time', 0) < 1800
+                    and cached.get('maps')):
+                logger.info('[mania] 复用已导入的 osz 难度列表，跳过文件下载和上传')
+                return cached['maps'], cached.get('warnings') or []
+            started = time.monotonic()
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=180)) as session:
+                raw = await self._download_file_segment(session,event,data)
+                if not raw: raise RuntimeError('无法读取被回复的谱面文件')
+                if name.lower().endswith('.mc'):
+                    # A bare MC contains no music. Include companion file attachments
+                    # from this same message; otherwise the importer explains what's missing.
+                    stream = io.BytesIO()
+                    with zipfile.ZipFile(stream, 'w') as archive:
+                        archive.writestr(Path(name).name, raw)
+                        for companion in segments:
+                            if not isinstance(companion, dict) or companion.get('type') != 'file': continue
+                            payload = companion.get('data') or {}
+                            asset_name = str(payload.get('name') or payload.get('file') or '')
+                            if Path(asset_name).suffix.lower() not in ('.mp3','.ogg','.wav','.flac','.jpg','.png','.jpeg'): continue
+                            body = await self._download_file_segment(session,event,payload)
+                            if body: archive.writestr(Path(asset_name).name, body)
+                    raw = stream.getvalue()
+                downloaded = time.monotonic()
+                form = aiohttp.FormData()
+                form.add_field('osz',raw,filename='map.osz',content_type='application/zip')
+                endpoint = '/api/import_detail_osz' if details_only else '/api/import_osz'
+                result = await self._api(session,'POST',endpoint,data=form)
+            logger.info(f'[mania] osz {len(raw)/1024**2:.1f}MB：读取 QQ 文件 {downloaded-started:.1f}s，上传并导入 {time.monotonic()-downloaded:.1f}s')
+            self._osz_sources = {k:v for k,v in self._osz_sources.items()
+                                 if isinstance(v,dict) and time.time()-v.get('time',0) < 1800}
+            if source_key:
+                self._osz_sources[source_key] = {'time':time.time(), 'server':self.server,
+                                                 'maps':result['maps'], 'warnings':result.get('warnings') or []}
+                try:
+                    temp = self._osz_cache_file.with_suffix('.tmp')
+                    temp.write_text(json.dumps(self._osz_sources,ensure_ascii=False),encoding='utf-8')
+                    temp.replace(self._osz_cache_file)
+                except OSError as exc:
+                    logger.warning(f'[mania] osz 缓存未能持久化: {exc}')
+            return result['maps'], result.get('warnings') or []
+        return None
+
+    @staticmethod
+    def _package_user(event):
+        return (str(getattr(event,'unified_msg_origin','')), str(event.get_sender_id()))
+
+    async def _is_package_choice_reply(self,event):
+        rid = self._reply_message_id(event)
+        client = getattr(event,'bot',None)
+        if not rid or client is None or not hasattr(client,'api'): return False
+        reply = await client.api.call_action('get_msg',message_id=int(rid) if rid.isdigit() else rid)
+        text = str((reply or {}).get('raw_message') or (reply or {}).get('message') or '')
+        return ('请选择要渲染的难度' in text
+                and ('回复本列表发送编号' in text or 'om选' in text))
+
+    async def _render_package_choice(self,event,number,overrides=None):
+        pending = getattr(self,'_package_choices',{}).get(self._package_user(event))
+        if not pending or time.time() - pending['time'] > 1800:
+            yield event.plain_result('没有待选择的谱面，或列表已过期。请回复 osz 文件重新发送 om。')
+            return
+        if not 1 <= number <= len(pending['maps']):
+            yield event.plain_result('请输入有效编号，例如：om选 2')
+            return
+        opts = dict(pending['opts'])
+        opts.update(overrides or {})
+        if opts.get('_engine') == 'mrm' and ('skin' in opts or 'bg_dim' in opts):
+            yield event.plain_result('v 使用 Mania-Replay-Master 判定轨迹画面，支持速度、分辨率、帧率和片段选项；皮肤和背景暗度选项用于 om。')
+            return
+        opts['bid'] = pending['maps'][number-1]['beatmap_id']
+        yield event.plain_result('开始渲染（Mania-Replay-Master 回放）' if opts.get('_engine') == 'mrm' else '开始渲染（谱面包回放）' if pending.get('replay') else '开始渲染（谱面包自动游玩）')
+        sent,text = await self._render(event,opts,pending.get('replay'))
+        if not sent: yield event.plain_result(text)
+
+    @staticmethod
+    def _parse_package_choice(raw):
+        """Parse a difficulty number followed by the same flagged options as `om`."""
+        match = re.fullmatch(r'(\d+)(?:\s+(.+))?', raw.strip(), re.S)
+        if not match:
+            return None, {}, '请输入难度编号，例如：1 -s miku'
+        options_text = match[2] or ''
+        if options_text:
+            error = ManiaRenderPlugin._unknown_options(options_text)
+            if error:
+                return None, {}, error
+        options, error = ManiaRenderPlugin._parse_options(options_text, strict=True)
+        if error:
+            return None, {}, error
+        overrides, error = ManiaRenderPlugin._normalise(options)
+        return int(match[1]), overrides, error
+
+    @filter.event_message_type(filter.EventMessageType.ALL)
+    async def package_choice_reply(self,event):
+        # QQ replies commonly carry Reply + At(bot) + Plain(number).
+        getter = getattr(event,'get_messages',None)
+        components = getter() if callable(getter) else []
+        bot_id = str(event.get_self_id()) if callable(getattr(event,'get_self_id',None)) else ''
+        if any(isinstance(c,Comp.At) and str(c.qq) != bot_id for c in components):
+            return
+        plain = [str(c.text) for c in components if isinstance(c,Comp.Plain)]
+        raw = ''.join(plain).strip() if plain else (event.message_str or '').strip()
+        if not re.match(r'^\d+(?:\s|$)',raw): return
+        if not self._reply_message_id(event): return
+        try:
+            is_choice = await self._is_package_choice_reply(event)
+        except Exception:
+            return
+        if not is_choice: return
+        number, overrides, error = self._parse_package_choice(raw)
+        if error:
+            yield event.plain_result(error)
+            return
+        async for result in self._render_package_choice(event,number,overrides):
+            yield result
+        stop = getattr(event,'stop_event',None)
+        if callable(stop): stop()
+
+    @insensitive_command('om选')
+    async def om_select(self,event):
+        raw = (event.message_str or '').strip().lstrip('/.．。')
+        match = re.fullmatch(r'om选\s+(.+)',raw,re.S | re.I)
+        if not match:
+            yield event.plain_result('请输入难度编号，例如：om选 1 -s miku')
+            return
+        number, overrides, error = self._parse_package_choice(match[1])
+        if error:
+            yield event.plain_result(error)
+            return
+        async for result in self._render_package_choice(event,number,overrides):
+            yield result
 
     # ─────────────────────────── the render itself ───────────────────────────
 
@@ -553,24 +724,28 @@ class ManiaRenderPlugin(Star):
         async with self._render_lock:
             timeout = aiohttp.ClientTimeout(total=self.timeout)
             async with aiohttp.ClientSession(timeout=timeout) as session:
-                try:
-                    skins, default_skin = await self._list_skins(session)
-                except Exception as exc:
-                    if _is_unreachable(exc):
-                        logger.error(f"[mania] 渲染节点不可达（{self.server}）: {exc}")
-                        return False, RENDER_NODE_OFFLINE
-                    raise
-                try:
-                    skin = self._resolve_skin(opts.get("skin"), skins, default_skin)
-                except ValueError as exc:
-                    return False, str(exc)
+                mrm = opts.get('_engine') == 'mrm'
+                if mrm:
+                    skin = 'Mania-Replay-Master'
+                else:
+                    try:
+                        skins, default_skin = await self._list_skins(session)
+                    except Exception as exc:
+                        if _is_unreachable(exc):
+                            logger.error(f"[mania] 渲染节点不可达（{self.server}）: {exc}")
+                            return False, RENDER_NODE_OFFLINE
+                        raise
+                    try:
+                        skin = self._resolve_skin(opts.get("skin"), skins, default_skin)
+                    except ValueError as exc:
+                        return False, str(exc)
 
                 form = aiohttp.FormData()
                 if opts.get("bid"):
                     form.add_field("bid", str(opts["bid"]))
-                width, height = self._resolution(opts)
+                width, height = (int(opts.get('width', 540)), int(opts.get('height', 960))) if mrm else self._resolution(opts)
                 form.add_field("skin", skin)
-                form.add_field("scroll", str(opts.get("scroll", DEFAULT_SCROLL)))
+                form.add_field("scroll", str(opts.get("scroll", 20 if mrm else DEFAULT_SCROLL)))
                 form.add_field("fps", str(opts.get("fps", DEFAULT_FPS)))
                 form.add_field("width", str(width))
                 form.add_field("height", str(height))
@@ -579,12 +754,17 @@ class ManiaRenderPlugin(Star):
                 if self.bitrate_kbps:
                     form.add_field("bitrate_kbps", str(self.bitrate_kbps))
                 form.add_field("bg_dim", str(opts.get("bg_dim", DEFAULT_BG_DIM)))
-                if self.engine:
-                    form.add_field("engine", self.engine)
+                engine = 'mrm' if mrm else self.engine
+                if engine:
+                    form.add_field("engine", engine)
                 if opts.get("range"):
                     form.add_field("range", str(opts["range"]))
+                if opts.get('platform'):
+                    form.add_field('platform', opts['platform'])
                 if osr_bytes:
-                    form.add_field("osr", osr_bytes, filename="replay.osr",
+                    extension = opts.get('_replay_extension') or ('.mr' if osr_bytes.startswith(b'\x0e\x00\x00\x00mr format head') else '.osr')
+                    filename = 'replay' + extension
+                    form.add_field("osr", osr_bytes, filename=filename,
                                    content_type="application/octet-stream")
 
                 try:
@@ -761,6 +941,7 @@ class ManiaRenderPlugin(Star):
         "r": "res", "res": "res", "分辨率": "res",
         "f": "fps", "fps": "fps", "帧率": "fps",
         "from": "from", "to": "to", "起": "from", "止": "to",
+        "platform": "platform", "平台": "platform",
     }
 
     @staticmethod
@@ -873,6 +1054,10 @@ class ManiaRenderPlugin(Star):
     def _normalise(opts: dict) -> tuple[dict, str | None]:
         """Turn the raw tokens into the API's units; returns (opts, error)."""
         out: dict = {}
+        if opts.get('platform'):
+            platform = str(opts['platform']).lower()
+            if platform not in ('pc','pe'): return {}, 'Malody 平台要用 pc 或 pe'
+            out['platform'] = platform
         if opts.get("bid"):
             bid = re.sub(r"\D", "", str(opts["bid"]))
             if not bid:
@@ -1018,7 +1203,7 @@ class ManiaRenderPlugin(Star):
     # The command is `om`: `om <谱面ID>` or `om` as a reply to a message holding an .osr.
     COMMAND_NAMES = ("om", "mania", "渲染", "osu")
 
-    @filter.command("om", alias={"mania", "osumania", "渲染"})
+    @insensitive_command("om", alias={"mania", "osumania", "渲染"})
     async def om(self, event: AstrMessageEvent):
         """把 osu!mania 谱面或回放渲染成视频。
 
@@ -1027,9 +1212,19 @@ class ManiaRenderPlugin(Star):
         可加选项：-s 皮肤 -v 滚动速度 -d 背景暗度 -r 720|1080 -f 帧率 --from 秒 --to 秒
         例：om 2467450 -s R Skin -d 30 -v 25
         """
-        text = (event.message_str or "").strip()
+        async for result in self._render_command(event):
+            yield result
+
+    @insensitive_command('v')
+    async def v(self, event: AstrMessageEvent):
+        """Reply to an osu!mania OSR or Malody MR/MRV to render its recorded inputs."""
+        async for result in self._render_command(event, replay_required=True):
+            yield result
+
+    async def _render_command(self, event, replay_required=False):
+        text = (event.message_str or "").strip().lstrip('/.．。')
         text = re.sub(
-            r"^(?:" + "|".join(re.escape(n) for n in self.COMMAND_NAMES) + r")\s*",
+            r"^(?:" + "|".join(re.escape(n) for n in (*self.COMMAND_NAMES, 'v')) + r")\s*",
             "", text, count=1, flags=re.I,
         )
         opts, err = self._parse_options(text)
@@ -1041,10 +1236,51 @@ class ManiaRenderPlugin(Star):
             yield event.plain_result(err)
             return
 
+        if replay_required:
+            opts['_engine'] = 'mrm'
+            if 'skin' in opts or 'bg_dim' in opts:
+                yield event.plain_result('v 使用 Mania-Replay-Master 判定轨迹画面，支持 -v 速度、-r 分辨率、-f 帧率、--from/--to 片段和 --platform pc|pe；皮肤和背景暗度选项用于 om。')
+                return
+
         try:
             osr_bytes = await self._collect_osr(event)
+            extension = getattr(event, '_mania_replay_extension', None)
+            if extension: opts['_replay_extension'] = extension
         except Exception as exc:
-            yield event.plain_result(f"读取 .osr 失败：{exc}")
+            yield event.plain_result(f'读取回放失败：{exc}')
+            return
+        try:
+            package = await self._collect_osz(event)
+        except Exception as exc:
+            yield event.plain_result(f'读取 osz 失败：{exc}')
+            return
+        if package:
+            maps, warnings = package
+            if warnings:
+                shown = warnings[:8]
+                remaining = len(warnings) - len(shown)
+                note = '\n'.join(shown)
+                if remaining:
+                    note += f'\n另有 {remaining} 条素材提示'
+                yield event.plain_result('谱面包素材提示：\n' + note)
+            if replay_required and not osr_bytes:
+                yield event.plain_result('谱面包已导入。请回复对应的 .osr/.mr/.mrv 回放发送 v。回放将按谱面 MD5 精确匹配。')
+                return
+            if len(maps) > 1:
+                if not hasattr(self,'_package_choices'): self._package_choices = {}
+                self._package_choices = {k:v for k,v in self._package_choices.items() if time.time()-v['time'] < 1800}
+                self._package_choices[self._package_user(event)] = {'maps':maps,'opts':dict(opts),'time':time.time(), 'replay':osr_bytes}
+                rows = [f"{i}. {m['version']} · {m['keys']}K" for i,m in enumerate(maps,1)]
+                yield event.plain_result('请选择要渲染的难度：\n' + '\n'.join(rows) + '\n回复本列表发送编号，例如 2 或 2 -s miku（可带@机器人，30分钟内有效）。')
+                return
+            opts['bid'] = maps[0]['beatmap_id']
+            yield event.plain_result('开始渲染（回放）' if osr_bytes else '开始渲染（谱面包自动游玩）')
+            sent,text = await self._render(event,opts,osr_bytes)
+            if not sent: yield event.plain_result(text)
+            return
+
+        if replay_required and not osr_bytes:
+            yield event.plain_result('请回复 .osr（osu!mania）、.mr（Malody 4.x）或 .mrv（Malody V）文件发送 v。Malody 需要先用 om 导入对应谱面包和音频。')
             return
 
         if not opts.get("bid") and not osr_bytes:
@@ -1056,7 +1292,7 @@ class ManiaRenderPlugin(Star):
             )
             return
 
-        note = "回放" if osr_bytes else "自动游玩"
+        note = "Mania-Replay-Master 回放" if replay_required else "回放" if osr_bytes else "自动游玩"
         if osr_bytes and opts.get("bid"):
             note += "（MD5 匹配不上时用你给的 ID）"
         yield event.plain_result(f"开始渲染（{note}）\n渲染视频需要几分钟，请稍等")
@@ -1065,7 +1301,7 @@ class ManiaRenderPlugin(Star):
         if not sent:                    # on success the caption went with the video
             yield event.plain_result(text)
 
-    @filter.command("om皮肤", alias={"mania皮肤", "皮肤列表", "skinlist"})
+    @insensitive_command("om皮肤", alias={"mania皮肤", "皮肤列表", "skinlist"})
     async def om_skins(self, event: AstrMessageEvent):
         """列出渲染服务上可用的皮肤，以及默认皮肤。"""
         try:
@@ -1083,7 +1319,7 @@ class ManiaRenderPlugin(Star):
         lines = [f"· {k}{'（默认）' if k == default else ''}" for k in skins]
         yield event.plain_result("可用皮肤：\n" + "\n".join(lines))
 
-    @filter.command("om参数", alias={"mania参数", "渲染参数"})
+    @insensitive_command("om参数", alias={"mania参数", "渲染参数"})
     async def om_defaults(self, event: AstrMessageEvent):
         """显示当前的默认渲染参数。"""
         width, height = self._resolution({})

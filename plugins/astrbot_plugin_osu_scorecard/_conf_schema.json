@@ -1,4 +1,10 @@
 {
+  "detail_server": {
+    "description": "Detail Pro 渲染服务地址",
+    "type": "string",
+    "default": "http://127.0.0.1:8760",
+    "hint": "与 OM 使用同一渲染节点，需要节点提供 /api/detail/{id} 接口。"
+  },
   "osu_credential_file": {
     "description": "osu! 凭据文件路径",
     "hint": "默认 D:\\Cho Osu Bot\\renderer\\data\\osu_oauth.local.json —— 渲染器已经维护着这个文件，本机装好了就不用再填下面两项。文件里需要 osu_client_id 和 osu_client_secret 两个键（就是 OsuApi.from_file 认的格式）。文件不存在时才会退回用下面两项。",

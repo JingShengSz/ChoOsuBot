@@ -1,0 +1,10 @@
+[extend]
+useDefault = true
+
+# This is the checksum of the public osu! OpenAPI schema, not a credential.
+[[allowlists]]
+description = "Public osu OpenAPI schema checksum"
+condition = "AND"
+paths = ['''plugins/astrbot_plugin_osu_tools/api_catalog\.json$''']
+regexTarget = "line"
+regexes = ['''"openapi_sha256":\s*"[a-f0-9]{64}"''']

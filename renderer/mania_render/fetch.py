@@ -187,6 +187,8 @@ def _http_text(url: str) -> str:
 
 
 def fetch_meta(bid: str | None = None, sid: str | None = None, md5: str | None = None) -> list[dict]:
+    from . import osz as local_osz
+    if local_osz.is_local(bid or sid): return [local_osz.manifest(bid or sid)["meta"]]
     import json
 
     if md5:
@@ -224,6 +226,8 @@ def lookup_bid_by_md5(md5: str, cache: Path | None = None) -> str | None:
 
 
 def fetch_osu_text(bid: str) -> str:
+    from . import osz as local_osz
+    if local_osz.is_local(bid): return local_osz.text(bid)
     text = _http_text(OSU_FILE_URL.format(bid=bid))
     idx = text.find("osu file format")
     if idx < 0:
@@ -295,6 +299,11 @@ def audio_cache_path(cache: Path, sid: str, audio_filename: str) -> Path:
 
 
 def fetch_audio(sid: str, audio_filename: str, dest: Path) -> Path:
+    from . import osz as local_osz
+    if local_osz.is_local(sid):
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(local_osz.asset(sid, audio_filename).read_bytes())
+        return dest
     name = urllib.parse.quote(audio_filename)
     # NOTE (fresh-deployment fix): a new install has no cache/audio directory yet. The
     # direct-mirror loop below goes through _curl(), which creates dest.parent, but the
@@ -345,6 +354,11 @@ def fetch_audio(sid: str, audio_filename: str, dest: Path) -> Path:
 
 
 def fetch_bg(sid: str, bg_filename: str, dest: Path) -> Path:
+    from . import osz as local_osz
+    if local_osz.is_local(sid):
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(local_osz.asset(sid, bg_filename).read_bytes())
+        return dest
     """Download the named original background, never an arbitrary set image."""
     bg_filename = bg_filename.replace("\\", "/")
     name = urllib.parse.quote(bg_filename)
@@ -444,6 +458,10 @@ def load_beatmap_by_id(
     audio_override: Path | None = None,
     bg_override: Path | None = None,
 ) -> tuple[OsuBeatmap, Path, Path | None]:
+    from . import osz as local_osz
+    if local_osz.is_local(bid):
+        m = local_osz.manifest(bid)["meta"]
+        return parse_osu(local_osz.text(bid)), local_osz.asset(bid,m["audio_filename"]), (local_osz.asset(bid,m["background_filename"]) if m["background_filename"] else None)
     osu_path = cache / "osu" / f"{bid}.osu"
     if osu_override:
         text = Path(osu_override).read_text(encoding="utf-8", errors="replace")

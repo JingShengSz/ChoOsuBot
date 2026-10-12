@@ -1,0 +1,24 @@
+{
+  "credential_file": {
+    "description": "osu! OAuth 应用凭据文件路径",
+    "type": "string",
+    "default": "",
+    "hint": "留空使用 data/plugin_data/astrbot_plugin_osu_tools/osu_oauth.local.json。只支持应用 client_id/client_secret，不导入用户令牌。"
+  },
+  "http_proxy": {
+    "description": "HTTP 代理地址",
+    "type": "string",
+    "default": "",
+    "hint": "留空直连。例如 http://127.0.0.1:7890，不自动读取系统代理。"
+  },
+  "timeout_seconds": {
+    "description": "单次网络请求超时秒数（5～30）",
+    "type": "int",
+    "default": 20
+  },
+  "cache_seconds": {
+    "description": "同一查询的缓存秒数（60～3600）",
+    "type": "int",
+    "default": 60
+  }
+}

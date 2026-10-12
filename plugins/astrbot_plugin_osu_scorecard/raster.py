@@ -392,7 +392,13 @@ def render_score_compact(main: str, suffix: str) -> Image.Image:
     return sheet
 
 
-def render_ui_extras(assets_dir: Path, status_icon: str) -> Image.Image:
+def server_badge_path(assets_dir: Path, server_tag: str) -> Path:
+    tag = server_tag.lower()
+    name = "mames" if tag.startswith("mames") else "sb" if tag.startswith("sb") else "stable" if tag == "stable" else "lazer"
+    return assets_dir / "server_badges" / f"{name}.png"
+
+
+def render_ui_extras(assets_dir: Path, status_icon: str, server_tag: str = "") -> Image.Image:
     sheet = Image.new("RGBA", (1920, 1080), (0, 0, 0, 0))
     for name, xy, size in (("length", (270, 402), 40),
                            ("keys", (463, 402), 40),
@@ -405,6 +411,13 @@ def render_ui_extras(assets_dir: Path, status_icon: str) -> Image.Image:
             if img.size != (size, size):
                 img = img.resize((size, size), Image.LANCZOS)
             sheet.alpha_composite(img, xy)
+    badge = server_badge_path(assets_dir, server_tag)
+    if server_tag and badge.is_file():
+        with Image.open(badge) as source:
+            sheet.alpha_composite(source.convert("RGBA").resize((148, 36), Image.Resampling.LANCZOS), (170, 239))
+        if server_tag.lower().startswith("mames "):
+            ImageDraw.Draw(sheet).text((330, 249), server_tag.split(" ", 1)[1],
+                                      font=_font("regular", 18), fill="#8C96A9")
     return sheet
 
 

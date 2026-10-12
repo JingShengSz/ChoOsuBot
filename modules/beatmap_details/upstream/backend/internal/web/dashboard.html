@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ManiaMapAnalyser — Usage Statistics</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23635bff'/%3E%3Cpath d='M16 6.5l2.6 5.7 6.2.8-4.6 4.3 1.2 6.2-5.4-3.4-5.4 3.4 1.2-6.2-4.6-4.3 6.2-.8z' fill='%23fff'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/dashboard.css">
+</head>
+<body>
+<header>
+  <div class="top">
+    <div>
+      <h1>ManiaMapAnalyser <span class="dim">· Usage Statistics</span></h1>
+      <p class="sub">Anonymous aggregate statistics from the osu!mania overlay plugin. No usernames, no beatmap identity, no IP.</p>
+    </div>
+    <div class="controls">
+      <div class="range" id="range" role="group" aria-label="Time range">
+        <button data-days="1">1d</button>
+        <button data-days="7">7d</button>
+        <button data-days="30" class="active">30d</button>
+        <button data-days="90">90d</button>
+      </div>
+      <div class="custom" id="customBox">
+        <button class="custom-btn" id="customBtn" type="button" aria-expanded="false" aria-controls="customPopup" aria-haspopup="dialog">Custom</button>
+        <div class="custom-popup" id="customPopup" role="dialog" aria-label="Custom date range" hidden>
+          <div class="custom-field">
+            <label for="fromInput">From</label>
+            <input type="date" id="fromInput">
+          </div>
+          <div class="custom-field">
+            <label for="toInput">To</label>
+            <input type="date" id="toInput">
+          </div>
+          <div class="custom-actions">
+            <button class="apply-btn" id="applyBtn" type="button">Apply</button>
+            <button class="cancel-btn" id="cancelBtn" type="button">Cancel</button>
+          </div>
+          <p class="custom-err" id="customErr" role="status" aria-live="polite"></p>
+        </div>
+      </div>
+      <button class="theme-btn" id="themeBtn" type="button" aria-label="Toggle theme">
+        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="4"></circle>
+          <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"></path>
+        </svg>
+        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+        </svg>
+      </button>
+    </div>
+  </div>
+  <p class="meta">
+    <span class="live">live</span>
+    <span id="updated">loading…</span>
+    <span class="sep">·</span>
+    <span>server <strong id="serverVer">–</strong></span>
+    <span class="sep">·</span>
+    <span>auto-refresh 60s</span>
+  </p>
+</header>
+<main>
+  <section id="overview" class="cards"></section>
+
+  <div class="grid2">
+    <section class="panel">
+      <h2>Online by hour <small id="hourRange">UTC</small></h2>
+      <div class="body chart-wrap"><div id="onlineByHour"></div></div>
+    </section>
+    <section class="panel">
+      <h2><span id="trendTitle">Active per day</span> <small id="trendSub">active · new</small></h2>
+      <div class="body chart-wrap"><div id="trend"></div></div>
+    </section>
+  </div>
+
+  <div class="grid2">
+    <section class="panel">
+      <h2>Star rating <small>0.5★ bins</small></h2>
+      <div class="body chart-wrap"><div id="starHistogram"></div></div>
+    </section>
+    <section class="panel">
+      <h2>LN ratio <small>5% bins</small></h2>
+      <div class="body chart-wrap"><div id="lnRatioHistogram"></div></div>
+    </section>
+  </div>
+
+  <section class="panel full">
+    <h2>Key count</h2>
+    <div class="body"><div id="keycounts" class="bars-split"></div></div>
+  </section>
+
+  <section class="panel full">
+    <h2>Numeric difficulty <small>0.25 bins · .0 = mid</small></h2>
+    <div class="body chart-wrap numeric-chart"><div id="numericHistogram"></div></div>
+  </section>
+
+  <div class="grid2">
+    <section class="panel"><h2>Beatmap type <small>HB / RC / LN / Mix / SV</small></h2><div class="body" id="modes"></div></section>
+    <section class="panel"><h2>Mods <small>NM = no mod</small></h2><div class="body" id="mods"></div></section>
+  </div>
+
+  <div class="grid2">
+    <section class="panel"><h2>Client <small>osu! / Etterna / Malody</small></h2><div class="body" id="clients"></div></section>
+    <section class="panel"><h2>Version</h2><div class="body" id="versions"></div></section>
+  </div>
+
+  <div class="grid2">
+    <section class="panel">
+      <h2>Selected algorithm <small>user choice</small></h2>
+      <div class="body" id="algorithms"></div>
+    </section>
+    <section class="panel">
+      <h2>Called algorithm <small>each analyze · once</small></h2>
+      <div class="body" id="actualAlgorithms"></div>
+    </section>
+  </div>
+
+  <div class="grid2">
+    <section class="panel">
+      <h2>Analysis duration <small>20ms bins · 10–600ms shown</small></h2>
+      <div class="body chart-wrap"><div id="durationHistogram"></div></div>
+    </section>
+    <section class="panel">
+      <h2>Analyses per day <small>per install · ≤500 shown</small></h2>
+      <div class="body chart-wrap" id="analysesPerDay"></div>
+    </section>
+  </div>
+
+  <section class="panel" style="margin-bottom:14px">
+    <h2>Analysis metrics <small id="windowLabel">30d</small></h2>
+    <div class="body">
+      <div id="metrics" class="chips"></div>
+      <div id="metricsMax" class="chips chips-max"></div>
+    </div>
+  </section>
+</main>
+<div id="tip"></div>
+<footer>
+  <span>aggregate statistics only</span>
+  <span class="sep">·</span>
+  <span>vanilla JS + SVG, no trackers</span>
+</footer>
+<script src="/dashboard.js" defer></script>
+</body>
+</html>

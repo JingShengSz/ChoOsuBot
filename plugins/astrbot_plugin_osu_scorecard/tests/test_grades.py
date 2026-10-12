@@ -9,6 +9,21 @@ from map_combo import parse_bpm_range
 
 
 class GradeTests(unittest.TestCase):
+    def test_stable_grade_matches_primary_accuracy_when_api_rank_is_lazer(self):
+        score = {'rank': 'B', 'passed': True, 'accuracy': .897359,
+                 'legacy_score_id': 671950234, 'mods': [{'acronym':'CL'}],
+                 'statistics': {'perfect':3559, 'great':2630, 'good':984,
+                                'ok':181, 'meh':60, 'miss':231}}
+        data = build_card(score, {}, {})
+        self.assertEqual(data.server_tag, 'Stable')
+        self.assertEqual(data.accuracy, '90.45%')
+        self.assertEqual(data.grade, 'A')
+        score['passed'] = False
+        self.assertEqual(build_card(score, {}, {}).grade, 'F')
+        score['passed'] = True
+        score['client'] = 'Lazer'
+        self.assertEqual(build_card(score, {}, {}).grade, 'B')
+
     def test_variable_bpm_uses_uninherited_timing_points(self):
         osu = "[TimingPoints]\n0,705.8823529411765,4,2,0,100,1,0\n1,-50,4,2,0,100,0,0\n2,189.2744479495268,4,2,0,100,1,0\n[HitObjects]\n"
         bpm_range = parse_bpm_range(osu)

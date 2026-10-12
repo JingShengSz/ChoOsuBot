@@ -603,8 +603,17 @@ def build_card(score: dict, beatmap: dict, beatmapset: dict,
     # 成绩来自官服还是 SB 私服。取数那一步会在 score 里打 `server` 标记；
     # 官服路径不打，所以默认 "osu"（保持既有行为不变）。
     _server = str(score.get("server") or "osu").strip().lower()
-    is_stable = (_server == "sb" or score.get("legacy_score_id") is not None
-                 or bool(score.get("legacy_total_score")))
+    is_stable = (score['client'] == 'Stable' if score.get('client') in ('Stable', 'Lazer') else
+                 (_server == "sb" or score.get("legacy_score_id") is not None
+                  or bool(score.get("legacy_total_score"))))
+    grade_rank = score.get("rank")
+    grade_accuracy = score.get("accuracy")
+    # Converted legacy scores may carry a lazer rank. Use the same accuracy
+    # as the primary Stable display when judgements are available.
+    if is_stable and sum(counts.values()) > 0:
+        grade_accuracy = stable_accuracy(counts)
+        if str(grade_rank or "").strip().upper() != "F":
+            grade_rank = None
     # The score's embedded beatmap carries the *unmodded* rating. The caller
     # resolves score-specific attributes from osu! when mods are present.
     stars = modded_star_rating if modded_star_rating is not None else beatmap.get("difficulty_rating")
@@ -681,7 +690,9 @@ def build_card(score: dict, beatmap: dict, beatmapset: dict,
         # 分服标识。`score["server"]` 由取数那一步打上（官服路径不打 -> osu）。
         # 官服也显式写 Lazer / Stable 而不是留空 —— 「什么都不显示」这个约定太隐晦，
         # 用户看图时没法确定一张旧卡到底是哪边来的。
-        server_tag=("SB 私服" if _server == "sb" else "Stable" if is_stable else "Lazer"),
+        server_tag=("SB 私服" if _server == "sb" else
+                    ("Mames Stable" if is_stable else "Mames Lazer") if _server == "mames" else
+                    "Stable" if is_stable else "Lazer"),
         # 私服用青色：它和九套评级强调色（金/银/绿/蓝/紫/红/暗红）都不撞，
         # 一眼能看出「这不是普通的一张官服卡」。官服用三级灰，安静地待着。
         server_tag_color="#4FC3F7" if _server == "sb" else "#8C96A9",
@@ -738,8 +749,8 @@ def build_card(score: dict, beatmap: dict, beatmapset: dict,
         fail_progress=fail_progress if score.get("passed") is False else None,
         ratio_text=ratio_text,
 
-        grade=grade_from_api(score.get("rank"), mods, counts,
-                             passed=score.get("passed"), accuracy=score.get("accuracy")),
+        grade=grade_from_api(grade_rank, mods, counts,
+                             passed=score.get("passed"), accuracy=grade_accuracy),
         star_value=float(stars or 0.0),
         od_value=float(od or 0.0),
         hp_value=float(hp or 0.0),

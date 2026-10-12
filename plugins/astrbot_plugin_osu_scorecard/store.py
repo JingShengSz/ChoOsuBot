@@ -27,14 +27,16 @@ import time
 from pathlib import Path
 
 #: Accepted server keys. "osu" is the official server, "sb" is the private one.
-SERVERS = ("osu", "sb")
+SERVERS = ("osu", "sb", "mames")
 DEFAULT_SERVER = "osu"
-SERVER_LABEL = {"osu": "官服", "sb": "SB 私服"}
+SERVER_LABEL = {"osu": "官服", "sb": "SB 私服", "mames": "Mamesosu 私服"}
 
 
 def norm_server(value) -> str:
     """Anything user- or config-supplied -> a known server key."""
     s = str(value or "").strip().lower()
+    if s in ("mames", "mamesosu", "mamesosu.net"):
+        return "mames"
     if s in ("sb", "ppy.sb", "apisb", "private", "私服"):
         return "sb"
     return DEFAULT_SERVER

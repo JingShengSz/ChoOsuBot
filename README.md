@@ -177,4 +177,15 @@ python self_test.py          # 离线，几秒，会真渲一张卡
 ## License
 
 Apache-2.0（与 [yumu-bot](https://github.com/yumu-bot/yumu-bot) 一致）。
+
+### 第三方来源
+
+新增功能说明：
+
+- [DTL 单卡 / DTLP 三页预测、OSZ 与 Malody 文件、倍速参数](modules/beatmap_details/README.md)
+- [AstrBot LLM osu! 查询工具与 API 索引](plugins/astrbot_plugin_osu_tools/README.md)
+- [Malody 与 Mania-Replay-Master 回放渲染](renderer/docs/MALODY_RENDER.md)
+
+- 回放指令 `v` 使用 [Mania-Visualization-Project/Mania-Replay-Master](https://github.com/Mania-Visualization-Project/Mania-Replay-Master) 的官方 v2.4.0 JVM 渲染器。本仓库提供 AstrBot 接口、文件转换和调用桥接；回放渲染核心来自原项目。原项目采用 Apache-2.0，许可副本见 [Mania-Replay-Master.txt](renderer/docs/licenses/Mania-Replay-Master.txt)，安装与调用说明见 [MALODY_RENDER.md](renderer/docs/MALODY_RENDER.md)。
+- `dtl` / `dtlp` 的分析器来自 [LeoBlackMT/osumania_map_analyser](https://github.com/LeoBlackMT/osumania_map_analyser)，固定版本与 MIT 许可见 [谱面详情模块](modules/beatmap_details/README.md)。
 随包分发的字体遵循各自的 OFL-1.1 许可。

@@ -3,17 +3,20 @@
 Uses the password that was just set, logs in over its own HTTP API, and reads
 `/api/plugins` and `/api/plugins/failed`.
 
-    <python> tools/astrbot_api_check.py [password] [base_url]
+    <python> tools/astrbot_api_check.py [base_url] (set ASTRBOT_PASSWORD in the environment)
 """
 from __future__ import annotations
 
 import json
+import os
 import sys
 import urllib.error
 import urllib.request
 
-PASSWORD = sys.argv[1] if len(sys.argv) > 1 else "b9KQeUTbsJZ6Wt29"
-BASE = sys.argv[2] if len(sys.argv) > 2 else "http://127.0.0.1:6186"
+PASSWORD = os.environ.get("ASTRBOT_PASSWORD", "")
+if not PASSWORD:
+    raise SystemExit("Set ASTRBOT_PASSWORD before running this tool.")
+BASE = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:6186"
 
 
 def call(path: str, payload=None, token: str | None = None) -> tuple[int, object]:
@@ -51,7 +54,7 @@ def main() -> int:
     if isinstance(body, dict):
         data = body.get("data") or body
         token = data.get("token") or data.get("access_token")
-    print("  token:", (token[:24] + "...") if token else f"(none; keys={list(body)[:8] if isinstance(body, dict) else '?'})")
+    print("Dashboard login succeeded")
     if not token:
         return 1
 

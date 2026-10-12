@@ -1,5 +1,13 @@
 # astrbot_plugin_mania_render
 
+## 新增 v 与 Malody 支持
+
+回复 `.osr` 或 Malody 4.x `.mr` 文件发送 **`v`**，使用回放渲染。
+回复 Malody Key `.mcz/.zip` 谱面包发送 **`om`**，进行自动播放；多难度按列表回复编号选择。
+Malody 回放需先导入对应谱面包和音频，按 MD5 配对。默认 PC 判定，可加 `--platform pe`。
+Malody V 的 Key 谱面包可导入，V 回放仍待真实样本核验。
+完整格式范围见 [Malody 渲染说明](../../renderer/docs/MALODY_RENDER.md)。
+
 > **行为变更**：本插件**不再自动检测消息里的 osu! 成绩链接**。
 >
 > 原因：`astrbot_plugin_osu_scorecard` 也会抓同一条链接，两个插件同时响应会把一次操作
@@ -204,3 +212,31 @@ python -m mania_render --web --host 127.0.0.1 --port 8760
     `--live` 还会真的跑一次渲染
 - 网络请求全部走 `aiohttp`，没有 `requests`。
 - 持久化只写 `data/plugin_data/<插件名>/`，不写插件目录。
+
+
+## 回复 osz 谱面包
+
+回复群文件或私聊文件 `.osz`，发送 `om -s miku`。插件列出包内 mania 难度，回复难度列表发送 `2` 或 `2 -s miku` 选择编号并可覆盖皮肤等渲染选项；也支持 `om选 2 -s miku`。QQ 回复自动附带的 @机器人可正常识别。`om 2` 始终查询谱面 ID 2。仅有一个 mania 难度时直接开始。选择列表按用户和聊天隔离，30分钟有效；首次指定的皮肤、速度、分辨率与片段参数会保留，选择难度时提供的选项会覆盖它们。重复选择直接使用渲染节点已保存的谱面和音频；30 分钟内对同一条 QQ 文件消息重复发送 `om` 也会复用已导入的难度列表，跳过重新下载与上传 osz。文件来源缓存保存在插件数据目录，机器人重启后仍可复用。音频和背景使用包内资源，无需官服谱面ID。
+
+此功能需要渲染服务提供 `/api/import_osz` 接口。
+
+## 指令大小写
+
+全部指令名及别名支持大小写混用，例如 `.OM`、`.V`、`.SkinList`、
+`.OM皮肤`。用户名、皮肤名及参数值保留原样。
+
+## Malody 回放
+
+`.v` 固定使用 [Mania-Replay-Master](https://github.com/Mania-Visualization-Project/Mania-Replay-Master)
+官方 v2.4.0 JVM 渲染器，画面是按判定着色的音符和按键轨迹。
+默认 540×960、60fps、速度 20；支持 `-v`、`-r`、`-f`、`--from/--to`、
+`--platform pc|pe`。皮肤 `-s` 和背景暗度 `-d` 用于 `.om`。
+`.om` 继续使用配置的 WebGL/Python 引擎与 osu 皮肤。
+渲染节点先运行 `python tools/setup_mrm.py` 安装官方库并编译适配器，需要 JDK 和 FFmpeg。
+
+Malody 4.x `.mr` 已上线：先回复含音频的 `.mcz/.zip` 发送 `.om` 导入，
+再回复对应 `.mr` 发送 `.v`。曲包仍使用回复编号选择难度。
+Malody V `.mrv` 已核验电脑端原速 Const + 长条全部转单键组合。
+可使用原 OSZ：先回复 `.osz` 发送 `.v` 导入，再回复 `.mrv` 发送 `.v`。
+Malody 转换后 MD5 不同，会核对全部轨道和判定时间来配对曲包中的难度。
+其他尚未核验的 V Mod 组合会明确提示。见 [详细说明](../../renderer/docs/MALODY_RENDER.md)。

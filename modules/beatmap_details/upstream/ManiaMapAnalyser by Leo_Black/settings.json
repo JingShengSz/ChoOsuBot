@@ -1,0 +1,483 @@
+[
+	{
+		"uniqueID": "hLinks",
+		"type": "header",
+		"title": "Links",
+		"description": "",
+		"options": [],
+		"value": ""
+	},
+	{
+		"uniqueID": "GuideButton",
+		"type": "button",
+		"title": "Settings Guide | 设置说明",
+		"description": "Go to the GitHub repository for settings usage instructions and more information. | 前往 GitHub 仓库查看设置使用说明和更多信息。",
+		"options": [],
+		"value": "https://github.com/LeoBlackMT/osumania_map_analyser/blob/main/docs/settings.md"
+	},
+	{
+		"uniqueID": "PresetGuideButton",
+		"type": "button",
+		"title": "Presets Guide | 预设说明",
+		"description": "Go to the GitHub repository for presets usage instructions and more information. | 前往 GitHub 仓库查看预设使用说明和更多信息。",
+		"options": [],
+		"value": "https://github.com/LeoBlackMT/osumania_map_analyser/blob/main/docs/presets-guide.md"
+	},
+	{
+		"uniqueID": "IssueButton",
+		"type": "button",
+		"title": "Report Issue",
+		"description": "Report any bugs or suggest features on the GitHub.",
+		"options": [],
+		"value": "https://github.com/LeoBlackMT/osumania_map_analyser/issues/new"
+	},
+	{
+		"uniqueID": "BenchmarkButton",
+		"type": "button",
+		"title": "Benchmark Results",
+		"description": "View estimator algorithm's benchmark results and performance data.",
+		"options": [],
+		"value": "https://benchmark.leoblack.top/"
+	},
+	{
+		"uniqueID": "hPresets",
+		"type": "header",
+		"title": "Presets",
+		"description": "",
+		"options": [],
+		"value": ""
+	},
+	{
+		"uniqueID": "preset",
+		"type": "options",
+		"title": "Preset",
+		"description": "Quickly apply built-in presets that overwrites the settings below. Choose LastSavedPreset to follow your manual changes. Manage, share and apply custom presets on the presets.html page.",
+		"options": [
+			"Default",
+			"Mini",
+			"ForOsuPlayer",
+			"ForEtternaPlayer",
+			"ForInterludePlayer",
+			"PatternFocus",
+			"FullOverview",
+			"VibroPlayer",
+			"JackPlayer",
+			"TheLimitDoesNotExist",
+			"DanielLike",
+			"Custom1",
+			"Custom2",
+			"Custom3",
+			"LastSavedPreset"
+		],
+		"value": "Default"
+	},
+	{
+		"uniqueID": "PresetButton",
+		"type": "button",
+		"title": "Presets Manage Page",
+		"description": "Go to the presets.html page to manage and share custom presets. Warning: if you changed the floder name or tosu's port,  this link may not work. In that case, open the presets.html file in your browser manually.",
+		"options": [],
+		"value": "http://localhost:24050/ManiaMapAnalyser.by.Leo_Black/presets.html"
+	},
+	{
+		"uniqueID": "hModules",
+		"type": "header",
+		"title": "Modules Customization",
+		"description": "",
+		"options": [],
+		"value": ""
+	},
+	{
+		"uniqueID": "contentBar",
+		"type": "options",
+		"title": "Card Body Content",
+		"description": "Select what to show in the card body. Full shows Pattern, Etterna and Graph together.",
+		"options": [
+			"None",
+			"Auto",
+			"Pattern",
+			"Etterna",
+			"Graph",
+			"ReworkPP",
+			"Full"
+		],
+		"value": "Auto"
+	},
+	{
+		"uniqueID": "srText",
+		"type": "options",
+		"title": "Top-left Capsule Text",
+		"description": "Select what to show in the top-left capsule.",
+		"options": [
+			"Auto",
+			"ReworkSR",
+			"ReworkPP",
+			"InterludeSR",
+			"MSD",
+			"Pattern"
+		],
+		"value": "ReworkSR"
+	},
+	{
+		"uniqueID": "diffText",
+		"type": "options",
+		"title": "Top-right Content",
+		"description": "Select what to show at top-right of the card.",
+		"options": [
+			"None",
+			"Graph",
+			"Difficulty",
+			"MSD",
+			"Pattern",
+			"ReworkSR",
+			"InterludeSR"
+		],
+		"value": "Difficulty"
+	},
+	{
+		"uniqueID": "showModeTagCapsule",
+		"type": "checkbox",
+		"title": "Map Tag Capsule",
+		"description": "Show the beatmap's tag capsule (HB/RC/LN/Mix/SV) at bottom-left.",
+		"options": [],
+		"value": true
+	},
+	{
+		"uniqueID": "hTheme",
+		"type": "header",
+		"title": "Theme & Effects",
+		"description": "",
+		"options": [],
+		"value": ""
+	},
+	{
+		"uniqueID": "enableOsuTheme",
+		"type": "checkbox",
+		"title": "osu!Lazer Card Theme",
+		"description": "Use the osu!Lazer-style themed card.",
+		"options": [],
+		"value": true
+	},
+	{
+		"uniqueID": "useOsuFont",
+		"type": "checkbox",
+		"title": "osu! Font",
+		"description": "Use the Osu Torus font on the analysis card only.",
+		"options": [],
+		"value": true
+	},
+	{
+		"uniqueID": "enableFloatingTriangles",
+		"type": "checkbox",
+		"title": "Floating Triangles Animation",
+		"description": "[Requires Lazer Card Theme] Show the animated triangles drifting up behind the card.",
+		"options": [],
+		"value": true
+	},
+	{
+		"uniqueID": "enableCoverArt",
+		"type": "checkbox",
+		"title": "Cover Art Background",
+		"description": "[Requires Lazer Card Theme] Lay the beatmap's background behind the content blocks. Suggested to set a custom background color if disabled.",
+		"options": [],
+		"value": true
+	},
+	{
+		"uniqueID": "customBackgroundColor",
+		"type": "color",
+		"title": "Custom Background Color",
+		"description": "[Requires Lazer Card Theme] Use a custom color instead of sampling the beatmap's background. Set to pure black (#000000) to disable.",
+		"options": [],
+		"value": "#000000"
+	},
+	{
+		"uniqueID": "enableEtternaRainbowBars",
+		"type": "checkbox",
+		"title": "Rainbow Bars",
+		"description": "Enable multi-color bars in Etterna mode. Suggested to disable if Lazer theme is enabled.",
+		"options": [],
+		"value": false
+	},
+	{
+		"uniqueID": "enableStatusMarquee",
+		"type": "checkbox",
+		"title": "Metadata Marquee",
+		"description": "Enable horizontal marquee scrolling for long metadata text.",
+		"options": [],
+		"value": true
+	},
+	{
+		"uniqueID": "enableNumericDifficulty",
+		"type": "checkbox",
+		"title": "Numeric Difficulty",
+		"description": "Show numeric difficulty values in RC algorithms.",
+		"options": [],
+		"value": true
+	},
+	{
+    	"uniqueID": "enableLNDifficulty",
+    	"type": "checkbox",
+    	"title": "LN Star Rating",
+    	"description": "[Require Improve Sunny LN Estimation]Show Rework Star Rating values in LN algorithms.",
+    	"options": [],
+    	"value": false
+	},
+	{
+		"uniqueID": "reverseCardExtendDirection",
+		"type": "checkbox",
+		"title": "Reverse Card Extension",
+		"description": "Anchor card bottom and extend upwards when card needs to extend.",
+		"options": [],
+		"value": false
+	},
+	{
+		"uniqueID": "cardVisibility",
+		"type": "options",
+		"title": "Card Visibility",
+		"description": "Control when the analysis card is shown.",
+		"options": [
+			"DuringPlay",
+			"OutsidePlay",
+			"Always"
+		],
+		"value": "Always"
+	},
+	{
+		"uniqueID": "cardOpacity",
+		"type": "options",
+		"title": "Card Opacity",
+		"description": "Set overall card opacity.",
+		"options": [
+			"100%",
+			"95%",
+			"90%",
+			"80%",
+			"70%"
+		],
+		"value": "95%"
+	},
+	{
+		"uniqueID": "cardBgBlur",
+		"type": "options",
+		"title": "Content Background Blur",
+		"description": "Gaussian blur strength for the cover art behind the Pattern, Etterna and Graph blocks. Requires Cover Art Theme.",
+		"options": [
+			"Off",
+			"4px",
+			"8px",
+			"12px",
+			"16px",
+			"20px"
+		],
+		"value": "4px"
+	},
+	{
+		"uniqueID": "cardRadius",
+		"type": "options",
+		"title": "Card Radius",
+		"description": "Set card corner roundness.",
+		"options": [
+			"Small",
+			"Medium",
+			"Large"
+		],
+		"value": "Medium"
+	},
+	{
+		"uniqueID": "hFunctions",
+		"type": "header",
+		"title": "Functionality Options",
+		"description": "",
+		"options": [],
+		"value": ""
+	},
+	{
+		"uniqueID": "enableUpdateCheck",
+		"type": "checkbox",
+		"title": "Enable Update Check",
+		"description": "Check latest GitHub release once per day. The star icon is shown only when a newer release is found.",
+		"options": [],
+		"value": true
+	},
+	{
+		"uniqueID": "enableResultCache",
+		"type": "checkbox",
+		"title": "Result Cache",
+		"description": "Cache analysis results to show instantly when revisiting a beatmap. Disable if you suspect stale results.",
+		"options": [],
+		"value": true
+	},
+	{
+		"uniqueID": "enablePauseDetection",
+		"type": "checkbox",
+		"title": "Pause Detection",
+		"description": "Recommended: Count pauses and draw pause markers on the graph when playing.",
+		"options": [],
+		"value": true
+	},
+	{
+		"uniqueID": "VibroDetection",
+		"type": "checkbox",
+		"title": "Vibro Detection",
+		"description": "Recommended: Detect vibro maps and apply vibro fallback handling when needed.",
+		"options": [],
+		"value": true
+	},
+	{
+		"uniqueID": "useSvDetection",
+		"type": "checkbox",
+		"title": "SV Detection",
+		"description": "Enable SV-based mode tag/category detection. When enabled, maps with significant speed changes will be tagged as SV.",
+		"options": [],
+		"value": true
+	},
+	{
+		"uniqueID": "display6kLevel",
+		"type": "checkbox",
+		"title": "Show 6K Constant Rating",
+		"description": "Display the constant rating overlay on the star capsule for 6K beatmaps.",
+		"options": [],
+		"value": true
+	},
+	{
+		"uniqueID": "extendedEstimationRange",
+		"type": "checkbox",
+		"title": "Extended Estimation Range",
+		"description": "Only effective with the Sunny estimator on some situations. Estimates change and extended tiers' accuracy is not guaranteed.",
+		"options": [],
+		"value": false
+	},
+	{
+		"uniqueID": "forceSunnyWindow",
+		"type": "checkbox",
+		"title": "Improve Sunny LN Estimation",
+		"description": "Improve Sunny LN Estimation by removing rice parts of beatmap before analyze.",
+		"options": [],
+		"value": true
+	},
+	{
+    	"uniqueID": "enableAnalyzeLN",
+    	"type": "checkbox",
+    	"title": "Analyze LN Parts",
+    	"description": "[Require Improve Sunny LN Estimation]Analyze the percentage of LN/HB/Mix/RC parts in beatmap.",
+    	"options": [],
+    	"value": false
+	},
+	{
+		"uniqueID": "estimatorAlgorithm",
+		"type": "options",
+		"title": "Estimator Algorithm",
+		"description": "Select estimator algorithm.",
+		"options": [
+			"Mixed",
+			"Azusa",
+			"Roxy",
+			"Sunny",
+			"Daniel",
+			"Companella"
+		],
+		"value": "Mixed"
+	},
+	{
+		"uniqueID": "etternaVersion",
+		"type": "options",
+		"title": "Global Etterna Version",
+		"description": "Select Etterna's MinaCalc version used by MSD and related metrics.",
+		"options": [
+			"0.68.0-Unofficial",
+			"0.70.0",
+			"0.72.0",
+			"0.72.3",
+			"0.74.0",
+			"0.75.0"
+		],
+		"value": "0.72.3"
+	},
+	{
+		"uniqueID": "companellaEtternaVersion",
+		"type": "options",
+		"title": "Companella Etterna Version",
+		"description": "Select Etterna's MinaCalc version specifically used for Companella Estimator.",
+		"options": [
+			"0.68.0-Unofficial",
+			"0.70.0",
+			"0.72.0",
+			"0.72.3",
+			"0.74.0",
+			"0.75.0"
+		],
+		"value": "0.74.0"
+	},
+	{
+		"uniqueID": "hNetwork",
+		"type": "header",
+		"title": "Network Configuration",
+		"description": "",
+		"options": [],
+		"value": ""
+	},
+	{
+		"uniqueID": "wsEndpoint",
+		"type": "text",
+		"title": "WebSocket Endpoint",
+		"description": "Set host:port for both websocket and beatmap HTTP endpoint.",
+		"options": [],
+		"value": "localhost:24050"
+	},
+	{
+		"uniqueID": "enableTelemetry",
+		"type": "checkbox",
+		"title": "Anonymous Usage Statistics",
+		"description": "Send anonymous usage statistics (no username, no beatmap info, no IP) to the project's telemetry server. You can turn this off anytime.",
+		"options": [],
+		"value": true
+	},
+	{
+		"uniqueID": "hDebug",
+		"type": "header",
+		"title": "Debug Options",
+		"description": "",
+		"options": [],
+		"value": ""
+	},
+	{
+		"uniqueID": "DebugButton",
+		"type": "button",
+		"title": "Debug Page",
+		"description": "Go to the debug.html page to view and manage debug information. Note: if you changed the folder name or tosu's port, this link may not work. In that case, open the debug.html file in your browser manually.",
+		"options": [],
+		"value": "http://localhost:24050/ManiaMapAnalyser.by.Leo_Black/debug.html"
+	},
+	{
+		"uniqueID": "debugUseAmount",
+		"type": "checkbox",
+		"title": "Use Amount For Category",
+		"description": "Sort categories by amount and use the top pattern amount for category fallback.",
+		"options": [],
+		"value": false
+	},
+	{
+		"uniqueID": "azusaSunnyReferenceHo",
+		"type": "checkbox",
+		"title": "Azusa Sunny Reference Force HO",
+		"description": "When enabled, Azusa always calls Sunny reference with cvtFlag=HO to remove LN inflation from partial LN maps.",
+		"options": [],
+		"value": true
+	},
+	{
+    	"uniqueID": "enableAlwaysShowLNDifficulty",
+    	"type": "checkbox",
+    	"title": "Always Show LN Difficulty",
+    	"description": "Always show LN Difficulty even when LN% is too low or LN is too simple.",
+    	"options": [],
+    	"value": false
+	},
+	{
+		"uniqueID": "presetStorage",
+		"type": "text",
+		"title": "Preset Storage (Internal)",
+		"description": "Internal storage for custom presets (JSON). Do not edit unless you know what you are doing.",
+		"options": [],
+		"value": ""
+	}
+]

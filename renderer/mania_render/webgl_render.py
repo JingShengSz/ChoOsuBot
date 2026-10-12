@@ -172,17 +172,24 @@ def render(job_id: str, bid: str, skin_key: str, *, osr_path: Path | None,
         # would still be measuring the wrong skin).
         _wait(cdp, sid, "document.getElementById('skinSel').options.length > 0",
               timeout=60, what="皮肤列表")
-        _wait(cdp, sid, f"!{READY_RE}.test(document.getElementById('info').textContent)",
-              timeout=300, what="默认皮肤加载")
-
-        have = cdp.evaluate("document.getElementById('skinSel').value", session=sid)
-        if skin_key and skin_key != have:
-            progress(5, f"加载皮肤 {skin_key}…")
-            _set_input(cdp, sid, "skinSel", skin_key, "change")
-            _wait(cdp, sid,
-                  f"document.getElementById('skinSel').value === {skin_key!r} && "
-                  f"!{READY_RE}.test(document.getElementById('info').textContent)",
-                  timeout=600, what=f"皮肤 {skin_key} 加载")
+        _wait(cdp, sid,
+              "window.__mania.skinState && !window.__mania.skinState().loading && "
+              "(!!window.__mania.skinState().loadedKey || !!window.__mania.skinState().error)",
+              timeout=300, what="默认皮肤解码完成")
+        state = cdp.evaluate("window.__mania.skinState()", session=sid)
+        if state.get('error'):
+            raise WebGLRenderError("默认皮肤加载失败：" + state['error'])
+        wanted = skin_key or state['loadedKey']
+        if wanted != state['loadedKey']:
+            progress(5, f"加载皮肤 {wanted}…")
+            _set_input(cdp, sid, "skinSel", wanted, "change")
+        _wait(cdp, sid,
+              "!window.__mania.skinState().loading && "
+              f"(window.__mania.skinState().loadedKey === {wanted!r} || !!window.__mania.skinState().error)",
+              timeout=600, what=f"皮肤 {wanted} 解码完成")
+        state = cdp.evaluate("window.__mania.skinState()", session=sid)
+        if state.get('error') or state.get('loadedKey') != wanted:
+            raise WebGLRenderError(f"皮肤 {wanted} 加载失败：{state.get('error')}")
 
         if scroll:
             _set_input(cdp, sid, "scrollSpeed", str(scroll), "change")
@@ -191,6 +198,11 @@ def render(job_id: str, bid: str, skin_key: str, *, osr_path: Path | None,
 
         progress(8, "加载谱面…")
         if osr_path is not None:
+            if osr_path.suffix.lower() in ('.mr', '.mrv'):
+                import json
+                settings_path = osr_path.with_suffix('.json')
+                platform = json.loads(settings_path.read_text(encoding='utf-8')).get('platform', 'pc') if settings_path.exists() else 'pc'
+                cdp.evaluate(f'window.__malodyPlatform = {platform!r}', session=sid)
             node = cdp.call("DOM.querySelector", {
                 "nodeId": cdp.call("DOM.getDocument", session=sid)["root"]["nodeId"],
                 "selector": "#fOsr",
@@ -260,7 +272,20 @@ def render(job_id: str, bid: str, skin_key: str, *, osr_path: Path | None,
         _wait_for_stream(stream, timeout=180)
 
         progress(93, "封装视频…")
-        _mux_stream(ffmpeg, stream, audio_path, out_path, range_s=range_s)
+        playback_rate = 1.0
+        duration_s = None
+        if osr_path and osr_path.suffix.lower() in ('.mr', '.mrv'):
+            from .malody import parse_mr
+            from .malody_v import parse_mrv
+            from . import osz
+            from .osu_file import parse_osu
+            native = (parse_mrv if osr_path.suffix.lower() == '.mrv' else parse_mr)(osr_path.read_bytes())
+            playback_rate = native['rate']
+            native_chart = parse_osu(osz.text(bid))
+            end_ms = max((note.start_time for note in native_chart.hit_objects), default=0) if native.get('holds_to_notes') else native_chart.end_time_ms
+            duration_s = end_ms / 1000 / playback_rate
+        _mux_stream(ffmpeg, stream, audio_path, out_path, range_s=range_s,
+                    playback_rate=playback_rate, duration_s=duration_s)
         stream.unlink(missing_ok=True)
         progress(100, "完成")
         return out_path
@@ -309,7 +334,8 @@ def _wait_for_stream(path: Path, *, timeout: float = 180.0) -> None:
 
 
 def _mux_stream(ffmpeg: str, stream: Path, audio: Path | None, dest: Path, *,
-                range_s: str | None, scale: tuple[int, int] | None = None) -> None:
+                range_s: str | None, scale: tuple[int, int] | None = None,
+                playback_rate: float = 1.0, duration_s: float | None = None) -> None:
     """Wrap the Annex-B H.264 stream in MP4 and add the beatmap audio.
 
     The WebGL export carries no audio track at all (verified: the page records a canvas
@@ -319,6 +345,14 @@ def _mux_stream(ffmpeg: str, stream: Path, audio: Path | None, dest: Path, *,
     if not stream.is_file() or stream.stat().st_size == 0:
         raise WebGLRenderError("页面没有产出任何编码数据")
     trim = _range_args(range_s)
+    if duration_s is not None:
+        start = float(trim[trim.index('-ss') + 1]) if '-ss' in trim else 0
+        remaining = max(0.001, duration_s - start)
+        if '-t' in trim:
+            i = trim.index('-t') + 1
+            trim[i] = str(min(float(trim[i]), remaining))
+        else:
+            trim += ['-t', str(remaining)]
     # An LLBot-built ffmpeg has no `-movflags`, and a ComfyUI one does; record what was
     # actually run so a missing audio track can be traced without guessing.
     (dest.parent / f"{dest.stem}.ffmpeg.txt").write_text(
@@ -327,19 +361,23 @@ def _mux_stream(ffmpeg: str, stream: Path, audio: Path | None, dest: Path, *,
                     + ([str(audio)] if audio is not None and Path(audio).is_file() else [])),
         encoding="utf-8")
     has_audio = audio is not None and Path(audio).is_file()
-    args = [ffmpeg, "-y", "-loglevel", "error", "-r", "60", "-i", str(stream)]
+    args = [ffmpeg, "-y", "-loglevel", "error", "-r", str(60 * playback_rate), "-i", str(stream)]
     if has_audio:
         args += ["-i", str(audio), "-map", "0:v:0", "-map", "1:a:0"]
-    if trim or scale:
+    if trim or scale or playback_rate != 1:
         # A cut or a resize has to re-encode; a plain export never does.
         args += trim
         if scale:
             args += ["-vf", f"scale={scale[0]}:{scale[1]}:flags=bicubic"]
+        if playback_rate != 1:
+            args += ['-r', '60']
         args += ["-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
                  "-pix_fmt", "yuv420p"]
     else:
         args += ["-c:v", "copy"]
     if has_audio:
+        if playback_rate != 1:
+            args += ['-af', f'atempo={playback_rate}']
         # No `-shortest`: the video input is a raw Annex-B elementary stream with no
         # duration metadata, and asking ffmpeg to stop at the shortest input made it drop
         # the audio track entirely. The audio is the beatmap's own track and is trimmed by

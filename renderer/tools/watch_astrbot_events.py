@@ -8,13 +8,16 @@ something (which is what an `om` command produces), or after the timeout.
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 import time
 import urllib.request
 
 BASE = "http://127.0.0.1:6186"
-PASSWORD = "b9KQeUTbsJZ6Wt29"
+PASSWORD = os.environ.get("ASTRBOT_PASSWORD", "")
+if not PASSWORD:
+    raise SystemExit("Set ASTRBOT_PASSWORD before running this tool.")
 
 CODES = re.compile(r"\x1b\[[0-9;]*m")
 

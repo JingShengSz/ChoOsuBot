@@ -1,6 +1,8 @@
 import { readZip } from './zip.js';
 import { parseOsu, parseOsr, parseSkinIni } from './parsers.js';
 import { Renderer } from './renderer.js';
+import { matchMalodyReplay } from './malody-replay.js';
+import { applyMalodyMods } from './malody-mods.js';
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('game');
@@ -223,6 +225,10 @@ function resultForOffset(offset, w) {
 // ── hit matching (combo / error bar / judge) ──
 function buildHitMatch() {
   if (!beatmap || !replay) return;
+  if (replay.source === 'malody') {
+    hitMatch = matchMalodyReplay(beatmap, replay);
+    return;
+  }
   const od = (beatmap.od !== undefined && beatmap.od !== null) ? beatmap.od : 5;
   const w = getHitWindows(od);
   const objs = beatmap.hitObjects.map(h => ({ time: h.time, endTime: h.isHold ? h.endTime : h.time, col: h.column, isHold: h.isHold, matched: false, error: 0 }));
@@ -490,7 +496,8 @@ function getCombo(nowMs) {
 
 function getCPS(nowMs) {
   if (replay && replay.presses.length) {
-    return replay.presses.filter(p => p.time > nowMs - 1000 && p.time <= nowMs).length;
+    const rate = replay.source === 'malody' ? replay.rate : 1;
+    return replay.presses.filter(p => p.time > nowMs - 1000 * rate && p.time <= nowMs).length;
   }
   // FC sim: count note heads in last 1s
   if (!beatmap) return 0;
@@ -502,6 +509,7 @@ function getAccuracy(nowMs) {
   const c = getJudgeCounts(nowMs);
   const total = c.max + c.g300 + c.g200 + c.g100 + c.g50 + c.miss;
   if (!total) return 100;
+  if (replay?.source === 'malody') return 100 * (c.max + c.g300 * 0.75 + c.g200 * 0.4) / total;
   // ScoreProcessor.Accuracy for mania: base / (305 * judgements).  A PERFECT is
   // worth 305, NOT 300 — with 300 an all-GREAT play reads 100% instead of lazer's
   // 98.36%, and every mixed play is off by a fraction of a percent.
@@ -541,7 +549,7 @@ function getBPM(nowMs) {
   if (!beatmap.timings || !beatmap.timings.length) return 0;
   let chosen = beatmap.timings[0];
   for (const t of beatmap.timings) { if (t.time <= nowMs) chosen = t; else break; }
-  return chosen.bpm || 0;
+  return (chosen.bpm || 0) * (replay?.source === 'malody' ? replay.rate : 1);
 }
 
 // ── skin: root-level skin.ini wins; textures keyed by full path AND stem ──
@@ -766,6 +774,7 @@ async function loadBackground(url) {
 // Without this an unreachable metadata API meant no sid at all, so the audio and
 // background were never even requested and 播放 had nothing to play.
 function resolveSid(meta, bm) {
+  if (String(meta.beatmapset_id || "").startsWith("local-")) return meta.beatmapset_id;
   return String(meta.beatmapset_id || meta.set_id || bm.beatmapSetID || '').replace(/^-1$/, '');
 }
 
@@ -914,12 +923,17 @@ async function loadFromOsr(file, fallbackBid = null) {
   // send to backend for LZMA decompression + MD5 lookup
   const fd = new FormData();
   fd.append('osr', file);
+  if (window.__malodyPlatform) fd.append('platform', window.__malodyPlatform);
+  if (fallbackBid) fd.append('bid', fallbackBid);
   const res = await fetch(`${API}/resolve_osr`, { method: 'POST', body: fd });
-  if (!res.ok) throw new Error('osr 解析失败');
   const data = await res.json();
-  if (data.error) throw new Error(data.error);
+  if (!res.ok || data.error) throw new Error(data.error || '回放解析失败');
 
   replay = {
+    source: data.source || 'osu', windows: data.windows,
+    recordedJudgements: data.recorded_judgements || null,
+    holdsToNotes: !!data.holds_to_notes, constantScroll: !!data.constant_scroll,
+    rate: data.rate || 1,
     beatmapMd5: data.md5,
     username: data.username,
     presses: data.presses || [],
@@ -946,7 +960,9 @@ async function loadFromOsr(file, fallbackBid = null) {
   if (usedFallback) bid = fallbackBid;
   if (!bid) throw new Error('谱面未找到（可在「谱面 ID」里手填后重试）');
 
-  const metaRes = await fetch(`${API}/beatmap_meta?md5=${encodeURIComponent(md5)}`);
+  const metaRes = await fetch(String(bid).startsWith('local-')
+    ? `${API}/beatmap_meta?bid=${encodeURIComponent(bid)}`
+    : `${API}/beatmap_meta?md5=${encodeURIComponent(md5)}`);
   const meta = metaRes.ok ? await metaRes.json() : {};
 
   const osuRes = await fetch(`${API}/beatmap_osu/${bid}`);
@@ -962,6 +978,7 @@ async function loadFromOsr(file, fallbackBid = null) {
     const k = beatmap.keys;
     for (const h of beatmap.hitObjects) h.column = (k - 1) - h.column;
   }
+  applyMalodyMods(beatmap, replay);
   info.textContent = `${beatmap.title} [${beatmap.version}]  ${beatmap.keys}K → 获取音频…`;
 
   if (replay.presses.length) {
@@ -1007,6 +1024,7 @@ async function loadSkinList() {
 // token the initial auto-load can land AFTER the user picks another skin and silently
 // overwrite it — the dropdown then shows one skin while the renderer draws another.
 let skinLoadToken = 0;
+let skinLoadState = { requestedKey: null, loadedKey: null, loading: false, error: null };
 
 /** Adopts a fully-loaded skin and re-resolves geometry for the current beatmap. */
 function adoptSkin(loaded) {
@@ -1022,12 +1040,23 @@ function adoptSkin(loaded) {
 /** Returns false when a newer skin load superseded this one. */
 async function loadSkinByKey(key) {
   const token = ++skinLoadToken;
-  const r = await fetch(`${API}/skin_file/${encodeURIComponent(key)}`);
-  if (!r.ok) throw new Error(`skin ${key} failed`);
-  const loaded = await loadSkinFromZip(await readZip(await r.arrayBuffer()));
-  if (token !== skinLoadToken) return false;
-  adoptSkin(loaded);
-  return true;
+  skinLoadState = { ...skinLoadState, requestedKey: key, loading: true, error: null };
+  try {
+    const r = await fetch(`${API}/skin_file/${encodeURIComponent(key)}`);
+    if (!r.ok) throw new Error(`skin ${key} failed`);
+    const loaded = await loadSkinFromZip(await readZip(await r.arrayBuffer()));
+    if (token !== skinLoadToken) return false;
+    adoptSkin(loaded);
+    skinLoadState = { requestedKey: key, loadedKey: key, loading: false, error: null };
+    checkReady();
+    return true;
+  } catch (err) {
+    if (token === skinLoadToken) {
+      skinLoadState = { ...skinLoadState, loading: false, error: String(err.message || err) };
+      checkReady();
+    }
+    throw err;
+  }
 }
 
 $('skinSel').addEventListener('change', async (e) => {
@@ -1555,8 +1584,9 @@ function fmt(s) {
 // ── HUD (osu component layout) ──
 function drawHUD(nowMs) {
   hudCtx.clearRect(0, 0, VIEW_W, VIEW_H);
-  const elapsed = Math.max(0, nowMs / 1000);
-  const total = Math.max(0, (beatmap.duration || 0) / 1000);
+  const rate = replay?.source === 'malody' ? replay.rate : 1;
+  const elapsed = Math.max(0, nowMs / 1000 / rate);
+  const total = Math.max(0, (beatmap.duration || 0) / 1000 / rate);
   const pct = total > 0 ? Math.min(1, elapsed / total) : 0;
 
   // 1. ComboCounter — TopLeft(20, 20)
@@ -1596,7 +1626,8 @@ function drawHUD(nowMs) {
   // sits at BottomRight(-20, -90), and a second line 34px above this one ran
   // straight through it. Sharing the baseline costs width, not height, and this
   // component is right-anchored, so the extra width grows away from everything.
-  hudCtx.fillText(`${getAccuracy(nowMs).toFixed(2)}% ${getAccuracyStable(nowMs).toFixed(2)}%`,
+  hudCtx.fillText(replay?.source === 'malody' ? `${getAccuracy(nowMs).toFixed(2)}% Malody`
+    : `${getAccuracy(nowMs).toFixed(2)}% ${getAccuracyStable(nowMs).toFixed(2)}%`,
     VIEW_W - 20, VIEW_H - 50);
 
   // 6. ClicksPerSecondCounter — BottomRight(-20, -90)
@@ -1625,14 +1656,20 @@ function drawErrorBar(nowMs) {
   hudCtx.fillRect(x0, y, barW, barH);
 
   // zone colours (mania hit windows: 16/37/70/100 ms for MAX/300/200/100)
-  const zones = [
+  const nativeWindows = replay?.source === 'malody' ? replay.windows : null;
+  const extent = nativeWindows ? nativeWindows[3] : 120;
+  const zones = nativeWindows ? [
+    [nativeWindows[0], 'rgba(120,230,220,0.25)'],
+    [nativeWindows[1], 'rgba(245,215,80,0.20)'],
+    [nativeWindows[2], 'rgba(170,210,120,0.15)'],
+  ] : [
     [16, 'rgba(120,230,220,0.25)'],
     [37, 'rgba(245,215,80,0.20)'],
     [70, 'rgba(170,210,120,0.15)'],
     [100, 'rgba(240,168,104,0.12)'],
   ];
   for (const [ms, color] of zones) {
-    const w = (ms / 120) * barW / 2;
+    const w = (ms / extent) * barW / 2;
     hudCtx.fillStyle = color;
     hudCtx.fillRect(cx - w, y, w * 2, barH);
   }
@@ -1648,8 +1685,8 @@ function drawErrorBar(nowMs) {
     const age = nowMs - obj.time;
     if (age < 0 || age > 5000) continue;
     const alpha = age < 100 ? age / 100 : Math.max(0, 1 - (age - 100) / 4900);
-    const err = Math.max(-120, Math.min(120, obj.error));
-    const tx = cx + (err / 120) * (barW / 2);
+    const err = Math.max(-extent, Math.min(extent, obj.error));
+    const tx = cx + (err / extent) * (barW / 2);
     hudCtx.fillStyle = `rgba(100,200,255,${alpha * 0.85})`;
     hudCtx.fillRect(tx - 1, y - 3, 2, barH + 6);
   }
@@ -1661,8 +1698,8 @@ function drawErrorBar(nowMs) {
     if (obj.matched) { sum += obj.error; n++; }
   }
   if (n > 0) {
-    const avg = Math.max(-120, Math.min(120, sum / n));
-    const ax = cx + (avg / 120) * (barW / 2);
+    const avg = Math.max(-extent, Math.min(extent, sum / n));
+    const ax = cx + (avg / extent) * (barW / 2);
     hudCtx.fillStyle = 'rgba(255,255,255,0.7)';
     hudCtx.beginPath();
     hudCtx.moveTo(ax, y - 8);
@@ -1680,7 +1717,13 @@ function drawJudgePanel(nowMs) {
   if (c.g300 > 0) ratio = (c.max / c.g300).toFixed(1);
   else if (c.max > 0) ratio = '∞';
   const ur = getUR(nowMs);
-  const rows = [
+  const rows = replay?.source === 'malody' ? [
+    ['BEST', String(c.max), '#78e6dc', false],
+    ['COOL', String(c.g300), '#f5d750', false],
+    ['GOOD', String(c.g200), '#aad278', false],
+    ['MISS', String(c.miss), '#e06c75', false],
+    ['UR', ur, '#e0e0e8', true],
+  ] : [
     ['Ratio', ratio, '#fff', true],
     ['MAX', String(c.max), '#78e6dc', false],
     ['300', String(c.g300), '#f5d750', false],
@@ -1708,7 +1751,7 @@ function getUR(nowMs) {
     if (obj.time > nowMs) break;
     if (!obj.matched) continue;
     n++;
-    const x = obj.error;
+    const x = obj.error / (replay?.source === 'malody' ? replay.rate : 1);
     const delta = x - mean;
     mean += delta / n;
     m2 += delta * (x - mean);
@@ -2409,6 +2452,7 @@ loadSkinList();
 // Exposes the resolved geometry/skin state so the verification harness can assert
 // on what the renderer actually decided, rather than guessing from pixels.
 window.__mania = {
+  skinState() { return { ...skinLoadState }; },
   // The WebCodecs export drives rendering itself instead of letting the wall clock do it,
   // so the frame renderer has to be reachable from outside.
   drawFrame,

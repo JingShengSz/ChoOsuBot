@@ -1,0 +1,1413 @@
+import { runAnalysisPipeline } from "../pipeline/runAnalysisPipeline.js";
+import { calculateReworkPp } from "../rework/reworkPerformance.js";
+import { applyCompanellaToMixedResult } from "../estimator/mixedEstimator.js";
+import { rcLabelToNumeric } from "../estimator/rcDifficultyFormat.js";
+import { classifyCompanellaDifficulty } from "../estimator/companellaEstimator.js";
+import { calculateInterludeStar } from "../interlude/index.js";
+import { analyzePatternFromText } from "../patterns/service.js";
+import { OsuFileParser } from "../parser/osuFileParser.js";
+import { runInWorker } from "./worker/manager.js";
+import {
+    analyzeEtternaFromText,
+    DEFAULT_SCORE_GOAL as ETT_DEFAULT_SCORE_GOAL,
+    MINACALC_ABORT_CODE,
+    MINACALC_ABORT_MESSAGE,
+} from "../ett/index.js";
+import { PATTERNS_CONFIG } from "../patterns/config.js";
+import {
+    ettSkillBarsEl,
+    getEndpoint,
+    getActiveContentBar,
+    contentBarShows,
+    isRuntimeOsuOverrideActive,
+    mainCardEl,
+    patternClustersEl,
+    ppBarsEl,
+    reworkDiffEl,
+    reworkMetaEl,
+    reworkRightCapsuleEl,
+    reworkStarEl,
+    state,
+    VIBRO_JACKSPEED_RATIO_THRESHOLD,
+} from "./appContext.js";
+import {
+    formatDiffForDisplay,
+    formatMetadataStatus,
+    mergeDuplicateClusters,
+    renderContentSkeleton,
+    renderEtternaSkillBars,
+    renderPatternClusters,
+    renderReworkPpBars,
+    clearReworkPpBody,
+    renderRightCapsule,
+    playStarBlockEntrance,
+    setEstimateDifficultyText,
+    showCategoryValue,
+    showInterludeValue,
+    showMsdValue,
+    showNumericStarValue,
+    show6KConstValue,
+    showReworkPpValue,
+    renderFullModeSeparators,
+} from "./display.js";
+import { getLatestPpValue, resetLivePp } from "./livePp.js";
+import { modeTagFromLnRatio } from "./modeLogic.js";
+import {
+    hideOverlay,
+    setModeTag,
+    setModeTagAdvanced,
+    setStatus,
+    setSvTagVisible,
+    showOverlay,
+} from "./hud.js";
+import {
+    clearAllPauseMarkers,
+    clearDiffGraph,
+    renderDiffGraph,
+    setForceHideNumericDifficulty,
+    setNumericDifficultyValue,
+    showDiffGraphError,
+    setGraphLoading,
+    updateDiffTextVisibility,
+} from "./graph.js";
+import {
+    animateCardHeightTransition,
+    currentEstimatorAlgorithm,
+    isAutoDisplayEnabledNow,
+    refreshAutoDisplayProfile,
+    setEffectiveContentBarForMap,
+} from "./settings.js";
+import { scheduleRecompute } from "./scheduler.js";
+import { detectVibro, detectVibroFromMetadata } from "../patterns/chartVibro.js";
+import { resultCache, resultCacheGeneration } from "./resultCache.js";
+import { trackTelemetryAnalyze } from "./telemetry.js";
+import { sendResult, isBridgeConnected } from "./sources/bridgeClient.js";
+// Step 9g：壳原生端点上的瞬态抓取失败（结算/换图那一两帧读取线程正处在身份保持窗口 ⇒
+// 24062 的 `/files/beatmap/file` 404）静默重试一次，不让状态行出现 `Request failed with 404`。
+// tosu 通道不重试（判据在模块内，见 `shouldRetryNativeBeatmapFetch`）。
+import { fetchBeatmapTextWithRetry } from "./sources/beatmapFetchRetry.js";
+
+function escapeHtml(value) {
+    return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/\"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+}
+
+function buildMetaError(errors) {
+    const merged = (errors || [])
+        .map((entry) => String(entry ?? "").trim())
+        .filter((entry) => entry.length > 0)
+        .join(" | ")
+        .replace(/\s+/g, " ");
+
+    if (!merged) {
+        return "";
+    }
+
+    const clipped = merged.length > 180 ? `${merged.slice(0, 177)}...` : merged;
+    return `${escapeHtml(clipped)}`;
+}
+
+function renderBodySectionError(section, message) {
+    const safeMessage = escapeHtml(message || "Unknown error");
+    if (section === "Pattern") {
+        patternClustersEl.innerHTML = `
+            <li class="cluster-item body-error">
+                <div class="body-error-title">Pattern Analyze Failed</div>
+                <div class="body-error-text">${safeMessage}</div>
+            </li>
+        `;
+        return;
+    }
+
+    if (section === "ReworkPP") {
+        ppBarsEl.innerHTML = `
+            <li class="pp-item body-error">
+                <div class="body-error-title">Rework PP Unavailable</div>
+                <div class="body-error-text">${safeMessage}</div>
+            </li>
+        `;
+        return;
+    }
+
+    ettSkillBarsEl.innerHTML = `
+        <li class="ett-skill-item body-error">
+            <div class="body-error-title">Etterna Analyze Failed</div>
+            <div class="body-error-text">${safeMessage}</div>
+        </li>
+    `;
+}
+
+// max 模式 PP 主体：谱面侧 ppMetrics + mod 修正组装 5 行柱状图（Task 13）。
+// ppMetrics 缺失/无效 → 软失败空态（不进 errors[]，与附属段语义一致）。
+function buildReworkPpDisplay(ppMetrics, modCodes) {
+    if (!ppMetrics || !Number.isFinite(Number(ppMetrics.totalNotes)) || Number(ppMetrics.totalNotes) <= 0) {
+        renderBodySectionError("ReworkPP", "PP data unavailable");
+        return;
+    }
+    const ppRes = calculateReworkPp({
+        starRating: ppMetrics.star,
+        variety: ppMetrics.variety,
+        accScalar: ppMetrics.accScalar,
+        totalNotes: ppMetrics.totalNotes,
+        perfect: ppMetrics.totalNotes,
+        great: 0,
+        good: 0,
+        ok: 0,
+        meh: 0,
+        miss: 0,
+        noFail: modCodes.includes("NF"),
+        easy: modCodes.includes("EZ"),
+    });
+    if (!ppRes) {
+        renderBodySectionError("ReworkPP", "PP data unavailable");
+        return;
+    }
+    const rows = [
+        { key: "pp", label: "Max PP", value: ppRes.pp, min: 0, max: 1200, centered: false },
+        { key: "proportion", label: "Proportion", value: ppRes.proportion, min: 0, max: 1, centered: false },
+        { key: "acc", label: "Acc Multiplier", value: ppRes.accMultiplier, min: 0.87, max: 1.13, centered: true },
+        { key: "variety", label: "Variety Multiplier", value: ppRes.varietyMultiplier, min: 0.945, max: 1.055, centered: true },
+        { key: "length", label: "Length Multiplier", value: ppRes.lengthMultiplier, min: 0.9, max: 1.1, centered: true },
+    ].map((row) => ({ ...row, value: Math.max(0, row.value) }));
+    renderReworkPpBars({ mode: "max", rows });
+}
+
+function setLeftCapsuleUnitBadge(unitText) {
+    if (!reworkStarEl) {
+        return;
+    }
+
+    const normalized = typeof unitText === "string" ? unitText.trim() : "";
+    if (!normalized) {
+        reworkStarEl.classList.remove("has-unit");
+        reworkStarEl.removeAttribute("data-unit");
+        return;
+    }
+
+    reworkStarEl.classList.add("has-unit");
+    reworkStarEl.setAttribute("data-unit", normalized);
+}
+
+function buildEtternaAnalyzeOptions(etternaVersion) {
+    return {
+        // 进管线的速率（倍率语义见外部源：Mod 派生速率 ⇒ 1.0，难度由 OD 表达）。
+        // **回退是必须的**：该选项构造器与 osu 共用，osu 的 DT/HT 只写 state.speedRate，
+        // 无回退会让 osu 侧拿到 undefined/陈旧值。
+        musicRate: state.analysisRate ?? state.speedRate,
+        scoreGoal: ETT_DEFAULT_SCORE_GOAL,
+        cvtFlag: state.cvtFlag,
+        etternaVersion,
+    };
+}
+
+// Vibro 检测的 MSD 基准：4K 固定 0.72.3（判定不随用户选择的 Etterna 版本
+// 漂移）；非 4K 直接使用主结果（= 0.74.0 n-key，其 Overall/JackSpeed 才有
+// 意义；0.72.3 对非 4K 输出全 0，无法用于判定）。主结果已是 0.72.3 时复用。
+const VIBRO_MSD_VERSION = "0.72.3";
+
+async function resolveVibroMsdValues(rawText, baseEttResult) {
+    if (Number(baseEttResult?.keycount) !== 4
+        || baseEttResult?.etternaVersion === VIBRO_MSD_VERSION) {
+        return baseEttResult?.values ?? null;
+    }
+    try {
+        const vibroEtt = await analyzeEtternaFromText(
+            rawText,
+            buildEtternaAnalyzeOptions(VIBRO_MSD_VERSION),
+        );
+        return vibroEtt?.values ?? null;
+    } catch {
+        return baseEttResult?.values ?? null; // 补算失败回退主结果
+    }
+}
+
+const CARD_EXTEND_TRANSITION_FALLBACK_MS = 420;
+
+function waitForMainCardResizeTransition() {
+    if (!mainCardEl) {
+        return Promise.resolve();
+    }
+
+    return new Promise((resolve) => {
+        let settled = false;
+
+        const finish = () => {
+            if (settled) {
+                return;
+            }
+            settled = true;
+            mainCardEl.removeEventListener("transitionend", onTransitionEnd);
+            clearTimeout(timeoutId);
+            resolve();
+        };
+
+        const onTransitionEnd = (event) => {
+            if (event.target !== mainCardEl) {
+                return;
+            }
+
+            if (event.propertyName === "min-height"
+                || event.propertyName === "height"
+                || event.propertyName === "grid-template-rows") {
+                finish();
+            }
+        };
+
+        const timeoutId = setTimeout(finish, CARD_EXTEND_TRANSITION_FALLBACK_MS);
+        mainCardEl.addEventListener("transitionend", onTransitionEnd);
+    });
+}
+
+function shouldShowBodySkeletonDuringExpand(previousCardHeight, activeContentBar) {
+    if (!mainCardEl || typeof window === "undefined") {
+        return false;
+    }
+
+    if (activeContentBar !== "Pattern" && activeContentBar !== "Etterna" && activeContentBar !== "Full") {
+        return false;
+    }
+
+    const currentHeight = Number(mainCardEl.getBoundingClientRect().height) || 0;
+    const computedStyle = window.getComputedStyle(mainCardEl);
+    const targetMinHeight = Number.parseFloat(computedStyle.minHeight) || 0;
+    const baseline = Math.max(Number(previousCardHeight) || 0, currentHeight);
+
+    return targetMinHeight > baseline + 1;
+}
+
+export function resetReworkDisplay() {
+    state.actualEstimatorAlgorithm = state.estimatorAlgorithm;
+    state.ppMetrics = null;
+    clearReworkPpBody();
+    resetLivePp();
+    setNumericDifficultyValue(null);
+    setForceHideNumericDifficulty(false);
+    reworkStarEl.textContent = "-";
+    reworkStarEl.classList.remove("category-mode");
+    reworkDiffEl.textContent = "-";
+    if (reworkRightCapsuleEl) {
+        reworkRightCapsuleEl.textContent = "-";
+        reworkRightCapsuleEl.classList.remove("category-mode", "numeric-mode", "high-contrast", "has-unit");
+        reworkRightCapsuleEl.removeAttribute("data-unit");
+        reworkRightCapsuleEl.style.backgroundColor = "rgba(38, 50, 84, 0.45)";
+        reworkRightCapsuleEl.style.color = "#f6fbff";
+        reworkRightCapsuleEl.style.textShadow = "none";
+    }
+    clearDiffGraph();
+    clearAllPauseMarkers();
+    setEffectiveContentBarForMap(null);
+    if (state.diffText === "Graph" || contentBarShows("Graph")) {
+        showDiffGraphError("Graph unavailable");
+    }
+    reworkMetaEl.innerHTML = "LN%: -<br/>Keys: -";
+    setModeTag("Mix");
+    setSvTagVisible(false);
+    reworkMetaEl.classList.remove("loading");
+    reworkStarEl.style.color = "#f6fbff";
+    reworkStarEl.style.backgroundColor = "rgba(38, 50, 84, 0.45)";
+    reworkStarEl.style.textShadow = "none";
+    reworkStarEl.classList.remove("high-contrast");
+    reworkStarEl.classList.remove("unit-badge-light");
+    setLeftCapsuleUnitBadge("");
+}
+
+/**
+ * 清空时的"外部源上下文复位"：清空边沿必须把上一张谱面的上下文一并作废。
+ *
+ * - `pendingSourceText` 是一次性槽（`fetchBeatmapFile` 取用后立即置 null），残留会让下一次
+ *   osu 触发的缓存未命中拿上一张 Malody 谱面的文本去分析；
+ * - `analysisRate` 置 null ⇒ 回落 `state.speedRate`（倍率语义只在桥通道内有效）。
+ */
+function resetSourceContext() {
+    state.pendingSourceText = null;
+    state.pendingSourceRequestId = null;
+    state.pendingSourceActive = null;
+    state.externalSourceActive = null;
+    state.analysisRate = null;
+    state.speedRate = 1;
+}
+
+/**
+ * 清空卡片（Malody 选曲桥从"有谱面的场景"回到 `other` 稳态时的唯一清空动作）。
+ *
+ * 复用两条既有清空路径的调用组合，不新造渲染逻辑：
+ * - `resetReworkDisplay()`（内含 `clearDiffGraph()` → `resetPlayedFill` / `clearAllPauseMarkers`
+ *   / `setModeTag("Mix")` 等）；
+ * - 三个栏位的空占位（`patternClustersEl` / `ettSkillBarsEl` / `ppBarsEl`）+ 状态行。
+ */
+export function clearSourceCard() {
+    resetReworkDisplay();
+    patternClustersEl.innerHTML = "";
+    ettSkillBarsEl.innerHTML = "";
+    ppBarsEl.innerHTML = "";
+    setStatus("Waiting for a data source…", "ok");
+    resetSourceContext();
+}
+
+/**
+ * 卡片清空回调（**测试缝**）：默认实现 = `clearSourceCard`。
+ * 冒烟脚本注入 spy 即可断言"清空被调用了几次"（Step 4 的 AC2/AC3）。
+ */
+let cardClearHandler = clearSourceCard;
+
+/** 测试缝：替换卡片清空实现；传非函数即恢复默认。 */
+export function setCardClearHandler(fn) {
+    cardClearHandler = typeof fn === "function" ? fn : clearSourceCard;
+}
+
+/**
+ * 执行一次卡片清空 —— 唯一调用者 = `shellState.js` 的 `other` 边沿；
+ * 不得绕过测试缝直接调 `clearSourceCard`。
+ *
+ * 上下文复位放在回调之前：注入 spy 时（只计数、不调真实现）状态也必须被作废，
+ * 否则"清空后 `state.speedRate === 1`"这条验收断言会随测试缝的实现方式而变。
+ */
+export function invokeCardClear() {
+    resetSourceContext();
+    cardClearHandler();
+}
+
+// 遥测值域（后端 backend/internal/store/aggregate.go 按 actualAlgorithm 的字符串直接分桶，
+// 任何非算法名都会上报成一条假算法行）：合法值只有真实子算法名，且永不含 "Mixed"。
+const TELEMETRY_ACTUAL_ALGORITHMS = Object.freeze(["Sunny", "Daniel", "Azusa", "Roxy", "Companella"]);
+// 显示胶囊 → 遥测算法名：低难段 0.5/0.5 融合的胶囊 "Azusa+Companella" 只是卡片文案
+// （docs/features/mixed-routing.md C8），它的 RC 数值以 Azusa 的估算结果为基准
+// （mixedEstimator 的 plan.rcNumeric/rcEstDiff 取自 Azusa），故遥测归入 Azusa。
+const TELEMETRY_CAPSULE_ALIASES = Object.freeze({ "Azusa+Companella": "Azusa" });
+
+// 载荷边界的值域守卫：已知胶囊映射回真实算法名，其余只放行真实算法名；
+// 未知标签返回 null（调用方据此不发送该字段——宁缺勿假，后端按空值跳过）。
+export function toTelemetryActualAlgorithm(value) {
+    const text = String(value ?? "").trim();
+    const name = TELEMETRY_CAPSULE_ALIASES[text] ?? text;
+    return TELEMETRY_ACTUAL_ALGORITHMS.includes(name) ? name : null;
+}
+
+export async function fetchBeatmapFile(reason) {
+    const requestSeq = (state.analysisRequestSeq || 0) + 1;
+    state.analysisRequestSeq = requestSeq;
+    // 离线圈模式守卫：仅当页面本身就是壳离线页（端口 24061）且无 tosu 数据面
+    // 时才跳过 osu 抓取（避免 "Failed to fetch" 噪声）。浏览器 tosu 页
+    // （其他端口）即使壳开着也绝不挡——否则首图/背景/切图会被吞。
+    // 数据面 = 壳探测在线 OR 页面自己的 tosu socket 已收到过载荷。
+    const isShellOfflinePage = typeof window !== "undefined"
+        && window.location
+        && String(window.location.port) === "24061";
+    if (reason === "initial load" && isShellOfflinePage
+        && !state.shellTosuOnline && !state.tosuDataSeen && !isRuntimeOsuOverrideActive()) {
+        setStatus("Waiting for a data source (Etterna/Malody or tosu)...", "ok");
+        return;
+    }
+    const isStaleRequest = () => requestSeq !== state.analysisRequestSeq;
+    // 外部源请求上下文快照（result 帧 finally 汇合用；沿用请求序号本地快照模式）。
+    const sourceRequestId = state.pendingSourceRequestId;
+    const sourceActive = state.pendingSourceActive;
+    state.pendingSourceRequestId = null;
+    state.pendingSourceActive = null;
+    // 函数级错误收集（try 块内声明的 const 对 finally 不可见——result 帧 finally 汇合需要它）。
+    let errors = [];
+    const genAtStart = resultCacheGeneration();
+    const analysisStartedAt = performance.now();
+    // 遥测 client（DEC-10）：本次分析的**数据源**，取值 =
+    // `lazer` / `stable`（壳内 native 内存读取）/ `lazer(tosu)` / `stable(tosu)`（tosu 供数）/
+    // `malody` / `malody4` / `etterna`（后端 `daily_agg` 直接以它为维度：不新增字段、不改后端）。
+    // **在请求开始处快照** —— 分析是长流程（抓取 → worker → WASM），期间可能发生
+    // native→tosu 回落，载荷值必须对整张谱面稳定。
+    //   - Malody / Etterna 源：直接取 `state.activeSource`（`malody` 覆盖 BepInEx 通道与编辑器插件）；
+    //   - osu 源：先定**游戏客户端**（`state.client`：native 下是我们自己载荷里的 client，tosu 下是
+    //     tosu 的 client，两处都是 `stable`/`lazer`；非 lazer 一律计 stable），再定**谁在供数** ——
+    //     运行时覆盖真的生效（壳页 24061 且端点/路径校验通过）⇒ 裸值；否则（无壳 / 浏览器 tosu 页 /
+    //     旧壳 ≤v5 / native 已回落）⇒ 加 `(tosu)` 后缀。fail-silent：缺字段绝不猜成 native 侧的值。
+    const telemetryNativeOsu = !!(state.runtimeOsuHost || state.shellOsuNativeAlive);
+    const telemetryOsuClient = String(state.client || "").toLowerCase() === "lazer" ? "lazer" : "stable";
+    const telemetryClient = state.activeSource === "malody4" ? "malody4"
+        : state.activeSource === "malody" ? "malody"
+            : state.activeSource === "etterna" ? "etterna"
+                : telemetryNativeOsu ? telemetryOsuClient : `${telemetryOsuClient}(tosu)`;
+    const previousCardHeight = mainCardEl ? (Number(mainCardEl.getBoundingClientRect().height) || 0) : 0;
+
+    // 取出 socket 层判定的本次变化类型并清空，避免之后纯改设置的 recompute
+    // 误用上一次换歌的入场动画。换歌没拿到种类时（如初次加载）按换歌处理，
+    // 其余无种类的重算（改设置等）按换难度的轻量过渡处理。
+    let changeKind = state.pendingChangeKind;
+    if (!changeKind) {
+        changeKind = reason === "initial load" ? "song" : "difficulty";
+    }
+    state.pendingChangeKind = "";
+    state.activeChangeKind = changeKind;
+    let starBlockEntrancePlayed = false;
+    const playStarBlockEntranceOnce = () => {
+        if (starBlockEntrancePlayed) {
+            return;
+        }
+        starBlockEntrancePlayed = true;
+        playStarBlockEntrance(state.activeChangeKind);
+    };
+
+    setStatus(`Loading beatmap file (${reason})...`, "loading");
+    hideOverlay();
+
+    if (state.diffText === "Graph" || contentBarShows("Graph")) {
+        setGraphLoading(true);
+    } else {
+        clearDiffGraph();
+    }
+
+    // 结果缓存：fetch 之前查缓存，覆盖检查（computed 需求）不匹配视为 miss。
+    // graph 覆盖与估算器的 withGraph 条件一致（diffText=Graph 或主体显示 Graph）。
+    // needComputed 用 fetch 前的保守值（尚未经过 setEffectiveContentBarForMap 的
+    // 谱面级 override，contentBarShows 读的是上一张图的 effectiveContentBar），
+    // 仅用于覆盖检查；实际 shows*/need* 在执行块内 override 之后重新计算。
+    const needComputed = {
+        pattern: contentBarShows("Pattern")
+            || state.srText === "Pattern"
+            || state.diffText === "Pattern"
+            || state.useSvDetection
+            || state.vibroDetection
+            || isAutoDisplayEnabledNow(),
+        ett: !state.externalSourceOsuLike && (contentBarShows("Etterna")
+            || state.srText === "MSD"
+            || state.diffText === "MSD"
+            || state.vibroDetection
+            || (currentEstimatorAlgorithm() === "Companella" || currentEstimatorAlgorithm() === "Mixed"))
+            // ⚠️ externalSourceOsuLike（Etterna 容器内 osu 谱）：仅关 Etterna 展示栏；
+            // Companella/Mixed 算法仍需 Ett 输入（classifyCompanellaDifficulty 依赖 MSD），
+            // 否则 Companella 无 MSD 输入 → 输出严重偏离 + 主体 No data。
+            || ((currentEstimatorAlgorithm() === "Companella" || currentEstimatorAlgorithm() === "Mixed")),
+        graph: state.diffText === "Graph" || contentBarShows("Graph"),
+        interlude: state.srText === "InterludeSR"
+            || state.diffText === "InterludeSR"
+            || currentEstimatorAlgorithm() === "Companella"
+            || currentEstimatorAlgorithm() === "Mixed",
+        pp: contentBarShows("ReworkPP") || state.srText === "ReworkPP",
+    };
+    // 缓存键加版本段：star 口径统一为 Sunny 原始 sr 后，旧快照（存的是 Azusa/Roxy 映射 star）必须失效。
+    // star-v3：Companella LN 门控 + 12K star fallback 使 estDiff 语义变化 → 旧快照全部失效。
+    // star-v4：转换器难度别名修复（Etterna Difficulty_* 前缀此前匹配失败 → 恒取首块），
+    //   同 identity 的旧快照（错误的首块结果）必须失效。
+    // star-v5：Mixed 低难 RC 段 Azusa⊕Companella 融合 + Azusa LN 门控生效，
+    //   低难图的 numeric/estDiff 语义变化 → 旧快照必须失效。
+    // star-v6：Roxy 的 graph 时间轴还原为原始谱面时间（此前是 canonicalizeOsuTiming
+    //   平移过的分析文本时间轴），旧快照里的 times 会让整张图的 x 轴窗口与进度线错位。
+    // star-v7：Etterna junk 文件（技能值全零）不再显示 0.00，快照里 ettResult 的语义变化：
+    //   旧快照没有 junkFile 字段，命中后会静默退回 0.00（见 breakings/2026-09-20-ett-ux-and-companella-capsule.md）。
+    // star-v8：Roxy meta 头对退化修正项 corr_lowCj 改用「特征关闭状态取值」截断——该系数
+    //   是在特征恒为常数处拟合的，遇到正常触发值即外推出极端离群项（实测压低 4.34 分），
+    //   Roxy 的 numeric/estDiff 语义变化 → 旧快照必须失效。
+    const CACHE_KEY_STAR_UNIFIED_VERSION = "star-v8";
+    const cacheKey = `${CACHE_KEY_STAR_UNIFIED_VERSION}|${state.estimatorAlgorithm}|${state.lastBeatmapIdentity}|${state.modSignature}`;
+    const isMetaDegraded = String(state.lastBeatmapIdentity || "").startsWith("meta:");
+    let cached = null;
+    if (state.enableResultCache && state.lastBeatmapIdentity) {
+        const snapshot = resultCache.get(cacheKey);
+        if (snapshot
+            && snapshot.computed.graph === needComputed.graph
+            && snapshot.computed.pattern === needComputed.pattern
+            && snapshot.computed.ett === needComputed.ett
+            && snapshot.computed.interlude === needComputed.interlude
+            && snapshot.computed.pp === needComputed.pp) {
+            cached = snapshot;
+        }
+    }
+
+    try {
+        let parsedInfo = null;
+        let rawText = null;
+        // 内容栏遵循用户设置：任何键数都不再强制降级为 Pattern。
+        // （Graph 对任意键数均可渲染——star 序列为键数无关的 estimator 输出。）
+        // 唯一例外：Etterna 容器内的 osu 谱（externalSourceOsuLike）没有 Etterna
+        // MSD 语义，强制降级为 Pattern 主体，避免 Etterna 栏空态 No data。
+        const applyContentBarOverride = (columnCount) => {
+            if (state.externalSourceOsuLike) {
+                setEffectiveContentBarForMap("Pattern");
+                return;
+            }
+            setEffectiveContentBarForMap(null);
+        };
+        // 外部源（Etterna/Malody）注入文本的取用点：无论本轮走不走缓存都先取走并清槽。
+        // 旧写法只在非缓存分支消费——缓存命中的那轮会把文本留在槽里，下一张图
+        // （含切回 osu）可能误用上一张图的外部文本。externalText 同时作为"本轮补跑
+        // 可复用的本地文本"，供下方 auto profile 段回填（见那里的注释）。
+        const externalText = state.pendingSourceText;
+        state.pendingSourceText = null;
+        if (cached) {
+            parsedInfo = cached.parsedInfo;
+            applyContentBarOverride(parsedInfo.columnCount);
+        } else if (externalText) {
+            // 文本已由 externalSource 转换并注入，跳过 tosu 抓取。
+            rawText = externalText;
+            if (isStaleRequest()) return;
+            if (!rawText || !rawText.trim()) {
+                throw new Error("Empty external beatmap content.");
+            }
+        } else {
+            // 壳离线页（24061）无 tosu 数据面且无原生传输时任何 osu 抓取都守卫：Waiting 而非报错。
+            if (isShellOfflinePage
+                && !state.shellTosuOnline && !state.tosuDataSeen && !isRuntimeOsuOverrideActive() && !state.pendingSourceText) {
+                setStatus("Waiting for a data source (Etterna/Malody or tosu)...", "ok");
+                return;
+            }
+            const response = await fetchBeatmapTextWithRetry(getEndpoint(), {
+                // 只有壳原生端点（24062）值得这一次静默重试：tosu 通道行为逐字节不变。
+                native: isRuntimeOsuOverrideActive(),
+                isStale: isStaleRequest,
+            });
+            if (isStaleRequest() || response === null) return;
+
+            if (!response.ok) {
+                throw new Error(`Request failed with status ${response.status}`);
+            }
+
+            rawText = await response.text();
+            if (isStaleRequest()) return;
+            if (!rawText || !rawText.trim()) {
+                throw new Error("Empty beatmap content.");
+            }
+            // parse-once：解析在 pipeline 内完成一次，parsedSummary 回传后（下方）才做 override。
+        }
+
+        // 估算分派 + 附属段（pattern/ett/interlude/Companella 二次 Ett）收敛为一次 pipeline
+        // 调用（worker 单次往返或主线程同步回退）。pipeline 内部解析一次并共享给估算器/归一化/
+        // SunnyWindow/Interlude（pattern 保留独立 patternOsuParser 解析、ett 保留自身解析），
+        // 输出 parsedSummary 供 override 与渲染使用——主线程不再二次解析。
+        // 逐段顺序与旧 analysis.js 完全一致（估算 → 归一化 → SunnyWindow → 派生 → Interlude →
+        // Pattern → Ett → Companella）；渲染段与缓存键/写门不变。
+        errors = [];
+        const estimatorAlgorithm = currentEstimatorAlgorithm();
+        let pipelineResult = null;
+        if (!cached) {
+            try {
+                const estimatorOptions = {
+                    // 进管线的速率 = state.analysisRate ?? state.speedRate（倍率语义见 externalSource）：
+                    // 只有 Malody 选曲桥通道会写 analysisRate（Mod 派生速率 ⇒ 1.0，难度由 OD 表达）；
+                    // 其余所有源（含 osu 的 DT/HT，只写 state.speedRate）都走回退，逐字与基线一致。
+                    speedRate: state.analysisRate ?? state.speedRate,
+                    odFlag: state.odFlag,
+                    cvtFlag: state.cvtFlag,
+                    // graph 需要与否用 fetch 前的保守值（needComputed.graph = diffText=Graph 或主体
+                    // 显示 Graph）。override 只会把主体降级为 Pattern（不会引入 Graph），保守值 ⊇ 实际 showsGraph。
+                    withGraph: needComputed.graph,
+                    extendedEstimationRange: state.extendedEstimationRange,
+                    enableAlwaysShowLNDifficulty: state.enableAlwaysShowLNDifficulty,
+                };
+                const pipelineOptions = {
+                    ...estimatorOptions,
+                    forceSunnyReferenceHo: state.azusaSunnyReferenceHo,
+                    forceSunnyWindow: state.forceSunnyWindow,
+                    enableAnalyzeLN: state.enableAnalyzeLN,
+                    display6kLevel: state.display6kLevel,
+                    // 附属段开关（needComputed 保守值，与缓存覆盖检查同源）：
+                    withPattern: needComputed.pattern,
+                    withEtterna: needComputed.ett,
+                    withInterlude: needComputed.interlude,
+                    withPpMetrics: needComputed.pp,
+                    classicMod: state.classicMod === true,
+                    etternaVersion: state.etternaVersion,
+                    companellaEtternaVersion: state.companellaEtternaVersion,
+                };
+                const pipelineInput = { rawText, estimatorAlgorithm, options: pipelineOptions };
+                const wp = runInWorker(pipelineInput);
+                try {
+                    pipelineResult = wp ? await wp : await runAnalysisPipeline(pipelineInput);
+                } catch (workerErr) {
+                    // Worker 超时/崩溃/被取代 → 降级主线程重跑（不显示 No data）。
+                    // 首次分析（worker WASM 初始化慢）或 Etterna 双帧竞态（superseded）
+                    // 会让 worker 请求失败——主线程兜底保证卡片总能出结果。
+                    if (!isStaleRequest()) {
+                        pipelineResult = await runAnalysisPipeline(pipelineInput);
+                    } else {
+                        throw workerErr; // stale：上层 catch 的 isStaleRequest 会 return
+                    }
+                }
+                parsedInfo = pipelineResult.parsedSummary;
+                applyContentBarOverride(parsedInfo.columnCount);
+            } catch (error) {
+                // 诊断字段无条件记录（stale 也要留痕）：外部源失败时把关键输入
+                // 特征打进错误，用于定位「同一文件本地 OK、页面 NaN」的差异。
+                const diagSuffix = sourceRequestId
+                    ? ` [diag src=${sourceActive} rawLen=${rawText ? rawText.length : "-"} est=${estimatorAlgorithm} rate=${state.speedRate} od=${state.odFlag} cvt=${state.cvtFlag} graph=${needComputed.graph} sunnyWin=${state.forceSunnyWindow} classic=${state.classicMod}]`
+                    : "";
+                errors.push(`Rework failed: ${error.message}${diagSuffix}`);
+                if (isStaleRequest()) return;
+                resetReworkDisplay();
+                if (state.diffText === "Graph" || contentBarShows("Graph")) {
+                    showDiffGraphError("Graph unavailable");
+                }
+                // 失败路径回退：pipeline 抛错（估算器失败）未返回 parsedSummary——用最小元信息解析补齐，
+                // 与旧代码 parseMetadataFromBeatmap 行为一致（正常路径保持 parse-once，不在此解析）。
+                try {
+                    const fallbackParser = new OsuFileParser(rawText);
+                    fallbackParser.process();
+                    const fallbackParsed = fallbackParser.getParsedData();
+                    parsedInfo = {
+                        metadata: fallbackParsed.metaData || {},
+                        lnRatio: Number(fallbackParsed.lnRatio) || 0,
+                        columnCount: Number(fallbackParsed.columnCount) || 0,
+                    };
+                    applyContentBarOverride(parsedInfo.columnCount);
+                } catch (_) {
+                    // 元信息解析也失败：降级为空元信息（避免下游渲染读 null；columnCount 0 → 无 override）。
+                    parsedInfo = { metadata: {}, lnRatio: 0, columnCount: 0 };
+                }
+            }
+        }
+
+        // override 之后才计算 shows*/activeContentBar（恢复 main 顺序），
+        // 供下方各计算块与渲染段使用；needComputed 仍用 fetch 前的保守值。
+        const activeContentBar = getActiveContentBar();
+        const showsPattern = contentBarShows("Pattern");
+        const showsEtterna = contentBarShows("Etterna");
+        const showsGraph = contentBarShows("Graph");
+        const showsReworkPp = contentBarShows("ReworkPP");
+
+        const shouldDelayBodyRender = shouldShowBodySkeletonDuringExpand(previousCardHeight, activeContentBar);
+        let bodyRenderDelayPromise = null;
+        if (shouldDelayBodyRender) {
+            renderContentSkeleton();
+            bodyRenderDelayPromise = waitForMainCardResizeTransition();
+        }
+
+        // 主体渲染前快照卡片高度（骨架路径下为骨架撑起的高度）。卡片高度现在是
+        // height:auto（随内容生长），内容渲染后的高度变化是瞬时布局——渲染完成
+        // 后用它补一次 height 过渡，恢复平滑伸长（与 setRuntimeContentBar 的
+        // animateCardHeightTransition 用法一致）。
+        const heightBeforeBodyRender = mainCardEl ? (Number(mainCardEl.getBoundingClientRect().height) || 0) : 0;
+
+        const waitForBodyRenderReady = async () => {
+            if (!bodyRenderDelayPromise) {
+                return true;
+            }
+            await bodyRenderDelayPromise;
+            if (isStaleRequest()) {
+                return false;
+            }
+            bodyRenderDelayPromise = null;
+            return true;
+        };
+
+        const autoDisplayEnabled = isAutoDisplayEnabledNow();
+
+        let rework = null;
+        let patternResult = null;
+        let patternReport = null;
+        let mergedClusters = null;
+        let ettResult = null;
+        let interludeStar = Number.NaN;
+        // 元数据关键词直判：标题/难度名含关键词（config.js 的 vibroKeywords）即判 vibro，
+        // 受 VibroDetection 总开关控制，不受下方 star > 5.0 门控；与 MSD 口径取或、不被覆盖。
+        let isVibroMap = state.vibroDetection
+            ? detectVibroFromMetadata(parsedInfo?.metadata)
+            : false;
+        let resolvedEstDiff = null;
+        let resolvedNumericDifficulty = null;
+        let resolvedNumericDifficultyHint = null;
+        let resolvedMetaHtml = "LN%: -<br/>Keys: -";
+        let typePercentageData = null;
+        let pendingCompanellaEstimate = false;
+        let pendingMixedCompanellaContext = null;
+        let sixKConst = null;
+        // vibro 星数门槛：pipeline 用归一化前的 star 判定（与旧 selectedRework?.star 意图一致）。
+        let vibroEligible = false;
+
+        const estimatorNeedsCompanellaData = estimatorAlgorithm === "Companella"
+            || estimatorAlgorithm === "Mixed";
+
+        const needVibroDetection = state.vibroDetection;
+        const needPatternAnalysis = showsPattern
+            || state.srText === "Pattern"
+            || state.diffText === "Pattern"
+            || state.useSvDetection
+            || needVibroDetection
+            || autoDisplayEnabled;
+        const needMsdValue = state.srText === "MSD" || state.diffText === "MSD";
+        const needInterludeValue = state.srText === "InterludeSR"
+            || state.diffText === "InterludeSR"
+            || estimatorNeedsCompanellaData;
+        const needEtternaAnalysis = showsEtterna
+            || needMsdValue
+            || needVibroDetection
+            || estimatorNeedsCompanellaData;
+        const shouldReportEtternaError = showsEtterna
+            || needMsdValue
+            || estimatorNeedsCompanellaData;
+        const shouldForceSunnyWindow = state.forceSunnyWindow;
+        let lnStar = null;
+        if (cached) {
+            rework = cached.rework;
+            state.actualEstimatorAlgorithm = cached.actualEstimatorAlgorithm;
+            state.ppMetrics = cached.ppMetrics || null;
+            resolvedEstDiff = cached.rework.estDiff;
+            resolvedNumericDifficulty = cached.rework.numericDifficulty;
+            resolvedNumericDifficultyHint = cached.rework.numericDifficultyHint;
+            // 命中重派生：display6kLevel 已移出失效清单（toggle-diff 零输出契约差异，证据
+            // task-13-settings.txt）。缓存的 sixKConst 反映写时刻的 display6kLevel——按
+            // runAnalysisPipeline §6 同公式从缓存 star 重算（4K 恒 null；6K 下 rework.star
+            // 恒为 Sunny sr，公式逐字一致），写关时置 null，写开时与缓存值逐位相同。
+            const hitSunnySrc = Number(rework.star);
+            sixKConst = state.display6kLevel && Number(rework.columnCount) === 6
+                && Number.isFinite(hitSunnySrc) && hitSunnySrc > 0
+                ? Math.round((hitSunnySrc * 200 / 81 + 7 / 6) * 100) / 100
+                : null;
+            lnStar = cached.rework.lnStar;
+            state.lnStar = cached.rework.lnStar;
+            typePercentageData = cached.rework.typePercentageData;
+        } else if (pipelineResult) {
+            rework = pipelineResult.rework;
+            state.actualEstimatorAlgorithm = pipelineResult.actualEstimatorAlgorithm;
+            state.ppMetrics = pipelineResult.ppMetrics || null;
+            vibroEligible = pipelineResult.vibro.eligible;
+            errors.push(...pipelineResult.errors);
+            if (isStaleRequest()) return;
+
+            resolvedEstDiff = pipelineResult.rework.estDiff;
+            resolvedNumericDifficulty = pipelineResult.rework.numericDifficulty;
+            resolvedNumericDifficultyHint = pipelineResult.rework.numericDifficultyHint;
+
+            if (estimatorAlgorithm === "Companella") {
+                pendingCompanellaEstimate = Number(pipelineResult.rework.columnCount) === 4;
+            }
+            if (estimatorAlgorithm === "Mixed") {
+                pendingMixedCompanellaContext = pipelineResult.rework.mixedCompanellaPlan || null;
+            }
+
+            // 如果强制使用SunnyWindow，在这里替换LN部分
+            const sunnyWindowRework = pipelineResult.sunnyWindow;
+            if (sunnyWindowRework) {
+                const sunnyWindowLNEstDiff = sunnyWindowRework.estDiff.split("||").map((part) => part.trim()).filter((part) => part.length > 0)[1];
+                typePercentageData = sunnyWindowRework.typePercentageData;
+                if (sunnyWindowLNEstDiff) {
+                    resolvedEstDiff = resolvedEstDiff.split("||").map((part) => part.trim()).filter((part) => part.length > 0)[0] + " || " + sunnyWindowLNEstDiff;
+                    if (pendingMixedCompanellaContext) {
+                        pendingMixedCompanellaContext.lnDifficulty = sunnyWindowLNEstDiff;
+                        pendingMixedCompanellaContext.lnRatio = 4e65;
+                    }
+                }
+                lnStar = sunnyWindowRework.lnStar;
+            }
+
+            // 6K 定数: compute Sunny SR for constant rating display
+            // 6K 谱面下 rework.star 恒为 Sunny sr（Daniel/Azusa/Roxy 非 4K 均回退 Sunny，
+            // Mixed 走 sunnyBaseline，Companella 直接跑 Sunny，且 pipeline 已对未回退算法归一化），
+            // pipeline 按同一公式计算；此处仅回写 sunnySR 状态字段（write-only）。
+            sixKConst = pipelineResult.sixKConst;
+            if (sixKConst !== null) {
+                state.sunnySR = Number(rework.star);
+            }
+
+            state.lnStar = lnStar ?? (state.enableAlwaysShowLNDifficulty || Number(rework?.lnRatio ?? parsedInfo.lnRatio) > 0.15 ? rework?.star : 0) ?? 0;
+        }
+
+        // 拿到结果、即将首次写入 star 区块时再触发入场动画，
+        // 与数值/难度名/图表的刷新同帧，换歌才整块入场，换难度只做轻量过渡。
+        if (rework) {
+            playStarBlockEntranceOnce();
+            showNumericStarValue(rework.star);
+            updateDiffTextVisibility();
+
+            if (state.diffText === "Graph" || showsGraph) {
+                // Graph 数据 = estimator 的 star 序列，对任意键数均可用
+                // （Sunny 核心为键数无关算法）；渲染失败才提示。
+                {
+                    const ok = renderDiffGraph(rework.graph);
+                    if (!ok) {
+                        showDiffGraphError("Graph unavailable");
+                    }
+                }
+            } else {
+                clearDiffGraph();
+            }
+
+            const lnPercent = `${(rework.lnRatio * 100).toFixed(1)}%`;
+            resolvedMetaHtml = `LN%: ${lnPercent}<br/>Keys: ${rework.columnCount}`;
+            reworkMetaEl.innerHTML = resolvedMetaHtml;
+            reworkMetaEl.classList.remove("loading");
+        }
+
+        if (needInterludeValue) {
+            if (cached) {
+                interludeStar = cached.interludeStar;
+            } else if (pipelineResult?.interludeError != null || Number.isFinite(pipelineResult?.interludeStar)) {
+                // pipeline 结果：成功取 star；失败记录错误（needInterludeValue 时旧代码无条件入 errors）。
+                if (pipelineResult.interludeError != null) {
+                    errors.push(`Interlude analyze failed: ${pipelineResult.interludeError}`);
+                } else {
+                    interludeStar = pipelineResult.interludeStar;
+                }
+            } else {
+                // 回退：pipeline 估算失败或保守开关未覆盖（override 后 need* 变真）→ 主线程直接计算（旧路径）。
+                try {
+                    interludeStar = await calculateInterludeStar(rawText, state.analysisRate ?? state.speedRate, state.cvtFlag);
+                    if (isStaleRequest()) return;
+                } catch (error) {
+                    errors.push(`Interlude analyze failed: ${error.message}`);
+                }
+            }
+        }
+
+        if (needPatternAnalysis) {
+            let patternAnalysisError = null;
+            // debugUseAmount 后处理：按 Amount 排序 + Category 覆盖。hit/miss 共用
+            // （任务 13 提取；miss 的 applyPatternData 与 hit 的缓存重放都走这里）。
+            const applyDebugUseAmountPostProcess = (clusters, report) => {
+                if (!state.debugUseAmount) {
+                    return clusters;
+                }
+                clusters.sort((a, b) => b.Amount - a.Amount);
+                if (report && clusters.length > 0) {
+                    const topSpecific = clusters[0]?.SpecificTypes?.[0];
+                    if (topSpecific && Number(topSpecific[1]) > 0.05) {
+                        report.Category = topSpecific[0];
+                    } else {
+                        report.Category = clusters[0].Pattern;
+                    }
+                }
+                return clusters;
+            };
+            // 从 pattern 结果对象设置 patternReport/mergedClusters + debugUseAmount 后处理。
+            const applyPatternData = (result) => {
+                patternResult = result;
+                patternReport = result?.report || null;
+                const allClusters = result?.report?.Clusters || result?.topFiveClusters || [];
+                mergedClusters = mergeDuplicateClusters(allClusters);
+                applyDebugUseAmountPostProcess(mergedClusters, patternReport);
+            };
+            if (cached) {
+                patternResult = cached.patternReport ? { report: cached.patternReport } : null;
+                patternReport = cached.patternReport;
+                // 命中重派生：缓存存的是写时刻的 mergedClusters（debugUseAmount 可能已变，
+                // 已移出失效清单）——从缓存 report.Clusters 重放 merge + 后处理，与 miss 同路径。
+                mergedClusters = mergeDuplicateClusters(
+                    cached.patternReport?.Clusters || cached.mergedClusters || [],
+                );
+                applyDebugUseAmountPostProcess(mergedClusters, patternReport);
+            } else if (pipelineResult?.patternReport || pipelineResult?.patternError) {
+                if (pipelineResult.patternError) {
+                    patternAnalysisError = new Error(pipelineResult.patternError);
+                    errors.push(`Pattern analyze failed: ${pipelineResult.patternError}`);
+                } else {
+                    applyPatternData({
+                        report: pipelineResult.patternReport,
+                        topFiveClusters: pipelineResult.patternTopFiveClusters,
+                    });
+                }
+            } else {
+                // 回退：pipeline 估算失败或保守开关未覆盖 → 主线程直接计算（旧路径）。
+                try {
+                    applyPatternData(analyzePatternFromText(rawText));
+                } catch (error) {
+                    patternAnalysisError = error;
+                    errors.push(`Pattern analyze failed: ${error.message}`);
+                }
+            }
+
+            if (showsPattern) {
+                if (!(await waitForBodyRenderReady())) return;
+                if (patternAnalysisError) {
+                    renderBodySectionError("Pattern", patternAnalysisError.message);
+                } else {
+                    renderPatternClusters(mergedClusters);
+                }
+            }
+        } else {
+            patternClustersEl.innerHTML = "";
+        }
+
+        if (needEtternaAnalysis) {
+            let ettAnalysisError = null;
+            if (cached) {
+                ettResult = cached.ettResult;
+                isVibroMap = cached.isVibroMap;
+            } else if (pipelineResult?.ettResult || pipelineResult?.ettError) {
+                if (pipelineResult.ettError) {
+                    ettAnalysisError = new Error(pipelineResult.ettError);
+                    if (pipelineResult.ettErrorCode) {
+                        ettAnalysisError.code = pipelineResult.ettErrorCode;
+                    }
+                    const isKeycountError = /unsupported keycount/i.test(pipelineResult.ettError);
+                    const isAbortError = pipelineResult.ettErrorCode === MINACALC_ABORT_CODE;
+                    if (shouldReportEtternaError && !isKeycountError) {
+                        errors.push(isAbortError
+                            ? `Etterna analyze failed: ${MINACALC_ABORT_MESSAGE}`
+                            : `Etterna analyze failed: ${pipelineResult.ettError}`);
+                    }
+                } else {
+                    ettResult = pipelineResult.ettResult;
+                    // 用算法自身 star 判定（pipeline 保留归一化前的 star），保持 vibro 检测既有行为不变。
+                    // MSD 基准固定 0.72.3（VIBRO_MSD_VERSION）。
+                    if (state.vibroDetection && vibroEligible) {
+                        const vibroValues = await resolveVibroMsdValues(rawText, ettResult);
+                        if (isStaleRequest()) return;
+                        // 与元数据关键词结论取或：旧 JackSpeed 判据只补充信号，不覆盖。
+                        isVibroMap = isVibroMap || detectVibro(vibroValues, VIBRO_JACKSPEED_RATIO_THRESHOLD);
+                    }
+                }
+            } else {
+                // 回退：pipeline 估算失败或保守开关未覆盖 → 主线程直接计算（旧路径）。
+                try {
+                    ettResult = await analyzeEtternaFromText(
+                        rawText,
+                        buildEtternaAnalyzeOptions(state.etternaVersion),
+                    );
+                    if (isStaleRequest()) return;
+
+                    // MSD 基准固定 0.72.3（VIBRO_MSD_VERSION）。
+                    if (state.vibroDetection && vibroEligible) {
+                        const vibroValues = await resolveVibroMsdValues(rawText, ettResult);
+                        if (isStaleRequest()) return;
+                        // 与元数据关键词结论取或：旧 JackSpeed 判据只补充信号，不覆盖。
+                        isVibroMap = isVibroMap || detectVibro(vibroValues, VIBRO_JACKSPEED_RATIO_THRESHOLD);
+                    }
+                } catch (error) {
+                    ettAnalysisError = error;
+                    const isKeycountError = /unsupported keycount/i.test(String(error?.message ?? ""));
+                    const isAbortError = error?.code === MINACALC_ABORT_CODE;
+                    if (shouldReportEtternaError && !isKeycountError) {
+                        errors.push(`Etterna analyze failed: ${isAbortError ? MINACALC_ABORT_MESSAGE : error.message}`);
+                    }
+                }
+            }
+
+            // junk file 必须在 metadata 处可见：卡片主体可能不是 Etterna 段，只看主体
+            // 用户不知道发生了什么。放进 errors[]（metadata 红字走这条通道）。
+            // 注意：errors 非空会命中缓存写门 → junk 谱不写缓存（降级快照不应落盘）。
+            if (!cached && ettResult?.junkFile && shouldReportEtternaError) {
+                errors.push("Etterna MSD unavailable (MinaCalc junk file)");
+            }
+
+            if (showsEtterna) {
+                if (!(await waitForBodyRenderReady())) return;
+                if (ettAnalysisError) {
+                    const rawMessage = String(ettAnalysisError?.message ?? "");
+                    const isKeycountError = /unsupported keycount/i.test(rawMessage);
+                    const isAbortError = ettAnalysisError?.code === MINACALC_ABORT_CODE || /abort/i.test(rawMessage);
+                    renderBodySectionError(
+                        "Etterna",
+                        isKeycountError ? "Unsupported Keycount" : (isAbortError ? "Unsupported Chart" : rawMessage),
+                    );
+                    state.etternaTechnicalHidden = false;
+                    mainCardEl.classList.remove("bars-etterna-compact");
+                } else if (ettResult?.junkFile) {
+                    // MinaCalc 的 junk-file 判定返回全 0 技能值：这是"不可用"，不是"难度为 0"。
+                    renderBodySectionError("Etterna", "MSD unavailable (MinaCalc junk file)");
+                    state.etternaTechnicalHidden = false;
+                    mainCardEl.classList.remove("bars-etterna-compact");
+                } else {
+                    const columnCount = Number(rework?.columnCount) || Number(parsedInfo.columnCount) || 0;
+                    renderEtternaSkillBars(ettResult?.values || {}, columnCount);
+                }
+            }
+        } else {
+            state.etternaTechnicalHidden = false;
+            mainCardEl.classList.remove("bars-etterna-compact");
+            ettSkillBarsEl.innerHTML = "";
+        }
+
+        // ReworkPP 主体：谱面侧 ppMetrics（miss 来自 pipelineResult、hit 来自快照）+
+        // 当前 mod 修正，max 模式渲染。ppMetrics 缺失时渲染错误空态。
+        if (showsReworkPp) {
+            if (!(await waitForBodyRenderReady())) return;
+            buildReworkPpDisplay(state.ppMetrics, state.modCodes || []);
+        }
+
+        if (rework) {
+            const shouldRunCompanella = Number(rework.columnCount) === 4
+                && (pendingCompanellaEstimate || pendingMixedCompanellaContext != null);
+
+            if (shouldRunCompanella && !cached) {
+                // 不按 LN 比例跳过 Companella：`lnRatio > 0.18` 这道门（48256a0 引入）本是
+                // Azusa/Roxy 的算法作用域约束，却被套用到 Mixed/Companella 路径上，后果是
+                // LN 主体谱先被设成 Companella、计划旋即丢弃、胶囊再改回 Sunny——用户看不到
+                // 任何 Companella 结果，旧版（v2.0.0 时期）则正常显示。此处已移除该门。
+                let companellaMsdValues = ettResult?.values;
+                const companellaEtternaVersion = String(
+                    state.companellaEtternaVersion || state.etternaVersion,
+                ).trim() || state.etternaVersion;
+
+                if (state.etternaVersion !== companellaEtternaVersion) {
+                    if (pipelineResult?.companellaEttResult) {
+                        // 二次 Ett 已在 pipeline（worker 一次往返）内完成。
+                        companellaMsdValues = pipelineResult.companellaEttResult.values;
+                    } else if (pipelineResult?.companellaEttError) {
+                        // 与旧行为一致：失败仅 console.warn（不阻断，回退主 etternaVersion 的 values）。
+                        console.warn(`Companella Etterna (${companellaEtternaVersion}) analyze failed: ${pipelineResult.companellaEttError}`);
+                    } else {
+                        // 回退：pipeline 未计算二次 Ett（估算失败等）→ 主线程直接计算（旧路径）。
+                        try {
+                            const forcedCompanellaEtterna = await analyzeEtternaFromText(
+                                rawText,
+                                buildEtternaAnalyzeOptions(companellaEtternaVersion),
+                            );
+                            if (isStaleRequest()) return;
+
+                            companellaMsdValues = forcedCompanellaEtterna?.values;
+                        } catch (error) {
+                            console.warn(`Companella Etterna (${companellaEtternaVersion}) analyze failed: ${error.message}`);
+                        }
+                    }
+                }
+
+                try {
+                    const companellaResult = await classifyCompanellaDifficulty({
+                        msdValues: companellaMsdValues,
+                        interludeStar,
+                        sunnyStar: Number(rework.star),
+                    });
+                    if (isStaleRequest()) return;
+
+                    if (pendingCompanellaEstimate) {
+                        resolvedEstDiff = companellaResult.estDiff;
+                        resolvedNumericDifficulty = companellaResult.numericDifficulty;
+                        resolvedNumericDifficultyHint = companellaResult.numericDifficultyHint;
+                    }
+
+                    if (pendingMixedCompanellaContext) {
+                        const mixedAfterCompanella = applyCompanellaToMixedResult({
+                            estDiff: resolvedEstDiff,
+                            numericDifficulty: resolvedNumericDifficulty,
+                            numericDifficultyHint: resolvedNumericDifficultyHint,
+                            mixedCompanellaPlan: pendingMixedCompanellaContext,
+                        }, companellaResult);
+
+                        resolvedEstDiff = mixedAfterCompanella.estDiff;
+                        resolvedNumericDifficulty = mixedAfterCompanella.numericDifficulty;
+                        resolvedNumericDifficultyHint = mixedAfterCompanella.numericDifficultyHint;
+                        // 胶囊跟随真实来源：融合/采用成功时 Companella 已经改变了数值，
+                        // 此前只改数值不改胶囊，会出现"数值含 Companella 但胶囊写着 Azusa"。
+                        if (mixedAfterCompanella.companellaCapsule) {
+                            state.actualEstimatorAlgorithm = mixedAfterCompanella.companellaCapsule;
+                        }
+                        pendingMixedCompanellaContext = null;
+                    }
+                } catch (error) {
+                    console.warn(`Companella estimate failed: ${error.message}`);
+                    // Companella 失败 → 回退 pipeline 已归一化的 Sunny 基线（与
+                    // Azusa/Roxy 的 fallback 语义一致）：保持已算出的 star/estDiff，
+                    // 不产生 No data。若 pipeline 也失败（resolvedEstDiff null），
+                    // 走主错误路径（errors 已含 Rework failed）。
+                    if (pendingCompanellaEstimate) {
+                        state.actualEstimatorAlgorithm = "Sunny";
+                    }
+                    pendingCompanellaEstimate = false;
+                    pendingMixedCompanellaContext = null;
+                }
+            }
+
+            // 写缓存：companella 完成后、SV/auto-profile 段之前。
+            // 门控：miss && 开关开 && 全成功 && generation 未变（防 clear 后旧分析写回）。
+            if (!cached && state.enableResultCache && state.lastBeatmapIdentity
+                && errors.length === 0
+                && rework && !isStaleRequest()
+                && genAtStart === resultCacheGeneration()) {
+                // clustering.js 的 cluster 对象带 format()/Importance 方法，
+                // structuredClone 无法拷贝（resultCache 契约要求 JSON-safe），
+                // 快照只存渲染所需的普通字段。
+                const jsonSafe = (value) => (value == null ? value : JSON.parse(JSON.stringify(value)));
+                resultCache.put(cacheKey, {
+                    rework: {
+                        star: rework.star,
+                        estDiff: resolvedEstDiff,
+                        numericDifficulty: resolvedNumericDifficulty,
+                        numericDifficultyHint: resolvedNumericDifficultyHint,
+                        graph: rework.graph,
+                        lnRatio: rework.lnRatio,
+                        columnCount: rework.columnCount,
+                        lnStar: lnStar,
+                        typePercentageData: jsonSafe(typePercentageData)
+                    },
+                    patternReport: jsonSafe(patternReport),
+                    mergedClusters: jsonSafe(mergedClusters),
+                    ettResult,
+                    interludeStar,
+                    isVibroMap,
+                    sixKConst,
+                    ppMetrics: pipelineResult.ppMetrics || null,
+                    actualEstimatorAlgorithm: state.actualEstimatorAlgorithm,
+                    parsedInfo: {
+                        metadata: parsedInfo.metadata,
+                        lnRatio: parsedInfo.lnRatio,
+                        columnCount: parsedInfo.columnCount,
+                    },
+                    computed: needComputed,
+                }, { skip: isMetaDegraded });
+            }
+
+            if (Number.isFinite(resolvedNumericDifficulty) && resolvedNumericDifficulty >= 18.5) {
+                if (resolvedEstDiff) {
+                    const strList = resolvedEstDiff.split("||");
+                    strList[0] = "> Cloverwisp Theta high";
+                    setEstimateDifficultyText(formatDiffForDisplay(strList.join("||")));
+                }
+                else {
+                    setEstimateDifficultyText("> Cloverwisp Theta high");
+                }
+            }
+            else setEstimateDifficultyText(formatDiffForDisplay(resolvedEstDiff));
+        }
+
+        const fallbackModeTag = modeTagFromLnRatio(Number(rework?.lnRatio ?? parsedInfo.lnRatio));
+        let resolvedModeTag = (activeContentBar === "None")
+            ? fallbackModeTag
+            : (patternResult?.report?.ModeTag || fallbackModeTag);
+        let shouldShowSvTag = false;
+
+        if (state.useSvDetection) {
+            const svAmount = Number(patternReport?.SVAmount);
+            if (Number.isFinite(svAmount) && svAmount >= PATTERNS_CONFIG.SV_AMOUNT_THRESHOLD) {
+                shouldShowSvTag = true;
+                if (patternReport && typeof patternReport === "object") {
+                    patternReport.Category = "SV";
+                }
+            }
+        }
+
+        if (typePercentageData) {
+            const lnRatio = Number(rework?.lnRatio ?? parsedInfo.lnRatio)
+            setModeTagAdvanced(typePercentageData, lnRatio);
+        } else {
+            setModeTag(resolvedModeTag);
+        }
+        setSvTagVisible(shouldShowSvTag);
+
+        if (rework) {
+            const cappedDiff = Number.isFinite(resolvedNumericDifficulty) && resolvedNumericDifficulty >= 18.5
+                ? null
+                : resolvedNumericDifficulty;
+            const cappedHint = cappedDiff === null ? "N/A" : resolvedNumericDifficultyHint;
+            setNumericDifficultyValue(cappedDiff, cappedHint);
+        }
+
+        setForceHideNumericDifficulty(isVibroMap);
+
+        if (autoDisplayEnabled) {
+            const beforeContent = state.contentBar;
+            const beforeSrText = state.srText;
+            const profileChanged = refreshAutoDisplayProfile(resolvedModeTag);
+
+            const missingEtterna = (
+                showsEtterna
+                || state.srText === "MSD"
+                || state.diffText === "MSD"
+            ) && !needEtternaAnalysis;
+            const missingPattern = (
+                showsPattern
+                || state.srText === "Pattern"
+                || state.diffText === "Pattern"
+                || state.useSvDetection
+            ) && !needPatternAnalysis;
+
+            if (profileChanged && ((missingEtterna || missingPattern)
+                || state.contentBar !== beforeContent
+                || state.srText !== beforeSrText)) {
+                // 外部源同样要补跑：它们没有 osu 那种"第二次抓同一张图/命中快照"的兜底，
+                // 但本轮用过的文本本来就在本地（externalText，不经 tosu 抓取）——把同一份
+                // 文本回填待用槽，二次派发即可直接重算，无需任何网络步骤（旧注释担心的
+                // "第二次走 tosu 抓取必然失败"对本类源不成立，故不再按 sourceRequestId 跳过）。
+                // 仅在本轮仍是当前请求时回填：新帧会在自己的处理里同步推高
+                // analysisRequestSeq（scheduleRecompute 是同步派发），旧图的文本绝不会
+                // 喂给下一张图；二次派发随即取走该槽，槽位不会滞留。
+                if (externalText && !isStaleRequest()) {
+                    state.pendingSourceText = externalText;
+                }
+                // 二次派发沿用"衍生重算"语义：requestId 已在本函数开头清空，故不会
+                // 再发一帧 result（壳按首帧 requestId 关联）；首帧 result 由下方
+                // finally 无条件发出，stale 不影响 result 帧。
+                scheduleRecompute("auto profile switched", false);
+                return;
+            }
+        }
+
+        let leftCapsuleUnit = "";
+
+        // PP capsule fixed width: tabular-nums + measured width kills horizontal flicker.
+        // Toggling the class off (SR/MSD) restores auto width.
+        reworkStarEl.classList.toggle("pp-capsule", state.srText === "ReworkPP");
+
+        // 6K 定数: force override left capsule when enabled and map is 6K —
+        // but never override an explicit ReworkPP srText selection (PP wins).
+        if (sixKConst !== null && state.srText !== "ReworkPP") {
+            show6KConstValue(sixKConst);
+            leftCapsuleUnit = "LV";
+        } else if (state.srText === "Pattern") {
+            if (rework) {
+                showCategoryValue(patternReport?.Category || "-");
+            }
+        } else if (state.srText === "InterludeSR") {
+            if (Number.isFinite(interludeStar)) {
+                showInterludeValue(interludeStar);
+                leftCapsuleUnit = "ISR";
+            } else if (rework) {
+                showNumericStarValue(rework.star);
+                leftCapsuleUnit = "SR";
+            }
+        } else if (state.srText === "MSD") {
+            // junk file 时 MSD 不可用：不显示 0.00，回退到星数胶囊（与"无 Ett 结果"一致），
+            // 具体原因由 metadata 红字与 Etterna 段提示给出。
+            const overallValue = ettResult?.junkFile ? Number.NaN : Number(ettResult?.values?.Overall);
+            if (Number.isFinite(overallValue)) {
+                showMsdValue(overallValue);
+                leftCapsuleUnit = "MSD";
+            } else if (rework) {
+                showNumericStarValue(rework.star);
+                leftCapsuleUnit = "SR";
+            }
+        } else if (state.srText === "ReworkPP") {
+            let ppVal = getLatestPpValue();   // from livePp.js (max PP when idle, live PP in play)
+            // livePp 的 cheap guard 在 max 模式下（选图/菜单）可能因 counts 不变而短路，
+            // latestPpValue 滞留旧图值 — ppMetrics 存在时直接计算 max PP，保证换图刷新。
+            if ((ppVal == null || !Number.isFinite(ppVal)) && state.ppMetrics) {
+                const ppRes = calculateReworkPp({
+                    starRating: state.ppMetrics.star,
+                    variety: state.ppMetrics.variety,
+                    accScalar: state.ppMetrics.accScalar,
+                    totalNotes: state.ppMetrics.totalNotes,
+                    perfect: state.ppMetrics.totalNotes, great: 0, good: 0, ok: 0, meh: 0, miss: 0,
+                    noFail: state.modCodes.includes("NF"),
+                    easy: state.modCodes.includes("EZ"),
+                });
+                ppVal = ppRes ? ppRes.pp : null;
+            }
+            if (ppVal != null && Number.isFinite(ppVal)) {
+                showReworkPpValue(ppVal);
+                leftCapsuleUnit = "PP";
+            } else if (rework) {
+                showNumericStarValue(rework.star);   // ppMetrics 缺失 fallback
+                leftCapsuleUnit = "SR";
+            }
+        } else if (rework) {
+            showNumericStarValue(rework.star);
+            if (state.srText === "ReworkSR") {
+                leftCapsuleUnit = "SR";
+            }
+        }
+
+        setLeftCapsuleUnitBadge(leftCapsuleUnit);
+
+        // junk file（MinaCalc 全 0 技能值）时 MSD 不可用：用 NaN 让胶囊与分隔符显示 "--"，
+        // 而不是把一个假的 0.00 当作读数。
+        const ettOverallValue = ettResult?.junkFile ? Number.NaN : Number(ettResult?.values?.Overall);
+        renderRightCapsule(
+            state.diffText,
+            Number(rework?.star),
+            patternReport?.Category || "-",
+            ettOverallValue,
+            Number(interludeStar),
+        );
+
+        renderFullModeSeparators(ettOverallValue);
+
+        if (isVibroMap && state.diffText === "Difficulty") {
+            setEstimateDifficultyText("VIBRO");
+        }
+
+        // 主体渲染完成：auto 高度下内容撑开是瞬时的，这里从渲染前高度补过渡动画。
+        // 放在 refreshAutoDisplayProfile 之后，避免 profile 切换已触发的动画被打断重播。
+        animateCardHeightTransition(heightBeforeBodyRender);
+
+        const metadataLine = formatMetadataStatus(parsedInfo.metadata);
+        const metadataErrors = errors.filter((entry) => {
+            const text = String(entry ?? "").trim().toLowerCase();
+            return !text.startsWith("companella ");
+        });
+
+        reworkMetaEl.innerHTML = resolvedMetaHtml;
+
+        if (metadataErrors.length > 0) {
+            const errorText = buildMetaError(metadataErrors);
+            setStatus(`[Error] ${errorText}`, "error");
+            hideOverlay();
+        } else {
+            setStatus(metadataLine, "ok");
+            hideOverlay();
+        }
+
+        if (rework && metadataErrors.length === 0 && !isStaleRequest()) {
+            // 数值化难度（Reform 段位体系，.0 = mid）：Azusa/Roxy 的原生值已是
+            // 标准尺度，直接用；其余算法（Sunny/Companella/Daniel——Daniel 的
+            // 原生值是其 DP 尺度，比标准约高 0.5）用 estDiff 标签反向换算。
+            // 边界标签（< Alpha Low 等）反解为 null → 不上报该字段。
+            const rcNative = state.actualEstimatorAlgorithm === "Azusa" || state.actualEstimatorAlgorithm === "Roxy";
+            const numericDifficulty = rcNative
+                && typeof resolvedNumericDifficulty === "number"
+                && Number.isFinite(resolvedNumericDifficulty)
+                ? resolvedNumericDifficulty
+                : rcLabelToNumeric(resolvedEstDiff);
+            // 值域守卫：state.actualEstimatorAlgorithm 是**显示**口径（可含融合胶囊），
+            // 载荷只能带真实算法名（见 toTelemetryActualAlgorithm）。
+            const telemetryActualAlgorithm = toTelemetryActualAlgorithm(state.actualEstimatorAlgorithm);
+            const payload = {
+                algorithm: state.estimatorAlgorithm,
+                ...(telemetryActualAlgorithm ? { actualAlgorithm: telemetryActualAlgorithm } : {}),
+                client: telemetryClient,
+                keycount: Number(rework.columnCount),
+                mods: state.modCodes || [],
+                speedRate: Number(state.speedRate) || 1,
+                mode: shouldShowSvTag ? "SV" : state.currentModeTag,
+                star: Number(rework.star),
+                lnRatio: Number(rework.lnRatio ?? parsedInfo.lnRatio),
+                typeBreakdown: typePercentageData ?? null,
+                durationMs: Math.max(0, Math.round(performance.now() - analysisStartedAt)),
+            };
+            if (Number.isFinite(numericDifficulty)) {
+                payload.numericDifficulty = numericDifficulty;
+            }
+            trackTelemetryAnalyze(payload);
+        }
+    } catch (error) {
+        if (isStaleRequest()) return;
+        // 壳离线页（24061）无 tosu 数据面且无原生传输可用时，抓取失败（如 404 / Failed to fetch）
+        // 属于数据源尚未就绪的等待态，绝不弹阻断性的全屏错误框（避免"始终处于 Load failed 状态"）。
+        const isShellOfflinePage = typeof window !== "undefined"
+            && window.location
+            && String(window.location.port) === "24061";
+        if (isShellOfflinePage && !state.shellTosuOnline && !isRuntimeOsuOverrideActive()) {
+            setStatus("Waiting for a data source (Etterna/Malody or tosu)...", "ok");
+            resetReworkDisplay();
+            patternClustersEl.innerHTML = "";
+            ettSkillBarsEl.innerHTML = "";
+            ppBarsEl.innerHTML = "";
+            return;
+        }
+        setStatus(`Failed to load beatmap file: ${error.message}`, "error");
+        resetReworkDisplay();
+        patternClustersEl.innerHTML = contentBarShows("Pattern")
+            ? "<li class=\"cluster-item empty\">No data</li>"
+            : "";
+        ettSkillBarsEl.innerHTML = contentBarShows("Etterna")
+            ? "<li class=\"ett-skill-item empty\">No data</li>"
+            : "";
+        ppBarsEl.innerHTML = contentBarShows("ReworkPP")
+            ? "<li class=\"pp-item empty\">No data</li>"
+            : "";
+        showOverlay({
+            title: "Load failed",
+            message: String(error.message || "Unknown error"),
+            isError: true,
+            showSpinner: false,
+        });
+    } finally {
+        // result 帧（契约 §2）：外部源请求即使被衍生 recompute 判定 stale 也照发——
+        // result 仅外发（壳应答/写 skin），无页面 UI 副作用，stale 守卫不适用于它。
+        if (sourceRequestId && isBridgeConnected()) {
+            const hasError = errors.length > 0;
+            const starText = reworkStarEl && reworkStarEl.textContent
+                ? String(reworkStarEl.textContent)
+                : "";
+            const starMatch = starText.match(/-?\d+(\.\d+)?/);
+            sendResult({
+                requestId: sourceRequestId,
+                statusHint: hasError ? "analysis-failed" : "success",
+                activeSource: sourceActive || "",
+                errors: hasError ? [...errors] : [],
+                star: starMatch ? Number(starMatch[0]) : null,
+                pattern: state.currentModeTag || null,
+                updatedAt: Date.now(),
+            });
+        }
+        if (isStaleRequest()) return;
+        reworkMetaEl.classList.remove("loading");
+    }
+}

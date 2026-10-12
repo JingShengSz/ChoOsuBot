@@ -1,0 +1,4365 @@
+{
+  "checked_at": "2026-10-10",
+  "upstream_commit": "04643dee6cacfaadc6c80976256481322e21e945",
+  "openapi_sha256": "ce25038c2d4ca92f9a8f03f309f97f5c4227d65e6420cc0fe8fba8dd42da1529",
+  "sources": [
+    "https://osu.ppy.sh/docs/index.html",
+    "https://osu.ppy.sh/docs/openapi.yaml",
+    "https://github.com/ppy/osu-web/blob/04643dee6cacfaadc6c80976256481322e21e945/routes/web.php",
+    "https://github.com/ppy/osu-api/wiki"
+  ],
+  "operations": [
+    {
+      "id": "getApiV2MeBeatmapsetFavourites",
+      "upstream_operation_id": "getApiV2MeBeatmapsetFavourites",
+      "method": "GET",
+      "path": "/me/beatmapset-favourites",
+      "category": "Account",
+      "title": "/api/v2/me/beatmapset-favourites",
+      "description": "GET /api/v2/me/beatmapset-favourites",
+      "auth": [
+        "requires user",
+        "OAuth",
+        "identify"
+      ],
+      "enabled": false,
+      "disabled_reason": "需要用户授权或额外 scope",
+      "parameters": [],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#account-GETapi-v2-me-beatmapset-favourites"
+    },
+    {
+      "id": "getBeatmapPacks",
+      "upstream_operation_id": "getBeatmapPacks",
+      "method": "GET",
+      "path": "/beatmaps/packs",
+      "category": "Beatmap Packs",
+      "title": "Get Beatmap Packs",
+      "description": "Get Beatmap Packs",
+      "auth": [
+        "OAuth",
+        "public"
+      ],
+      "enabled": true,
+      "disabled_reason": "",
+      "parameters": [
+        {
+          "name": "type",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "[BeatmapPackType](#beatmappacktype) of the beatmap packs to be returned. Defaults to `standard`."
+        },
+        {
+          "name": "cursor_string",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "[CursorString](#cursorstring) for pagination."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#beatmap-packs-GETapi-v2-beatmaps-packs"
+    },
+    {
+      "id": "getBeatmapPack",
+      "upstream_operation_id": "getBeatmapPack",
+      "method": "GET",
+      "path": "/beatmaps/packs/{pack}",
+      "category": "Beatmap Packs",
+      "title": "Get Beatmap Pack",
+      "description": "Get Beatmap Pack",
+      "auth": [
+        "OAuth",
+        "public"
+      ],
+      "enabled": true,
+      "disabled_reason": "",
+      "parameters": [
+        {
+          "name": "pack",
+          "in": "path",
+          "required": true,
+          "type": "string",
+          "description": "The tag of the beatmap pack to be returned."
+        },
+        {
+          "name": "legacy_only",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "Whether or not to consider lazer scores for user completion data. Defaults to 0."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#beatmap-packs-GETapi-v2-beatmaps-packs--pack-"
+    },
+    {
+      "id": "lookupBeatmap",
+      "upstream_operation_id": "lookupBeatmap",
+      "method": "GET",
+      "path": "/beatmaps/lookup",
+      "category": "Beatmaps",
+      "title": "Lookup Beatmap",
+      "description": "Lookup Beatmap",
+      "auth": [
+        "OAuth",
+        "public"
+      ],
+      "enabled": true,
+      "disabled_reason": "",
+      "parameters": [
+        {
+          "name": "checksum",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "A beatmap checksum."
+        },
+        {
+          "name": "filename",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "A filename to lookup."
+        },
+        {
+          "name": "id",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "A beatmap ID to lookup."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#beatmaps-GETapi-v2-beatmaps-lookup"
+    },
+    {
+      "id": "getAUserBeatmapScore",
+      "upstream_operation_id": "getAUserBeatmapScore",
+      "method": "GET",
+      "path": "/beatmaps/{beatmap}/scores/users/{user}",
+      "category": "Beatmaps",
+      "title": "Get a User Beatmap score",
+      "description": "Get a User Beatmap score",
+      "auth": [
+        "OAuth",
+        "public"
+      ],
+      "enabled": true,
+      "disabled_reason": "",
+      "parameters": [
+        {
+          "name": "beatmap",
+          "in": "path",
+          "required": true,
+          "type": "integer",
+          "description": "Id of the [Beatmap](#beatmap)."
+        },
+        {
+          "name": "user",
+          "in": "path",
+          "required": true,
+          "type": "integer",
+          "description": "Id of the [User](#user)."
+        },
+        {
+          "name": "legacy_only",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "Whether or not to exclude lazer scores. Defaults to 0."
+        },
+        {
+          "name": "mode",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "The [Ruleset](#ruleset) to get scores for."
+        },
+        {
+          "name": "mods",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "An array of matching Mods, or none // TODO."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#beatmaps-GETapi-v2-beatmaps--beatmap--scores-users--user-"
+    },
+    {
+      "id": "getAUserBeatmapScores",
+      "upstream_operation_id": "getAUserBeatmapScores",
+      "method": "GET",
+      "path": "/beatmaps/{beatmap}/scores/users/{user}/all",
+      "category": "Beatmaps",
+      "title": "Get a User Beatmap scores",
+      "description": "Get a User Beatmap scores",
+      "auth": [
+        "OAuth",
+        "public"
+      ],
+      "enabled": true,
+      "disabled_reason": "",
+      "parameters": [
+        {
+          "name": "beatmap",
+          "in": "path",
+          "required": true,
+          "type": "integer",
+          "description": "Id of the [Beatmap](#beatmap)."
+        },
+        {
+          "name": "user",
+          "in": "path",
+          "required": true,
+          "type": "integer",
+          "description": "Id of the [User](#user)."
+        },
+        {
+          "name": "legacy_only",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "Whether or not to exclude lazer scores. Defaults to 0."
+        },
+        {
+          "name": "mode",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "(deprecated) The [Ruleset](#ruleset) to get scores for. Defaults to beatmap ruleset."
+        },
+        {
+          "name": "ruleset",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "The [Ruleset](#ruleset) to get scores for. Defaults to beatmap ruleset."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#beatmaps-GETapi-v2-beatmaps--beatmap--scores-users--user--all"
+    },
+    {
+      "id": "getBeatmapScores",
+      "upstream_operation_id": "getBeatmapScores",
+      "method": "GET",
+      "path": "/beatmaps/{beatmap}/scores",
+      "category": "Beatmaps",
+      "title": "Get Beatmap scores",
+      "description": "Get Beatmap scores",
+      "auth": [
+        "OAuth",
+        "public"
+      ],
+      "enabled": true,
+      "disabled_reason": "",
+      "parameters": [
+        {
+          "name": "beatmap",
+          "in": "path",
+          "required": true,
+          "type": "integer",
+          "description": "Id of the [Beatmap](#beatmap)."
+        },
+        {
+          "name": "legacy_only",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "Whether or not to exclude lazer scores. Defaults to 0."
+        },
+        {
+          "name": "mode",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "The [Ruleset](#ruleset) to get scores for."
+        },
+        {
+          "name": "mods",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "An array of matching Mods, or none // TODO."
+        },
+        {
+          "name": "type",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Beatmap score ranking type // TODO."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#beatmaps-GETapi-v2-beatmaps--beatmap--scores"
+    },
+    {
+      "id": "getBeatmapScoresnonLegacy",
+      "upstream_operation_id": "getBeatmapScoresnonLegacy",
+      "method": "GET",
+      "path": "/beatmaps/{beatmap}/solo-scores",
+      "category": "Beatmaps",
+      "title": "Get Beatmap scores (non-legacy)",
+      "description": "Get Beatmap scores (non-legacy)",
+      "auth": [
+        "OAuth",
+        "public"
+      ],
+      "enabled": false,
+      "disabled_reason": "已弃用，请使用替代接口",
+      "parameters": [
+        {
+          "name": "beatmap",
+          "in": "path",
+          "required": true,
+          "type": "integer",
+          "description": "Id of the [Beatmap](#beatmap)."
+        },
+        {
+          "name": "mode",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "The [Ruleset](#ruleset) to get scores for."
+        },
+        {
+          "name": "mods",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "An array of matching Mods, or none // TODO."
+        },
+        {
+          "name": "type",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Beatmap score ranking type // TODO."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#beatmaps-GETapi-v2-beatmaps--beatmap--solo-scores"
+    },
+    {
+      "id": "getBeatmaps",
+      "upstream_operation_id": "getBeatmaps",
+      "method": "GET",
+      "path": "/beatmaps",
+      "category": "Beatmaps",
+      "title": "Get Beatmaps",
+      "description": "Get Beatmaps",
+      "auth": [
+        "OAuth",
+        "public"
+      ],
+      "enabled": true,
+      "disabled_reason": "",
+      "parameters": [
+        {
+          "name": "ids[]",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "Beatmap IDs to be returned. Specify once for each beatmap ID requested. Up to 50 beatmaps can be requested at once."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#beatmaps-GETapi-v2-beatmaps"
+    },
+    {
+      "id": "getBeatmap",
+      "upstream_operation_id": "getBeatmap",
+      "method": "GET",
+      "path": "/beatmaps/{beatmap}",
+      "category": "Beatmaps",
+      "title": "Get Beatmap",
+      "description": "Get Beatmap",
+      "auth": [
+        "OAuth",
+        "public"
+      ],
+      "enabled": true,
+      "disabled_reason": "",
+      "parameters": [
+        {
+          "name": "beatmap",
+          "in": "path",
+          "required": true,
+          "type": "integer",
+          "description": "The ID of the beatmap."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#beatmaps-GETapi-v2-beatmaps--beatmap-"
+    },
+    {
+      "id": "getBeatmapAttributes",
+      "upstream_operation_id": "getBeatmapAttributes",
+      "method": "POST",
+      "path": "/beatmaps/{beatmap}/attributes",
+      "category": "Beatmaps",
+      "title": "Get Beatmap Attributes",
+      "description": "Get Beatmap Attributes",
+      "auth": [
+        "OAuth",
+        "public"
+      ],
+      "enabled": true,
+      "disabled_reason": "",
+      "parameters": [
+        {
+          "name": "beatmap",
+          "in": "path",
+          "required": true,
+          "type": "integer",
+          "description": "Beatmap id."
+        }
+      ],
+      "body_schema": {
+        "type": "object",
+        "properties": {
+          "mods": {
+            "type": "array",
+            "description": "Mod combination. Can be either a bitset of mods, array of mod acronyms, or array of mods. Defaults to no mods.",
+            "example": 1,
+            "items": {
+              "type": "integer|string[]|Mod"
+            }
+          },
+          "ruleset": {
+            "type": "Ruleset",
+            "description": "Ruleset of the difficulty attributes. Only valid if it's the beatmap ruleset or the beatmap can be converted to the specified ruleset. Defaults to ruleset of the specified beatmap.",
+            "example": "osu"
+          },
+          "ruleset_id": {
+            "type": "integer",
+            "description": "The same as `ruleset` but in integer form.",
+            "example": null
+          }
+        }
+      },
+      "docs": "https://osu.ppy.sh/docs/index.html#beatmaps-POSTapi-v2-beatmaps--beatmap--attributes"
+    },
+    {
+      "id": "getBeatmapsetDiscussionPosts",
+      "upstream_operation_id": "getBeatmapsetDiscussionPosts",
+      "method": "GET",
+      "path": "/beatmapsets/discussions/posts",
+      "category": "Beatmapset Discussions",
+      "title": "Get Beatmapset Discussion Posts",
+      "description": "Get Beatmapset Discussion Posts",
+      "auth": [
+        "OAuth",
+        "public"
+      ],
+      "enabled": true,
+      "disabled_reason": "",
+      "parameters": [
+        {
+          "name": "beatmapset_discussion_id",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "`id` of the [BeatmapsetDiscussion](#beatmapsetdiscussion)."
+        },
+        {
+          "name": "limit",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "Maximum number of results."
+        },
+        {
+          "name": "page",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "Search result page."
+        },
+        {
+          "name": "sort",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "`id_desc` for newest first; `id_asc` for oldest first. Defaults to `id_desc`."
+        },
+        {
+          "name": "types[]",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "`first`, `reply`, `system` are the valid values. Defaults to `reply`."
+        },
+        {
+          "name": "user",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "The `id` of the [User](#user)."
+        },
+        {
+          "name": "with_deleted",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "This param has no effect as api calls do not currently receive group permissions."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#beatmapset-discussions-GETapi-v2-beatmapsets-discussions-posts"
+    },
+    {
+      "id": "getBeatmapsetDiscussionVotes",
+      "upstream_operation_id": "getBeatmapsetDiscussionVotes",
+      "method": "GET",
+      "path": "/beatmapsets/discussions/votes",
+      "category": "Beatmapset Discussions",
+      "title": "Get Beatmapset Discussion Votes",
+      "description": "Get Beatmapset Discussion Votes",
+      "auth": [
+        "OAuth",
+        "public"
+      ],
+      "enabled": true,
+      "disabled_reason": "",
+      "parameters": [
+        {
+          "name": "beatmapset_discussion_id",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "`id` of the [BeatmapsetDiscussion](#beatmapsetdiscussion)."
+        },
+        {
+          "name": "limit",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "Maximum number of results."
+        },
+        {
+          "name": "page",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "Search result page."
+        },
+        {
+          "name": "receiver",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "The `id` of the [User](#user) receiving the votes."
+        },
+        {
+          "name": "score",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "`1` for up vote, `-1` for down vote."
+        },
+        {
+          "name": "sort",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "`id_desc` for newest first; `id_asc` for oldest first. Defaults to `id_desc`."
+        },
+        {
+          "name": "user",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "The `id` of the [User](#user) giving the votes."
+        },
+        {
+          "name": "with_deleted",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "This param has no effect as api calls do not currently receive group permissions."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#beatmapset-discussions-GETapi-v2-beatmapsets-discussions-votes"
+    },
+    {
+      "id": "getBeatmapsetDiscussions",
+      "upstream_operation_id": "getBeatmapsetDiscussions",
+      "method": "GET",
+      "path": "/beatmapsets/discussions",
+      "category": "Beatmapset Discussions",
+      "title": "Get Beatmapset Discussions",
+      "description": "Get Beatmapset Discussions",
+      "auth": [
+        "OAuth",
+        "public"
+      ],
+      "enabled": true,
+      "disabled_reason": "",
+      "parameters": [
+        {
+          "name": "beatmap_id",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "`id` of the [Beatmap](#beatmap)."
+        },
+        {
+          "name": "beatmapset_id",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "`id` of the [Beatmapset](#beatmapset)."
+        },
+        {
+          "name": "beatmapset_status",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "One of `all`, `ranked`, `qualified`, `disqualified`, `never_qualified`. Defaults to `all`. TODO: better descriptions."
+        },
+        {
+          "name": "limit",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "Maximum number of results."
+        },
+        {
+          "name": "message_types[]",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "`suggestion`, `problem`, `mapper_note`, `praise`, `hype`, `review`. Blank defaults to all types. TODO: better descriptions."
+        },
+        {
+          "name": "only_unresolved",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "`true` to show only unresolved issues; `false`, otherwise. Defaults to `false`."
+        },
+        {
+          "name": "page",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "Search result page."
+        },
+        {
+          "name": "sort",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "`id_desc` for newest first; `id_asc` for oldest first. Defaults to `id_desc`."
+        },
+        {
+          "name": "user",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "The `id` of the [User](#user)."
+        },
+        {
+          "name": "with_deleted",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "This param has no effect as api calls do not currently receive group permissions."
+        },
+        {
+          "name": "cursor_string",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "[CursorString](#cursorstring) for pagination."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#beatmapset-discussions-GETapi-v2-beatmapsets-discussions"
+    },
+    {
+      "id": "searchBeatmapset",
+      "upstream_operation_id": "searchBeatmapset",
+      "method": "GET",
+      "path": "/beatmapsets/search",
+      "category": "Beatmapsets",
+      "title": "Search Beatmapset",
+      "description": "Search Beatmapset",
+      "auth": [
+        "OAuth",
+        "public"
+      ],
+      "enabled": true,
+      "disabled_reason": "",
+      "parameters": [
+        {
+          "name": "cursor_string",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "[CursorString](#cursorstring) for pagination."
+        },
+        {
+          "name": "q",
+          "in": "query",
+          "type": "string",
+          "required": false,
+          "description": "搜索词；可带 stars>5 等官方搜索语法"
+        },
+        {
+          "name": "m",
+          "in": "query",
+          "type": "integer",
+          "required": false,
+          "description": "模式：0 osu / 1 taiko / 2 fruits / 3 mania，-1 全部"
+        },
+        {
+          "name": "s",
+          "in": "query",
+          "type": "string",
+          "required": false,
+          "description": "状态：any/leaderboard/ranked/qualified/loved/pending/wip/graveyard"
+        },
+        {
+          "name": "sort",
+          "in": "query",
+          "type": "string",
+          "required": false,
+          "description": "排序，如 ranked_desc / relevance_desc / difficulty_desc"
+        },
+        {
+          "name": "g",
+          "in": "query",
+          "type": "integer",
+          "required": false,
+          "description": "曲风 ID"
+        },
+        {
+          "name": "l",
+          "in": "query",
+          "type": "integer",
+          "required": false,
+          "description": "语言 ID"
+        },
+        {
+          "name": "nsfw",
+          "in": "query",
+          "type": "boolean",
+          "required": false,
+          "description": "是否允许 NSFW 结果"
+        },
+        {
+          "name": "c",
+          "in": "query",
+          "type": "string",
+          "required": false,
+          "description": "通用筛选，用 . 分隔，如 converts.featured_artists；部分需要用户权限"
+        },
+        {
+          "name": "e",
+          "in": "query",
+          "type": "string",
+          "required": false,
+          "description": "video/storyboard，用 . 分隔"
+        },
+        {
+          "name": "page",
+          "in": "query",
+          "type": "integer",
+          "required": false,
+          "description": "页码，推荐使用 cursor_string"
+        },
+        {
+          "name": "played",
+          "in": "query",
+          "type": "string",
+          "required": false,
+          "description": "any/played/unplayed；后两者需要用户身份"
+        },
+        {
+          "name": "r",
+          "in": "query",
+          "type": "string",
+          "required": false,
+          "description": "按自己的评级筛选；需要用户身份及 supporter 权限"
+        },
+        {
+          "name": "query",
+          "in": "query",
+          "type": "string",
+          "required": false,
+          "description": "q 的别名"
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#beatmapsets-GETapi-v2-beatmapsets-search",
+      "parameter_source": "https://github.com/ppy/osu-web/blob/master/app/Libraries/Search/BeatmapsetSearchRequestParams.php"
+    },
+    {
+      "id": "getApiV2BeatmapsetsLookup",
+      "upstream_operation_id": "getApiV2BeatmapsetsLookup",
+      "method": "GET",
+      "path": "/beatmapsets/lookup",
+      "category": "Beatmapsets",
+      "title": "/api/v2/beatmapsets/lookup",
+      "description": "GET /api/v2/beatmapsets/lookup",
+      "auth": [
+        "OAuth",
+        "public"
+      ],
+      "enabled": true,
+      "disabled_reason": "",
+      "parameters": [
+        {
+          "name": "beatmap_id",
+          "type": "integer",
+          "in": "query",
+          "required": false,
+          "description": "谱面难度 ID"
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#beatmapsets-GETapi-v2-beatmapsets-lookup",
+      "parameter_source": "https://github.com/ppy/osu-web/tree/04643dee6cacfaadc6c80976256481322e21e945/app/Http/Controllers"
+    },
+    {
+      "id": "getApiV2BeatmapsetsBeatmapset",
+      "upstream_operation_id": "getApiV2BeatmapsetsBeatmapset",
+      "method": "GET",
+      "path": "/beatmapsets/{beatmapset}",
+      "category": "Beatmapsets",
+      "title": "/api/v2/beatmapsets/{beatmapset}",
+      "description": "GET /api/v2/beatmapsets/{beatmapset}",
+      "auth": [
+        "OAuth",
+        "public"
+      ],
+      "enabled": true,
+      "disabled_reason": "",
+      "parameters": [
+        {
+          "name": "beatmapset",
+          "in": "path",
+          "required": true,
+          "type": "string",
+          "description": "The beatmapset."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#beatmapsets-GETapi-v2-beatmapsets--beatmapset-"
+    },
+    {
+      "id": "getApiV2BeatmapsetsBeatmapsetDownload",
+      "upstream_operation_id": "getApiV2BeatmapsetsBeatmapsetDownload",
+      "method": "GET",
+      "path": "/beatmapsets/{beatmapset}/download",
+      "category": "Beatmapsets",
+      "title": "/api/v2/beatmapsets/{beatmapset}/download",
+      "description": "GET /api/v2/beatmapsets/{beatmapset}/download",
+      "auth": [
+        "OAuth",
+        "lazer"
+      ],
+      "enabled": false,
+      "disabled_reason": "lazer 客户端专用",
+      "parameters": [
+        {
+          "name": "beatmapset",
+          "in": "path",
+          "required": true,
+          "type": "string",
+          "description": "The beatmapset."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#beatmapsets-GETapi-v2-beatmapsets--beatmapset--download"
+    },
+    {
+      "id": "getChangelogBuild",
+      "upstream_operation_id": "getChangelogBuild",
+      "method": "GET",
+      "path": "/changelog/{stream}/{build}",
+      "category": "Changelog",
+      "title": "Get Changelog Build",
+      "description": "Get Changelog Build",
+      "auth": [],
+      "enabled": true,
+      "disabled_reason": "",
+      "parameters": [
+        {
+          "name": "stream",
+          "in": "path",
+          "required": true,
+          "type": "string",
+          "description": "Update stream name."
+        },
+        {
+          "name": "build",
+          "in": "path",
+          "required": true,
+          "type": "string",
+          "description": "Build version."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#changelog-GETapi-v2-changelog--stream---build-"
+    },
+    {
+      "id": "getChangelogListing",
+      "upstream_operation_id": "getChangelogListing",
+      "method": "GET",
+      "path": "/changelog",
+      "category": "Changelog",
+      "title": "Get Changelog Listing",
+      "description": "Get Changelog Listing",
+      "auth": [],
+      "enabled": true,
+      "disabled_reason": "",
+      "parameters": [
+        {
+          "name": "from",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Minimum build version."
+        },
+        {
+          "name": "max_id",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "Maximum build ID."
+        },
+        {
+          "name": "stream",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Stream name to return builds from."
+        },
+        {
+          "name": "to",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Maximum build version."
+        },
+        {
+          "name": "message_formats[]",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "`html`, `markdown`. Default to both."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#changelog-GETapi-v2-changelog"
+    },
+    {
+      "id": "lookupChangelogBuild",
+      "upstream_operation_id": "lookupChangelogBuild",
+      "method": "GET",
+      "path": "/changelog/{changelog}",
+      "category": "Changelog",
+      "title": "Lookup Changelog Build",
+      "description": "Lookup Changelog Build",
+      "auth": [],
+      "enabled": true,
+      "disabled_reason": "",
+      "parameters": [
+        {
+          "name": "changelog",
+          "in": "path",
+          "required": true,
+          "type": "string",
+          "description": "Build version, update stream name, or build ID."
+        },
+        {
+          "name": "key",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Unset to query by build version or stream name, or `id` to query by build ID."
+        },
+        {
+          "name": "message_formats[]",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "`html`, `markdown`. Default to both."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#changelog-GETapi-v2-changelog--changelog-"
+    },
+    {
+      "id": "chatKeepalive",
+      "upstream_operation_id": "chatKeepalive",
+      "method": "POST",
+      "path": "/chat/ack",
+      "category": "Chat",
+      "title": "Chat Keepalive",
+      "description": "Chat Keepalive",
+      "auth": [
+        "requires user",
+        "OAuth",
+        "chat.read"
+      ],
+      "enabled": false,
+      "disabled_reason": "需要用户授权或额外 scope",
+      "parameters": [
+        {
+          "name": "history_since",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "[UserSilence](#usersilence)s after the specified id to return.\nThis field is preferred and takes precedence over `since`."
+        },
+        {
+          "name": "since",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "[UserSilence](#usersilence)s after the specified [ChatMessage.message_id](#chatmessage) to return."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#chat-POSTapi-v2-chat-ack"
+    },
+    {
+      "id": "createNewPM",
+      "upstream_operation_id": "createNewPM",
+      "method": "POST",
+      "path": "/chat/new",
+      "category": "Chat",
+      "title": "Create New PM",
+      "description": "Create New PM",
+      "auth": [
+        "requires user",
+        "OAuth",
+        "chat.write"
+      ],
+      "enabled": false,
+      "disabled_reason": "需要用户授权或额外 scope",
+      "parameters": [],
+      "body_schema": {
+        "type": "object",
+        "properties": {
+          "target_id": {
+            "type": "integer",
+            "description": "`user_id` of user to start PM with",
+            "example": 14
+          },
+          "message": {
+            "type": "string",
+            "description": "message to send",
+            "example": "porro"
+          },
+          "is_action": {
+            "type": "boolean",
+            "description": "whether the message is an action",
+            "example": false
+          },
+          "uuid": {
+            "type": "string",
+            "description": "client-side message identifier which will be sent back in response and websocket json.",
+            "example": "some-uuid-string"
+          }
+        },
+        "required": [
+          "target_id",
+          "message",
+          "is_action"
+        ]
+      },
+      "docs": "https://osu.ppy.sh/docs/index.html#chat-POSTapi-v2-chat-new"
+    },
+    {
+      "id": "getUpdates",
+      "upstream_operation_id": "getUpdates",
+      "method": "GET",
+      "path": "/chat/updates",
+      "category": "Chat",
+      "title": "Get Updates",
+      "description": "Get Updates",
+      "auth": [
+        "requires user",
+        "OAuth",
+        "lazer"
+      ],
+      "enabled": false,
+      "disabled_reason": "lazer 客户端专用",
+      "parameters": [
+        {
+          "name": "history_since",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "[UserSilence](#usersilence)s after the specified id to return.\nThis field is preferred and takes precedence over `since`."
+        },
+        {
+          "name": "includes",
+          "in": "query",
+          "required": false,
+          "type": "array",
+          "description": "List of fields from `presence`, `silences` to include in the response. Returns all if not specified."
+        },
+        {
+          "name": "since",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "[UserSilence](#usersilence)s after the specified [ChatMessage.message_id](#chatmessage) to return."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#chat-GETapi-v2-chat-updates"
+    },
+    {
+      "id": "getChannelMessages",
+      "upstream_operation_id": "getChannelMessages",
+      "method": "GET",
+      "path": "/chat/channels/{channel}/messages",
+      "category": "Chat",
+      "title": "Get Channel Messages",
+      "description": "Get Channel Messages",
+      "auth": [
+        "requires user",
+        "OAuth",
+        "chat.read"
+      ],
+      "enabled": false,
+      "disabled_reason": "需要用户授权或额外 scope",
+      "parameters": [
+        {
+          "name": "channel",
+          "in": "path",
+          "required": true,
+          "type": "integer",
+          "description": "The ID of the channel to retrieve messages for"
+        },
+        {
+          "name": "limit",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "number of messages to return (max of 50)"
+        },
+        {
+          "name": "since",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "messages after the specified message id will be returned"
+        },
+        {
+          "name": "until",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "messages up to but not including the specified message id will be returned"
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#chat-GETapi-v2-chat-channels--channel--messages"
+    },
+    {
+      "id": "sendMessageToChannel",
+      "upstream_operation_id": "sendMessageToChannel",
+      "method": "POST",
+      "path": "/chat/channels/{channel}/messages",
+      "category": "Chat",
+      "title": "Send Message to Channel",
+      "description": "Send Message to Channel",
+      "auth": [
+        "requires user",
+        "OAuth",
+        "chat.write"
+      ],
+      "enabled": false,
+      "disabled_reason": "需要用户授权或额外 scope",
+      "parameters": [
+        {
+          "name": "channel",
+          "in": "path",
+          "required": true,
+          "type": "integer",
+          "description": "The ID of the channel to retrieve messages for"
+        }
+      ],
+      "body_schema": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "description": "message to send",
+            "example": "minus"
+          },
+          "is_action": {
+            "type": "boolean",
+            "description": "whether the message is an action",
+            "example": true
+          }
+        },
+        "required": [
+          "message",
+          "is_action"
+        ]
+      },
+      "docs": "https://osu.ppy.sh/docs/index.html#chat-POSTapi-v2-chat-channels--channel--messages"
+    },
+    {
+      "id": "joinChannel",
+      "upstream_operation_id": "joinChannel",
+      "method": "PUT",
+      "path": "/chat/channels/{channel}/users/{user}",
+      "category": "Chat",
+      "title": "Join Channel",
+      "description": "Join Channel",
+      "auth": [
+        "requires user",
+        "OAuth",
+        "chat.write_manage"
+      ],
+      "enabled": false,
+      "disabled_reason": "需要用户授权或额外 scope",
+      "parameters": [
+        {
+          "name": "channel",
+          "in": "path",
+          "required": true,
+          "type": "string",
+          "description": "The channel."
+        },
+        {
+          "name": "user",
+          "in": "path",
+          "required": true,
+          "type": "string",
+          "description": "The user."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#chat-PUTapi-v2-chat-channels--channel--users--user-"
+    },
+    {
+      "id": "leaveChannel",
+      "upstream_operation_id": "leaveChannel",
+      "method": "DELETE",
+      "path": "/chat/channels/{channel}/users/{user}",
+      "category": "Chat",
+      "title": "Leave Channel",
+      "description": "Leave Channel",
+      "auth": [
+        "requires user",
+        "OAuth",
+        "chat.write_manage"
+      ],
+      "enabled": false,
+      "disabled_reason": "需要用户授权或额外 scope",
+      "parameters": [
+        {
+          "name": "channel",
+          "in": "path",
+          "required": true,
+          "type": "string",
+          "description": "The channel."
+        },
+        {
+          "name": "user",
+          "in": "path",
+          "required": true,
+          "type": "string",
+          "description": "The user."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#chat-DELETEapi-v2-chat-channels--channel--users--user-"
+    },
+    {
+      "id": "markChannelAsRead",
+      "upstream_operation_id": "markChannelAsRead",
+      "method": "PUT",
+      "path": "/chat/channels/{channel}/mark-as-read/{message}",
+      "category": "Chat",
+      "title": "Mark Channel as Read",
+      "description": "Mark Channel as Read",
+      "auth": [
+        "requires user",
+        "OAuth",
+        "chat.read"
+      ],
+      "enabled": false,
+      "disabled_reason": "需要用户授权或额外 scope",
+      "parameters": [
+        {
+          "name": "channel",
+          "in": "path",
+          "required": true,
+          "type": "string",
+          "description": "The channel."
+        },
+        {
+          "name": "message",
+          "in": "path",
+          "required": true,
+          "type": "string",
+          "description": ""
+        },
+        {
+          "name": "channel_id",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "The `channel_id` of the channel to mark as read"
+        },
+        {
+          "name": "message_id",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "The `message_id` of the message to mark as read up to"
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#chat-PUTapi-v2-chat-channels--channel--mark-as-read--message-"
+    },
+    {
+      "id": "getChannelList",
+      "upstream_operation_id": "getChannelList",
+      "method": "GET",
+      "path": "/chat/channels",
+      "category": "Chat",
+      "title": "Get Channel List",
+      "description": "Get Channel List",
+      "auth": [
+        "requires user",
+        "OAuth",
+        "chat.read"
+      ],
+      "enabled": false,
+      "disabled_reason": "需要用户授权或额外 scope",
+      "parameters": [],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#chat-GETapi-v2-chat-channels"
+    },
+    {
+      "id": "createChannel",
+      "upstream_operation_id": "createChannel",
+      "method": "POST",
+      "path": "/chat/channels",
+      "category": "Chat",
+      "title": "Create Channel",
+      "description": "Create Channel",
+      "auth": [
+        "requires user",
+        "OAuth",
+        "chat.write_manage"
+      ],
+      "enabled": false,
+      "disabled_reason": "需要用户授权或额外 scope",
+      "parameters": [],
+      "body_schema": {
+        "type": "object",
+        "properties": {
+          "channel": {
+            "type": "object",
+            "description": "channel details; required if `type` is `ANNOUNCE`.",
+            "example": null,
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "the channel name; required if `type` is `ANNOUNCE`.",
+                "example": null
+              },
+              "description": {
+                "type": "string",
+                "description": "the channel description; required if `type` is `ANNOUNCE`.",
+                "example": null
+              }
+            }
+          },
+          "message": {
+            "type": "string",
+            "description": "message to send with the announcement; required if `type` is `ANNOUNCE`.",
+            "example": null
+          },
+          "target_id": {
+            "type": "integer",
+            "description": "target user id; required if `type` is `PM`; ignored, otherwise.",
+            "example": 2
+          },
+          "target_ids": {
+            "type": "array",
+            "description": "target user ids; required if `type` is `ANNOUNCE`; ignored, otherwise.",
+            "example": null,
+            "items": {
+              "type": "integer"
+            }
+          },
+          "type": {
+            "type": "string",
+            "description": "channel type (currently only supports `PM` and `ANNOUNCE`)",
+            "example": "PM"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "docs": "https://osu.ppy.sh/docs/index.html#chat-POSTapi-v2-chat-channels"
+    },
+    {
+      "id": "getChannel",
+      "upstream_operation_id": "getChannel",
+      "method": "GET",
+      "path": "/chat/channels/{channel}",
+      "category": "Chat",
+      "title": "Get Channel",
+      "description": "Get Channel",
+      "auth": [
+        "requires user",
+        "OAuth",
+        "chat.read"
+      ],
+      "enabled": false,
+      "disabled_reason": "需要用户授权或额外 scope",
+      "parameters": [
+        {
+          "name": "channel",
+          "in": "path",
+          "required": true,
+          "type": "string",
+          "description": "The channel."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#chat-GETapi-v2-chat-channels--channel-"
+    },
+    {
+      "id": "getComments",
+      "upstream_operation_id": "getComments",
+      "method": "GET",
+      "path": "/comments",
+      "category": "Comments",
+      "title": "Get Comments",
+      "description": "Get Comments",
+      "auth": [],
+      "enabled": true,
+      "disabled_reason": "",
+      "parameters": [
+        {
+          "name": "after",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Return comments which come after the specified comment id as per sort option."
+        },
+        {
+          "name": "commentable_type",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "The type of resource to get comments for."
+        },
+        {
+          "name": "commentable_id",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "The id of the resource to get comments for."
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Pagination option. See [CommentSort](#commentsort) for detail. The format follows [Cursor](#cursor) except it's not currently included in the response."
+        },
+        {
+          "name": "parent_id",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Limit to comments which are reply to the specified id. Specify 0 to get top level comments."
+        },
+        {
+          "name": "sort",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Sort option as defined in [CommentSort](#commentsort). Defaults to `new` for guests and user-specified default when authenticated."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#comments-GETapi-v2-comments"
+    },
+    {
+      "id": "postANewComment",
+      "upstream_operation_id": "postANewComment",
+      "method": "POST",
+      "path": "/comments",
+      "category": "Comments",
+      "title": "Post a new comment",
+      "description": "Post a new comment",
+      "auth": [
+        "requires user",
+        "OAuth",
+        "lazer"
+      ],
+      "enabled": false,
+      "disabled_reason": "lazer 客户端专用",
+      "parameters": [
+        {
+          "name": "comment.commentable_id",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Resource ID the comment thread is attached to"
+        },
+        {
+          "name": "comment.commentable_type",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Resource type the comment thread is attached to"
+        },
+        {
+          "name": "comment.message",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Text of the comment"
+        },
+        {
+          "name": "comment.parent_id",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "The id of the comment to reply to, null if not a reply"
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#comments-POSTapi-v2-comments"
+    },
+    {
+      "id": "getAComment",
+      "upstream_operation_id": "getAComment",
+      "method": "GET",
+      "path": "/comments/{comment}",
+      "category": "Comments",
+      "title": "Get a Comment",
+      "description": "Get a Comment",
+      "auth": [],
+      "enabled": true,
+      "disabled_reason": "",
+      "parameters": [
+        {
+          "name": "comment",
+          "in": "path",
+          "required": true,
+          "type": "string",
+          "description": "The comment."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#comments-GETapi-v2-comments--comment-"
+    },
+    {
+      "id": "editComment",
+      "upstream_operation_id": "editComment",
+      "method": "PUT",
+      "path": "/comments/{comment}",
+      "category": "Comments",
+      "title": "Edit Comment",
+      "description": "Edit Comment",
+      "auth": [
+        "requires user",
+        "OAuth",
+        "lazer"
+      ],
+      "enabled": false,
+      "disabled_reason": "lazer 客户端专用",
+      "parameters": [
+        {
+          "name": "comment",
+          "in": "path",
+          "required": true,
+          "type": "string",
+          "description": "The comment."
+        },
+        {
+          "name": "comment.message",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "New text of the comment"
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#comments-PUTapi-v2-comments--comment-"
+    },
+    {
+      "id": "deleteComment",
+      "upstream_operation_id": "deleteComment",
+      "method": "DELETE",
+      "path": "/comments/{comment}",
+      "category": "Comments",
+      "title": "Delete Comment",
+      "description": "Delete Comment",
+      "auth": [
+        "requires user",
+        "OAuth",
+        "lazer"
+      ],
+      "enabled": false,
+      "disabled_reason": "lazer 客户端专用",
+      "parameters": [
+        {
+          "name": "comment",
+          "in": "path",
+          "required": true,
+          "type": "string",
+          "description": "The comment."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#comments-DELETEapi-v2-comments--comment-"
+    },
+    {
+      "id": "addCommentVote",
+      "upstream_operation_id": "addCommentVote",
+      "method": "POST",
+      "path": "/comments/{comment}/vote",
+      "category": "Comments",
+      "title": "Add Comment vote",
+      "description": "Add Comment vote",
+      "auth": [
+        "requires user",
+        "OAuth",
+        "lazer"
+      ],
+      "enabled": false,
+      "disabled_reason": "lazer 客户端专用",
+      "parameters": [
+        {
+          "name": "comment",
+          "in": "path",
+          "required": true,
+          "type": "string",
+          "description": "The comment."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#comments-POSTapi-v2-comments--comment--vote"
+    },
+    {
+      "id": "removeCommentVote",
+      "upstream_operation_id": "removeCommentVote",
+      "method": "DELETE",
+      "path": "/comments/{comment}/vote",
+      "category": "Comments",
+      "title": "Remove Comment vote",
+      "description": "Remove Comment vote",
+      "auth": [
+        "requires user",
+        "OAuth",
+        "lazer"
+      ],
+      "enabled": false,
+      "disabled_reason": "lazer 客户端专用",
+      "parameters": [
+        {
+          "name": "comment",
+          "in": "path",
+          "required": true,
+          "type": "string",
+          "description": "The comment."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#comments-DELETEapi-v2-comments--comment--vote"
+    },
+    {
+      "id": "getEvents",
+      "upstream_operation_id": "getEvents",
+      "method": "GET",
+      "path": "/events",
+      "category": "Events",
+      "title": "Get Events",
+      "description": "Get Events",
+      "auth": [
+        "OAuth",
+        "public"
+      ],
+      "enabled": true,
+      "disabled_reason": "",
+      "parameters": [
+        {
+          "name": "sort",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Sorting option. Valid values are `id_desc` (default) and `id_asc`."
+        },
+        {
+          "name": "cursor_string",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "[CursorString](#cursorstring) for pagination."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#events-GETapi-v2-events"
+    },
+    {
+      "id": "lockTopic",
+      "upstream_operation_id": "lockTopic",
+      "method": "POST",
+      "path": "/forums/topics/{topic}/lock",
+      "category": "Forum",
+      "title": "Lock Topic",
+      "description": "Lock Topic",
+      "auth": [
+        "requires user",
+        "OAuth",
+        "forum.write_manage"
+      ],
+      "enabled": false,
+      "disabled_reason": "需要用户授权或额外 scope",
+      "parameters": [
+        {
+          "name": "topic",
+          "in": "path",
+          "required": true,
+          "type": "integer",
+          "description": "Topic id."
+        },
+        {
+          "name": "lock",
+          "in": "query",
+          "required": true,
+          "type": "boolean",
+          "description": ""
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#forum-POSTapi-v2-forums-topics--topic--lock"
+    },
+    {
+      "id": "postApiV2ForumsTopicsTopicMove",
+      "upstream_operation_id": "postApiV2ForumsTopicsTopicMove",
+      "method": "POST",
+      "path": "/forums/topics/{topic}/move",
+      "category": "Forum",
+      "title": "/api/v2/forums/topics/{topic}/move",
+      "description": "POST /api/v2/forums/topics/{topic}/move",
+      "auth": [
+        "OAuth",
+        "lazer"
+      ],
+      "enabled": false,
+      "disabled_reason": "lazer 客户端专用",
+      "parameters": [
+        {
+          "name": "topic",
+          "in": "path",
+          "required": true,
+          "type": "string",
+          "description": "The topic."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#forum-POSTapi-v2-forums-topics--topic--move"
+    },
+    {
+      "id": "pinTopic",
+      "upstream_operation_id": "pinTopic",
+      "method": "POST",
+      "path": "/forums/topics/{topic}/pin",
+      "category": "Forum",
+      "title": "Pin Topic",
+      "description": "Pin Topic",
+      "auth": [
+        "requires user",
+        "OAuth",
+        "forum.write_manage"
+      ],
+      "enabled": false,
+      "disabled_reason": "需要用户授权或额外 scope",
+      "parameters": [
+        {
+          "name": "topic",
+          "in": "path",
+          "required": true,
+          "type": "integer",
+          "description": "Topic id."
+        },
+        {
+          "name": "pin",
+          "in": "query",
+          "required": true,
+          "type": "integer",
+          "description": "Type of pin, 0 to unpin, 1 for sticky, 2 for announcement."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#forum-POSTapi-v2-forums-topics--topic--pin"
+    },
+    {
+      "id": "replyTopic",
+      "upstream_operation_id": "replyTopic",
+      "method": "POST",
+      "path": "/forums/topics/{topic}/reply",
+      "category": "Forum",
+      "title": "Reply Topic",
+      "description": "Reply Topic",
+      "auth": [
+        "requires user",
+        "OAuth",
+        "forum.write"
+      ],
+      "enabled": false,
+      "disabled_reason": "需要用户授权或额外 scope",
+      "parameters": [
+        {
+          "name": "topic",
+          "in": "path",
+          "required": true,
+          "type": "integer",
+          "description": "Id of the topic to be replied to."
+        }
+      ],
+      "body_schema": {
+        "type": "object",
+        "properties": {
+          "body": {
+            "type": "string",
+            "description": "Content of the reply post.",
+            "example": "hello"
+          }
+        },
+        "required": [
+          "body"
+        ]
+      },
+      "docs": "https://osu.ppy.sh/docs/index.html#forum-POSTapi-v2-forums-topics--topic--reply"
+    },
+    {
+      "id": "getTopicListing",
+      "upstream_operation_id": "getTopicListing",
+      "method": "GET",
+      "path": "/forums/topics",
+      "category": "Forum",
+      "title": "Get Topic Listing",
+      "description": "Get Topic Listing",
+      "auth": [
+        "OAuth",
+        "public"
+      ],
+      "enabled": true,
+      "disabled_reason": "",
+      "parameters": [
+        {
+          "name": "forum_id",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Id of a specific forum to get topics from."
+        },
+        {
+          "name": "sort",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Topic sorting option. Valid values are `new` (default) and `old`. Both sort by the topic's last post time."
+        },
+        {
+          "name": "limit",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "Maximum number of topics to be returned (50 at most and by default)."
+        },
+        {
+          "name": "cursor_string",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "[CursorString](#cursorstring) for pagination."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#forum-GETapi-v2-forums-topics"
+    },
+    {
+      "id": "createTopic",
+      "upstream_operation_id": "createTopic",
+      "method": "POST",
+      "path": "/forums/topics",
+      "category": "Forum",
+      "title": "Create Topic",
+      "description": "Create Topic",
+      "auth": [
+        "requires user",
+        "OAuth",
+        "forum.write"
+      ],
+      "enabled": false,
+      "disabled_reason": "需要用户授权或额外 scope",
+      "parameters": [],
+      "body_schema": {
+        "type": "object",
+        "properties": {
+          "body": {
+            "type": "string",
+            "description": "Content of the topic.",
+            "example": "hello"
+          },
+          "forum_id": {
+            "type": "integer",
+            "description": "Forum to create the topic in.",
+            "example": 1
+          },
+          "title": {
+            "type": "string",
+            "description": "Title of the topic.",
+            "example": "untitled"
+          },
+          "with_poll": {
+            "type": "boolean",
+            "description": "Enable this to also create poll in the topic (default: false).",
+            "example": true
+          },
+          "forum_topic_poll[hide_results]": {
+            "type": "boolean",
+            "description": "Enable this to hide result until voting period ends (default: false).",
+            "example": null
+          },
+          "forum_topic_poll[length_days]": {
+            "type": "integer",
+            "description": "Number of days for voting period. 0 means the voting will never ends (default: 0). This parameter is required if `hide_results` option is enabled.",
+            "example": null
+          },
+          "forum_topic_poll[max_options]": {
+            "type": "integer",
+            "description": "Maximum number of votes each user can cast (default: 1).",
+            "example": null
+          },
+          "forum_topic_poll[options]": {
+            "type": "string",
+            "description": "Newline-separated list of voting options. BBCode is supported.",
+            "example": "item A..."
+          },
+          "forum_topic_poll[title]": {
+            "type": "string",
+            "description": "Title of the poll.",
+            "example": "my poll"
+          },
+          "forum_topic_poll[vote_change]": {
+            "type": "boolean",
+            "description": "Enable this to allow user to change their votes (default: false).",
+            "example": null
+          }
+        },
+        "required": [
+          "body",
+          "forum_id",
+          "title",
+          "forum_topic_poll[options]",
+          "forum_topic_poll[title]"
+        ]
+      },
+      "docs": "https://osu.ppy.sh/docs/index.html#forum-POSTapi-v2-forums-topics"
+    },
+    {
+      "id": "getTopicAndPosts",
+      "upstream_operation_id": "getTopicAndPosts",
+      "method": "GET",
+      "path": "/forums/topics/{topic}",
+      "category": "Forum",
+      "title": "Get Topic and Posts",
+      "description": "Get Topic and Posts",
+      "auth": [
+        "OAuth",
+        "public"
+      ],
+      "enabled": true,
+      "disabled_reason": "",
+      "parameters": [
+        {
+          "name": "topic",
+          "in": "path",
+          "required": true,
+          "type": "integer",
+          "description": "Id of the topic."
+        },
+        {
+          "name": "sort",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Post sorting option. Valid values are `id_asc` (default) and `id_desc`."
+        },
+        {
+          "name": "limit",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "Maximum number of posts to be returned (20 default, 50 at most)."
+        },
+        {
+          "name": "start",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "First post id to be returned with `sort` set to `id_asc`. This parameter is ignored if `cursor_string` is specified."
+        },
+        {
+          "name": "end",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "First post id to be returned with `sort` set to `id_desc`. This parameter is ignored if `cursor_string` is specified."
+        },
+        {
+          "name": "cursor_string",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "[CursorString](#cursorstring) for pagination."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#forum-GETapi-v2-forums-topics--topic-"
+    },
+    {
+      "id": "editTopic",
+      "upstream_operation_id": "editTopic",
+      "method": "PUT",
+      "path": "/forums/topics/{topic}",
+      "category": "Forum",
+      "title": "Edit Topic",
+      "description": "Edit Topic",
+      "auth": [
+        "OAuth",
+        "forum.write"
+      ],
+      "enabled": false,
+      "disabled_reason": "需要用户授权或额外 scope",
+      "parameters": [
+        {
+          "name": "topic",
+          "in": "path",
+          "required": true,
+          "type": "integer",
+          "description": "Id of the topic."
+        }
+      ],
+      "body_schema": {
+        "type": "object",
+        "properties": {
+          "forum_topic[topic_title]": {
+            "type": "string",
+            "description": "New topic title.",
+            "example": "titled"
+          }
+        }
+      },
+      "docs": "https://osu.ppy.sh/docs/index.html#forum-PUTapi-v2-forums-topics--topic-"
+    },
+    {
+      "id": "editPost",
+      "upstream_operation_id": "editPost",
+      "method": "PUT",
+      "path": "/forums/posts/{post}",
+      "category": "Forum",
+      "title": "Edit Post",
+      "description": "Edit Post",
+      "auth": [
+        "OAuth",
+        "forum.write"
+      ],
+      "enabled": false,
+      "disabled_reason": "需要用户授权或额外 scope",
+      "parameters": [
+        {
+          "name": "post",
+          "in": "path",
+          "required": true,
+          "type": "integer",
+          "description": "Id of the post."
+        }
+      ],
+      "body_schema": {
+        "type": "object",
+        "properties": {
+          "body": {
+            "type": "string",
+            "description": "New post content in BBCode format.",
+            "example": "hello"
+          }
+        },
+        "required": [
+          "body"
+        ]
+      },
+      "docs": "https://osu.ppy.sh/docs/index.html#forum-PUTapi-v2-forums-posts--post-"
+    },
+    {
+      "id": "getForumListing",
+      "upstream_operation_id": "getForumListing",
+      "method": "GET",
+      "path": "/forums",
+      "category": "Forum",
+      "title": "Get Forum Listing",
+      "description": "Get Forum Listing",
+      "auth": [
+        "OAuth",
+        "public"
+      ],
+      "enabled": true,
+      "disabled_reason": "",
+      "parameters": [],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#forum-GETapi-v2-forums"
+    },
+    {
+      "id": "getForumAndTopics",
+      "upstream_operation_id": "getForumAndTopics",
+      "method": "GET",
+      "path": "/forums/{forum}",
+      "category": "Forum",
+      "title": "Get Forum and Topics",
+      "description": "Get Forum and Topics",
+      "auth": [
+        "OAuth",
+        "public"
+      ],
+      "enabled": true,
+      "disabled_reason": "",
+      "parameters": [
+        {
+          "name": "forum",
+          "in": "path",
+          "required": true,
+          "type": "integer",
+          "description": "Id of the forum."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#forum-GETapi-v2-forums--forum-"
+    },
+    {
+      "id": "search",
+      "upstream_operation_id": "search",
+      "method": "GET",
+      "path": "/search",
+      "category": "Home",
+      "title": "Search",
+      "description": "Search",
+      "auth": [
+        "OAuth",
+        "public"
+      ],
+      "enabled": true,
+      "disabled_reason": "",
+      "parameters": [
+        {
+          "name": "mode",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Either `all`, `user`, or `wiki_page`. Default is `all`."
+        },
+        {
+          "name": "query",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Search keyword."
+        },
+        {
+          "name": "page",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "Search result page. Ignored for mode `all`."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#home-GETapi-v2-search"
+    },
+    {
+      "id": "getMatchesListing",
+      "upstream_operation_id": "getMatchesListing",
+      "method": "GET",
+      "path": "/matches",
+      "category": "Matches",
+      "title": "Get Matches Listing",
+      "description": "Get Matches Listing",
+      "auth": [
+        "OAuth",
+        "public"
+      ],
+      "enabled": true,
+      "disabled_reason": "",
+      "parameters": [
+        {
+          "name": "limit",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "Maximum number of matches (50 default, 1 minimum, 50 maximum)."
+        },
+        {
+          "name": "sort",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "`id_desc` for newest first; `id_asc` for oldest first. Defaults to `id_desc`."
+        },
+        {
+          "name": "active",
+          "in": "query",
+          "required": false,
+          "type": "boolean",
+          "description": "`true` for active matches only; `false` for inactive matches only. Defaults to not specified, returning both."
+        },
+        {
+          "name": "cursor_string",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "[CursorString](#cursorstring) for pagination."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#matches-GETapi-v2-matches"
+    },
+    {
+      "id": "getMatch",
+      "upstream_operation_id": "getMatch",
+      "method": "GET",
+      "path": "/matches/{match}",
+      "category": "Matches",
+      "title": "Get Match",
+      "description": "Get Match",
+      "auth": [
+        "OAuth",
+        "public"
+      ],
+      "enabled": true,
+      "disabled_reason": "",
+      "parameters": [
+        {
+          "name": "match",
+          "in": "path",
+          "required": true,
+          "type": "integer",
+          "description": "Match ID."
+        },
+        {
+          "name": "before",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "Filter for match events before the specified [MatchEvent.id](#matchevent)."
+        },
+        {
+          "name": "after",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "Filter for match events after the specified [MatchEvent.id](#matchevent)."
+        },
+        {
+          "name": "limit",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "Maximum number of match events (100 default, 1 minimum, 101 maximum)."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#matches-GETapi-v2-matches--match-"
+    },
+    {
+      "id": "getUserHighScore",
+      "upstream_operation_id": "getUserHighScore",
+      "method": "GET",
+      "path": "/rooms/{room}/playlist/{playlist}/scores/users/{user}",
+      "category": "Multiplayer",
+      "title": "Get User High Score",
+      "description": "Get User High Score",
+      "auth": [
+        "requires user",
+        "OAuth",
+        "lazer"
+      ],
+      "enabled": false,
+      "disabled_reason": "lazer 客户端专用",
+      "parameters": [
+        {
+          "name": "room",
+          "in": "path",
+          "required": true,
+          "type": "integer",
+          "description": "Id of the room."
+        },
+        {
+          "name": "playlist",
+          "in": "path",
+          "required": true,
+          "type": "integer",
+          "description": "Id of the playlist item."
+        },
+        {
+          "name": "user",
+          "in": "path",
+          "required": true,
+          "type": "integer",
+          "description": "User id."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#multiplayer-GETapi-v2-rooms--room--playlist--playlist--scores-users--user-"
+    },
+    {
+      "id": "getPlaylistScores",
+      "upstream_operation_id": "getScores",
+      "method": "GET",
+      "path": "/rooms/{room}/playlist/{playlist}/scores",
+      "category": "Multiplayer",
+      "title": "Get Scores",
+      "description": "Get Scores",
+      "auth": [
+        "OAuth",
+        "public"
+      ],
+      "enabled": true,
+      "disabled_reason": "",
+      "parameters": [
+        {
+          "name": "room",
+          "in": "path",
+          "required": true,
+          "type": "integer",
+          "description": "Id of the room."
+        },
+        {
+          "name": "playlist",
+          "in": "path",
+          "required": true,
+          "type": "integer",
+          "description": "Id of the playlist item."
+        },
+        {
+          "name": "limit",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "Number of scores to be returned."
+        },
+        {
+          "name": "sort",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "[MultiplayerScoresSort](#multiplayerscoressort) parameter."
+        },
+        {
+          "name": "cursor_string",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "[CursorString](#cursorstring) for pagination."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#multiplayer-GETapi-v2-rooms--room--playlist--playlist--scores"
+    },
+    {
+      "id": "postApiV2RoomsRoomPlaylistPlaylistScores",
+      "upstream_operation_id": "postApiV2RoomsRoomPlaylistPlaylistScores",
+      "method": "POST",
+      "path": "/rooms/{room}/playlist/{playlist}/scores",
+      "category": "Undocumented",
+      "title": "/api/v2/rooms/{room}/playlist/{playlist}/scores",
+      "description": "POST /api/v2/rooms/{room}/playlist/{playlist}/scores",
+      "auth": [
+        "requires user",
+        "OAuth",
+        "lazer"
+      ],
+      "enabled": false,
+      "disabled_reason": "lazer 客户端专用",
+      "parameters": [
+        {
+          "name": "room",
+          "in": "path",
+          "required": true,
+          "type": "integer",
+          "description": "Id of the room."
+        },
+        {
+          "name": "playlist",
+          "in": "path",
+          "required": true,
+          "type": "integer",
+          "description": "Id of the playlist item."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#undocumented-POSTapi-v2-rooms--room--playlist--playlist--scores"
+    },
+    {
+      "id": "getAScore",
+      "upstream_operation_id": "getAScore",
+      "method": "GET",
+      "path": "/rooms/{room}/playlist/{playlist}/scores/{score}",
+      "category": "Multiplayer",
+      "title": "Get a Score",
+      "description": "Get a Score",
+      "auth": [
+        "requires user",
+        "OAuth",
+        "lazer"
+      ],
+      "enabled": false,
+      "disabled_reason": "lazer 客户端专用",
+      "parameters": [
+        {
+          "name": "room",
+          "in": "path",
+          "required": true,
+          "type": "integer",
+          "description": "Id of the room."
+        },
+        {
+          "name": "playlist",
+          "in": "path",
+          "required": true,
+          "type": "integer",
+          "description": "Id of the playlist item."
+        },
+        {
+          "name": "score",
+          "in": "path",
+          "required": true,
+          "type": "integer",
+          "description": "Id of the score."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#multiplayer-GETapi-v2-rooms--room--playlist--playlist--scores--score-"
+    },
+    {
+      "id": "putApiV2RoomsRoomPlaylistPlaylistScoresScore",
+      "upstream_operation_id": "putApiV2RoomsRoomPlaylistPlaylistScoresScore",
+      "method": "PUT",
+      "path": "/rooms/{room}/playlist/{playlist}/scores/{score}",
+      "category": "Undocumented",
+      "title": "/api/v2/rooms/{room}/playlist/{playlist}/scores/{score}",
+      "description": "PUT /api/v2/rooms/{room}/playlist/{playlist}/scores/{score}",
+      "auth": [
+        "requires user",
+        "OAuth",
+        "lazer"
+      ],
+      "enabled": false,
+      "disabled_reason": "lazer 客户端专用",
+      "parameters": [
+        {
+          "name": "room",
+          "in": "path",
+          "required": true,
+          "type": "integer",
+          "description": "Id of the room."
+        },
+        {
+          "name": "playlist",
+          "in": "path",
+          "required": true,
+          "type": "integer",
+          "description": "Id of the playlist item."
+        },
+        {
+          "name": "score",
+          "in": "path",
+          "required": true,
+          "type": "integer",
+          "description": "Id of the score."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#undocumented-PUTapi-v2-rooms--room--playlist--playlist--scores--score-"
+    },
+    {
+      "id": "getMultiplayerRooms",
+      "upstream_operation_id": "getMultiplayerRooms",
+      "method": "GET",
+      "path": "/rooms",
+      "category": "Multiplayer",
+      "title": "Get Multiplayer Rooms",
+      "description": "Get Multiplayer Rooms",
+      "auth": [
+        "OAuth",
+        "public"
+      ],
+      "enabled": true,
+      "disabled_reason": "",
+      "parameters": [
+        {
+          "name": "limit",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "Maximum number of results."
+        },
+        {
+          "name": "mode",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Filter mode; `active` (default), `all`, `ended`, `participated`, `owned`."
+        },
+        {
+          "name": "season_id",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Season ID to return Rooms from."
+        },
+        {
+          "name": "sort",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Sort order; `ended`, `created`."
+        },
+        {
+          "name": "type_group",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "`playlists` (default) or `realtime`."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#multiplayer-GETapi-v2-rooms"
+    },
+    {
+      "id": "postApiV2Rooms",
+      "upstream_operation_id": "postApiV2Rooms",
+      "method": "POST",
+      "path": "/rooms",
+      "category": "Undocumented",
+      "title": "/api/v2/rooms",
+      "description": "POST /api/v2/rooms",
+      "auth": [
+        "requires user",
+        "OAuth",
+        "lazer"
+      ],
+      "enabled": false,
+      "disabled_reason": "lazer 客户端专用",
+      "parameters": [],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#undocumented-POSTapi-v2-rooms"
+    },
+    {
+      "id": "getNewsListing",
+      "upstream_operation_id": "getNewsListing",
+      "method": "GET",
+      "path": "/news",
+      "category": "News",
+      "title": "Get News Listing",
+      "description": "Get News Listing",
+      "auth": [],
+      "enabled": true,
+      "disabled_reason": "",
+      "parameters": [
+        {
+          "name": "limit",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "Maximum number of posts (12 default, 1 minimum, 21 maximum)."
+        },
+        {
+          "name": "year",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "Year to return posts from."
+        },
+        {
+          "name": "cursor_string",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "[CursorString](#cursorstring) for pagination."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#news-GETapi-v2-news"
+    },
+    {
+      "id": "getNewsPost",
+      "upstream_operation_id": "getNewsPost",
+      "method": "GET",
+      "path": "/news/{news}",
+      "category": "News",
+      "title": "Get News Post",
+      "description": "Get News Post",
+      "auth": [],
+      "enabled": true,
+      "disabled_reason": "",
+      "parameters": [
+        {
+          "name": "news",
+          "in": "path",
+          "required": true,
+          "type": "string",
+          "description": "News post slug or ID."
+        },
+        {
+          "name": "key",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Unset to query by slug, or `id` to query by ID."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#news-GETapi-v2-news--news-"
+    },
+    {
+      "id": "getNotifications",
+      "upstream_operation_id": "getNotifications",
+      "method": "GET",
+      "path": "/notifications",
+      "category": "Notification",
+      "title": "Get Notifications",
+      "description": "Get Notifications",
+      "auth": [
+        "requires user",
+        "OAuth",
+        "lazer"
+      ],
+      "enabled": false,
+      "disabled_reason": "lazer 客户端专用",
+      "parameters": [
+        {
+          "name": "max_id",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Maximum `id` fetched. Can be used to load earlier notifications. Defaults to no limit (fetch latest notifications)"
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#notification-GETapi-v2-notifications"
+    },
+    {
+      "id": "markNotificationsAsRead",
+      "upstream_operation_id": "markNotificationsAsRead",
+      "method": "POST",
+      "path": "/notifications/mark-read",
+      "category": "Notification",
+      "title": "Mark Notifications as Read",
+      "description": "Mark Notifications as Read",
+      "auth": [
+        "requires user",
+        "OAuth",
+        "lazer"
+      ],
+      "enabled": false,
+      "disabled_reason": "lazer 客户端专用",
+      "parameters": [],
+      "body_schema": {
+        "type": "object",
+        "properties": {
+          "identities": {
+            "type": "object",
+            "description": "",
+            "example": {
+              "category": "beatmapset_state"
+            },
+            "properties": {
+              "category": {
+                "type": "string",
+                "description": "Notification category.",
+                "example": "beatmapset_state"
+              },
+              "object_id": {
+                "type": "string",
+                "description": "Id of the object triggered the notification.",
+                "example": "1"
+              },
+              "object_type": {
+                "type": "string",
+                "description": "Type of the object triggered the notification.",
+                "example": "beatmapset"
+              }
+            }
+          },
+          "notifications": {
+            "type": "object",
+            "description": "",
+            "example": {
+              "category": "beatmapset_state"
+            },
+            "properties": {
+              "category": {
+                "type": "string",
+                "description": "Notification category.",
+                "example": "beatmapset_state"
+              },
+              "id": {
+                "type": "integer",
+                "description": "Id of notifications to be marked as read.",
+                "example": 1
+              },
+              "object_id": {
+                "type": "string",
+                "description": "Id of the object triggered the notification.",
+                "example": "1"
+              },
+              "object_type": {
+                "type": "string",
+                "description": "Type of the object triggered the notification.",
+                "example": "beatmapset"
+              }
+            }
+          }
+        }
+      },
+      "docs": "https://osu.ppy.sh/docs/index.html#notification-POSTapi-v2-notifications-mark-read"
+    },
+    {
+      "id": "revokeCurrentToken",
+      "upstream_operation_id": "revokeCurrentToken",
+      "method": "DELETE",
+      "path": "/oauth/tokens/current",
+      "category": "OAuth Tokens",
+      "title": "Revoke current token",
+      "description": "Revoke current token",
+      "auth": [
+        "OAuth"
+      ],
+      "enabled": false,
+      "disabled_reason": "修改账号状态的操作",
+      "parameters": [],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#oauth-tokens-DELETEapi-v2-oauth-tokens-current"
+    },
+    {
+      "id": "getKudosuRanking",
+      "upstream_operation_id": "getKudosuRanking",
+      "method": "GET",
+      "path": "/rankings/kudosu",
+      "category": "Ranking",
+      "title": "Get Kudosu Ranking",
+      "description": "Get Kudosu Ranking",
+      "auth": [
+        "OAuth",
+        "public"
+      ],
+      "enabled": true,
+      "disabled_reason": "",
+      "parameters": [
+        {
+          "name": "page",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "Ranking page."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#ranking-GETapi-v2-rankings-kudosu"
+    },
+    {
+      "id": "getRanking",
+      "upstream_operation_id": "getRanking",
+      "method": "GET",
+      "path": "/rankings/{mode}/{type}",
+      "category": "Ranking",
+      "title": "Get Ranking",
+      "description": "Get Ranking",
+      "auth": [
+        "OAuth",
+        "public"
+      ],
+      "enabled": true,
+      "disabled_reason": "",
+      "parameters": [
+        {
+          "name": "mode",
+          "in": "path",
+          "required": true,
+          "type": "string",
+          "description": ""
+        },
+        {
+          "name": "type",
+          "in": "path",
+          "required": true,
+          "type": "string",
+          "description": "[RankingType](#rankingtype)."
+        },
+        {
+          "name": "country",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Filter ranking by country code. Only available for `type` of `global`."
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "[Cursor](#cursor)."
+        },
+        {
+          "name": "filter",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Either `all` (default) or `friends`."
+        },
+        {
+          "name": "spotlight",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "The id of the spotlight if `type` is `charts`. Ranking for latest spotlight will be returned if not specified."
+        },
+        {
+          "name": "variant",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Filter ranking to specified mode variant. For `ruleset` of `mania`, it's either `4k` or `7k`. Only available for `type` of `global`."
+        },
+        {
+          "name": "page",
+          "type": "integer",
+          "in": "query",
+          "required": false,
+          "description": "页码，也可用 cursor 对象"
+        },
+        {
+          "name": "sort",
+          "type": "string",
+          "in": "query",
+          "required": false,
+          "description": "global/team 排行使用 performance/score"
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#ranking-GETapi-v2-rankings--mode---type-",
+      "parameter_source": "https://github.com/ppy/osu-web/tree/04643dee6cacfaadc6c80976256481322e21e945/app/Http/Controllers"
+    },
+    {
+      "id": "getSpotlights",
+      "upstream_operation_id": "getSpotlights",
+      "method": "GET",
+      "path": "/spotlights",
+      "category": "Ranking",
+      "title": "Get Spotlights",
+      "description": "Get Spotlights",
+      "auth": [
+        "OAuth",
+        "public"
+      ],
+      "enabled": true,
+      "disabled_reason": "",
+      "parameters": [],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#ranking-GETapi-v2-spotlights"
+    },
+    {
+      "id": "getGlobalScores",
+      "upstream_operation_id": "getScores",
+      "method": "GET",
+      "path": "/scores",
+      "category": "Scores",
+      "title": "Get Scores",
+      "description": "Get Scores",
+      "auth": [
+        "OAuth",
+        "public"
+      ],
+      "enabled": true,
+      "disabled_reason": "",
+      "parameters": [
+        {
+          "name": "ruleset",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "The [Ruleset](#ruleset) to get scores for."
+        },
+        {
+          "name": "cursor_string",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Next set of scores"
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#scores-GETapi-v2-scores"
+    },
+    {
+      "id": "reorderPinnedScore",
+      "upstream_operation_id": "reorderPinnedScore",
+      "method": "POST",
+      "path": "/score-pins/{score}/reorder",
+      "category": "Scores",
+      "title": "Reorder Pinned Score",
+      "description": "Reorder Pinned Score",
+      "auth": [
+        "requires user",
+        "OAuth",
+        "lazer"
+      ],
+      "enabled": false,
+      "disabled_reason": "lazer 客户端专用",
+      "parameters": [
+        {
+          "name": "score",
+          "in": "path",
+          "required": true,
+          "type": "integer",
+          "description": "The id of the [Score](#score) to move."
+        }
+      ],
+      "body_schema": {
+        "type": "object",
+        "properties": {
+          "after_score_id": {
+            "type": "integer",
+            "description": "The id of the [Score](#score) to move the score after. At least one of `after_score_id` or `before_score_id` is required.",
+            "example": 13
+          },
+          "before_score_id": {
+            "type": "integer",
+            "description": "The id of the [Score](#score) to move the score before.",
+            "example": null
+          }
+        }
+      },
+      "docs": "https://osu.ppy.sh/docs/index.html#scores-POSTapi-v2-score-pins--score--reorder"
+    },
+    {
+      "id": "unpinScore",
+      "upstream_operation_id": "unpinScore",
+      "method": "DELETE",
+      "path": "/score-pins/{score}",
+      "category": "Scores",
+      "title": "Unpin Score",
+      "description": "Unpin Score",
+      "auth": [
+        "requires user",
+        "OAuth",
+        "lazer"
+      ],
+      "enabled": false,
+      "disabled_reason": "lazer 客户端专用",
+      "parameters": [
+        {
+          "name": "score",
+          "in": "path",
+          "required": true,
+          "type": "integer",
+          "description": "The id of the [Score](#score) to unpin."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#scores-DELETEapi-v2-score-pins--score-"
+    },
+    {
+      "id": "pinScore",
+      "upstream_operation_id": "pinScore",
+      "method": "PUT",
+      "path": "/score-pins/{score}",
+      "category": "Scores",
+      "title": "Pin Score",
+      "description": "Pin Score",
+      "auth": [
+        "requires user",
+        "OAuth",
+        "lazer"
+      ],
+      "enabled": false,
+      "disabled_reason": "lazer 客户端专用",
+      "parameters": [
+        {
+          "name": "score",
+          "in": "path",
+          "required": true,
+          "type": "integer",
+          "description": "The id of the [Score](#score) to unpin."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#scores-PUTapi-v2-score-pins--score-"
+    },
+    {
+      "id": "getTeam",
+      "upstream_operation_id": "getTeam",
+      "method": "GET",
+      "path": "/teams/{team}/{ruleset}",
+      "category": "Teams",
+      "title": "Get Team",
+      "description": "Get Team",
+      "auth": [
+        "OAuth",
+        "public"
+      ],
+      "enabled": true,
+      "disabled_reason": "",
+      "parameters": [
+        {
+          "name": "team",
+          "in": "path",
+          "required": true,
+          "type": "string",
+          "description": "Id or `@`-prefixed shortname of the team."
+        },
+        {
+          "name": "ruleset",
+          "in": "path",
+          "required": false,
+          "type": "string",
+          "description": "Optional parameter."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#teams-GETapi-v2-teams--team---ruleset--"
+    },
+    {
+      "id": "postApiV2SessionVerify",
+      "upstream_operation_id": "postApiV2SessionVerify",
+      "method": "POST",
+      "path": "/session/verify",
+      "category": "Undocumented",
+      "title": "/api/v2/session/verify",
+      "description": "POST /api/v2/session/verify",
+      "auth": [
+        "requires user",
+        "OAuth"
+      ],
+      "enabled": false,
+      "disabled_reason": "需要用户授权或额外 scope",
+      "parameters": [],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#undocumented-POSTapi-v2-session-verify"
+    },
+    {
+      "id": "postApiV2SessionVerifyMailFallback",
+      "upstream_operation_id": "postApiV2SessionVerifyMailFallback",
+      "method": "POST",
+      "path": "/session/verify/mail-fallback",
+      "category": "Undocumented",
+      "title": "/api/v2/session/verify/mail-fallback",
+      "description": "POST /api/v2/session/verify/mail-fallback",
+      "auth": [
+        "requires user",
+        "OAuth"
+      ],
+      "enabled": false,
+      "disabled_reason": "需要用户授权或额外 scope",
+      "parameters": [],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#undocumented-POSTapi-v2-session-verify-mail-fallback"
+    },
+    {
+      "id": "postApiV2SessionVerifyReissue",
+      "upstream_operation_id": "postApiV2SessionVerifyReissue",
+      "method": "POST",
+      "path": "/session/verify/reissue",
+      "category": "Undocumented",
+      "title": "/api/v2/session/verify/reissue",
+      "description": "POST /api/v2/session/verify/reissue",
+      "auth": [
+        "requires user",
+        "OAuth"
+      ],
+      "enabled": false,
+      "disabled_reason": "需要用户授权或额外 scope",
+      "parameters": [],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#undocumented-POSTapi-v2-session-verify-reissue"
+    },
+    {
+      "id": "postApiV2BeatmapsBeatmapSoloScores",
+      "upstream_operation_id": "postApiV2BeatmapsBeatmapSoloScores",
+      "method": "POST",
+      "path": "/beatmaps/{beatmap}/solo/scores",
+      "category": "Undocumented",
+      "title": "/api/v2/beatmaps/{beatmap}/solo/scores",
+      "description": "POST /api/v2/beatmaps/{beatmap}/solo/scores",
+      "auth": [
+        "requires user",
+        "OAuth",
+        "lazer"
+      ],
+      "enabled": false,
+      "disabled_reason": "lazer 客户端专用",
+      "parameters": [
+        {
+          "name": "beatmap",
+          "in": "path",
+          "required": true,
+          "type": "string",
+          "description": "The beatmap."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#undocumented-POSTapi-v2-beatmaps--beatmap--solo-scores"
+    },
+    {
+      "id": "putApiV2BeatmapsBeatmapSoloScoresToken",
+      "upstream_operation_id": "putApiV2BeatmapsBeatmapSoloScoresToken",
+      "method": "PUT",
+      "path": "/beatmaps/{beatmap}/solo/scores/{token}",
+      "category": "Undocumented",
+      "title": "/api/v2/beatmaps/{beatmap}/solo/scores/{token}",
+      "description": "PUT /api/v2/beatmaps/{beatmap}/solo/scores/{token}",
+      "auth": [
+        "requires user",
+        "OAuth",
+        "lazer"
+      ],
+      "enabled": false,
+      "disabled_reason": "lazer 客户端专用",
+      "parameters": [
+        {
+          "name": "beatmap",
+          "in": "path",
+          "required": true,
+          "type": "string",
+          "description": "The beatmap."
+        },
+        {
+          "name": "token",
+          "in": "path",
+          "required": true,
+          "type": "string",
+          "description": ""
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#undocumented-PUTapi-v2-beatmaps--beatmap--solo-scores--token-"
+    },
+    {
+      "id": "putApiV2BeatmapsBeatmapTagsTag",
+      "upstream_operation_id": "putApiV2BeatmapsBeatmapTagsTag",
+      "method": "PUT",
+      "path": "/beatmaps/{beatmap}/tags/{tag}",
+      "category": "Undocumented",
+      "title": "/api/v2/beatmaps/{beatmap}/tags/{tag}",
+      "description": "PUT /api/v2/beatmaps/{beatmap}/tags/{tag}",
+      "auth": [
+        "requires user",
+        "OAuth",
+        "lazer"
+      ],
+      "enabled": false,
+      "disabled_reason": "lazer 客户端专用",
+      "parameters": [
+        {
+          "name": "beatmap",
+          "in": "path",
+          "required": true,
+          "type": "string",
+          "description": "The beatmap."
+        },
+        {
+          "name": "tag",
+          "in": "path",
+          "required": true,
+          "type": "string",
+          "description": "The tag."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#undocumented-PUTapi-v2-beatmaps--beatmap--tags--tag-"
+    },
+    {
+      "id": "deleteApiV2BeatmapsBeatmapTagsTag",
+      "upstream_operation_id": "deleteApiV2BeatmapsBeatmapTagsTag",
+      "method": "DELETE",
+      "path": "/beatmaps/{beatmap}/tags/{tag}",
+      "category": "Undocumented",
+      "title": "/api/v2/beatmaps/{beatmap}/tags/{tag}",
+      "description": "DELETE /api/v2/beatmaps/{beatmap}/tags/{tag}",
+      "auth": [
+        "requires user",
+        "OAuth",
+        "lazer"
+      ],
+      "enabled": false,
+      "disabled_reason": "lazer 客户端专用",
+      "parameters": [
+        {
+          "name": "beatmap",
+          "in": "path",
+          "required": true,
+          "type": "string",
+          "description": "The beatmap."
+        },
+        {
+          "name": "tag",
+          "in": "path",
+          "required": true,
+          "type": "string",
+          "description": "The tag."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#undocumented-DELETEapi-v2-beatmaps--beatmap--tags--tag-"
+    },
+    {
+      "id": "getApiV2BeatmapsetsEvents",
+      "upstream_operation_id": "getApiV2BeatmapsetsEvents",
+      "method": "GET",
+      "path": "/beatmapsets/events",
+      "category": "Undocumented",
+      "title": "/api/v2/beatmapsets/events",
+      "description": "GET /api/v2/beatmapsets/events",
+      "auth": [
+        "OAuth",
+        "public"
+      ],
+      "enabled": true,
+      "disabled_reason": "",
+      "parameters": [],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#undocumented-GETapi-v2-beatmapsets-events"
+    },
+    {
+      "id": "postApiV2BeatmapsetsBeatmapsetFavourites",
+      "upstream_operation_id": "postApiV2BeatmapsetsBeatmapsetFavourites",
+      "method": "POST",
+      "path": "/beatmapsets/{beatmapset}/favourites",
+      "category": "Undocumented",
+      "title": "/api/v2/beatmapsets/{beatmapset}/favourites",
+      "description": "POST /api/v2/beatmapsets/{beatmapset}/favourites",
+      "auth": [
+        "requires user",
+        "OAuth",
+        "lazer"
+      ],
+      "enabled": false,
+      "disabled_reason": "lazer 客户端专用",
+      "parameters": [
+        {
+          "name": "beatmapset",
+          "in": "path",
+          "required": true,
+          "type": "string",
+          "description": "The beatmapset."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#undocumented-POSTapi-v2-beatmapsets--beatmapset--favourites"
+    },
+    {
+      "id": "getApiV2BeatmapsetsBeatmapsetRatings",
+      "upstream_operation_id": "getApiV2BeatmapsetsBeatmapsetRatings",
+      "method": "GET",
+      "path": "/beatmapsets/{beatmapset}/ratings",
+      "category": "Undocumented",
+      "title": "/api/v2/beatmapsets/{beatmapset}/ratings",
+      "description": "GET /api/v2/beatmapsets/{beatmapset}/ratings",
+      "auth": [
+        "requires user",
+        "OAuth",
+        "lazer"
+      ],
+      "enabled": false,
+      "disabled_reason": "lazer 客户端专用",
+      "parameters": [
+        {
+          "name": "beatmapset",
+          "in": "path",
+          "required": true,
+          "type": "string",
+          "description": "The beatmapset."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#undocumented-GETapi-v2-beatmapsets--beatmapset--ratings"
+    },
+    {
+      "id": "postApiV2BeatmapsetsBeatmapsetRatings",
+      "upstream_operation_id": "postApiV2BeatmapsetsBeatmapsetRatings",
+      "method": "POST",
+      "path": "/beatmapsets/{beatmapset}/ratings",
+      "category": "Undocumented",
+      "title": "/api/v2/beatmapsets/{beatmapset}/ratings",
+      "description": "POST /api/v2/beatmapsets/{beatmapset}/ratings",
+      "auth": [
+        "requires user",
+        "OAuth",
+        "lazer"
+      ],
+      "enabled": false,
+      "disabled_reason": "lazer 客户端专用",
+      "parameters": [
+        {
+          "name": "beatmapset",
+          "in": "path",
+          "required": true,
+          "type": "string",
+          "description": "The beatmapset."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#undocumented-POSTapi-v2-beatmapsets--beatmapset--ratings"
+    },
+    {
+      "id": "getApiV2Blocks",
+      "upstream_operation_id": "getApiV2Blocks",
+      "method": "GET",
+      "path": "/blocks",
+      "category": "Undocumented",
+      "title": "/api/v2/blocks",
+      "description": "GET /api/v2/blocks",
+      "auth": [
+        "requires user",
+        "OAuth",
+        "lazer"
+      ],
+      "enabled": false,
+      "disabled_reason": "lazer 客户端专用",
+      "parameters": [],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#undocumented-GETapi-v2-blocks"
+    },
+    {
+      "id": "postApiV2Blocks",
+      "upstream_operation_id": "postApiV2Blocks",
+      "method": "POST",
+      "path": "/blocks",
+      "category": "Undocumented",
+      "title": "/api/v2/blocks",
+      "description": "POST /api/v2/blocks",
+      "auth": [
+        "requires user",
+        "OAuth",
+        "lazer"
+      ],
+      "enabled": false,
+      "disabled_reason": "lazer 客户端专用",
+      "parameters": [],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#undocumented-POSTapi-v2-blocks"
+    },
+    {
+      "id": "deleteApiV2BlocksBlock",
+      "upstream_operation_id": "deleteApiV2BlocksBlock",
+      "method": "DELETE",
+      "path": "/blocks/{block}",
+      "category": "Undocumented",
+      "title": "/api/v2/blocks/{block}",
+      "description": "DELETE /api/v2/blocks/{block}",
+      "auth": [
+        "requires user",
+        "OAuth",
+        "lazer"
+      ],
+      "enabled": false,
+      "disabled_reason": "lazer 客户端专用",
+      "parameters": [
+        {
+          "name": "block",
+          "in": "path",
+          "required": true,
+          "type": "string",
+          "description": "The block."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#undocumented-DELETEapi-v2-blocks--block-"
+    },
+    {
+      "id": "getApiV2ChatPresence",
+      "upstream_operation_id": "getApiV2ChatPresence",
+      "method": "GET",
+      "path": "/chat/presence",
+      "category": "Undocumented",
+      "title": "/api/v2/chat/presence",
+      "description": "GET /api/v2/chat/presence",
+      "auth": [
+        "requires user",
+        "OAuth",
+        "lazer"
+      ],
+      "enabled": false,
+      "disabled_reason": "lazer 客户端专用",
+      "parameters": [],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#undocumented-GETapi-v2-chat-presence"
+    },
+    {
+      "id": "postApiV2Reports",
+      "upstream_operation_id": "postApiV2Reports",
+      "method": "POST",
+      "path": "/reports",
+      "category": "Undocumented",
+      "title": "/api/v2/reports",
+      "description": "POST /api/v2/reports",
+      "auth": [
+        "requires user",
+        "OAuth",
+        "lazer"
+      ],
+      "enabled": false,
+      "disabled_reason": "lazer 客户端专用",
+      "parameters": [],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#undocumented-POSTapi-v2-reports"
+    },
+    {
+      "id": "putApiV2RoomsRoomUsersUser",
+      "upstream_operation_id": "putApiV2RoomsRoomUsersUser",
+      "method": "PUT",
+      "path": "/rooms/{room}/users/{user}",
+      "category": "Undocumented",
+      "title": "/api/v2/rooms/{room}/users/{user}",
+      "description": "PUT /api/v2/rooms/{room}/users/{user}",
+      "auth": [
+        "requires user",
+        "OAuth",
+        "lazer"
+      ],
+      "enabled": false,
+      "disabled_reason": "lazer 客户端专用",
+      "parameters": [
+        {
+          "name": "room",
+          "in": "path",
+          "required": true,
+          "type": "string",
+          "description": "The room."
+        },
+        {
+          "name": "user",
+          "in": "path",
+          "required": true,
+          "type": "string",
+          "description": "The user."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#undocumented-PUTapi-v2-rooms--room--users--user-"
+    },
+    {
+      "id": "deleteApiV2RoomsRoomUsersUser",
+      "upstream_operation_id": "deleteApiV2RoomsRoomUsersUser",
+      "method": "DELETE",
+      "path": "/rooms/{room}/users/{user}",
+      "category": "Undocumented",
+      "title": "/api/v2/rooms/{room}/users/{user}",
+      "description": "DELETE /api/v2/rooms/{room}/users/{user}",
+      "auth": [
+        "requires user",
+        "OAuth",
+        "lazer"
+      ],
+      "enabled": false,
+      "disabled_reason": "lazer 客户端专用",
+      "parameters": [
+        {
+          "name": "room",
+          "in": "path",
+          "required": true,
+          "type": "string",
+          "description": "The room."
+        },
+        {
+          "name": "user",
+          "in": "path",
+          "required": true,
+          "type": "string",
+          "description": "The user."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#undocumented-DELETEapi-v2-rooms--room--users--user-"
+    },
+    {
+      "id": "getApiV2RoomsRoomLeaderboard",
+      "upstream_operation_id": "getApiV2RoomsRoomLeaderboard",
+      "method": "GET",
+      "path": "/rooms/{room}/leaderboard",
+      "category": "Undocumented",
+      "title": "/api/v2/rooms/{room}/leaderboard",
+      "description": "GET /api/v2/rooms/{room}/leaderboard",
+      "auth": [
+        "OAuth",
+        "public"
+      ],
+      "enabled": true,
+      "disabled_reason": "",
+      "parameters": [
+        {
+          "name": "room",
+          "in": "path",
+          "required": true,
+          "type": "string",
+          "description": "The room."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#undocumented-GETapi-v2-rooms--room--leaderboard"
+    },
+    {
+      "id": "getApiV2RoomsRoomEvents",
+      "upstream_operation_id": "getApiV2RoomsRoomEvents",
+      "method": "GET",
+      "path": "/rooms/{room}/events",
+      "category": "Undocumented",
+      "title": "/api/v2/rooms/{room}/events",
+      "description": "GET /api/v2/rooms/{room}/events",
+      "auth": [
+        "OAuth",
+        "public"
+      ],
+      "enabled": true,
+      "disabled_reason": "",
+      "parameters": [
+        {
+          "name": "room",
+          "in": "path",
+          "required": true,
+          "type": "string",
+          "description": "The room."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#undocumented-GETapi-v2-rooms--room--events"
+    },
+    {
+      "id": "getApiV2RoomsRoom",
+      "upstream_operation_id": "getApiV2RoomsRoom",
+      "method": "GET",
+      "path": "/rooms/{room}",
+      "category": "Undocumented",
+      "title": "/api/v2/rooms/{room}",
+      "description": "GET /api/v2/rooms/{room}",
+      "auth": [
+        "OAuth",
+        "public"
+      ],
+      "enabled": true,
+      "disabled_reason": "",
+      "parameters": [
+        {
+          "name": "room",
+          "in": "path",
+          "required": true,
+          "type": "string",
+          "description": "The room."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#undocumented-GETapi-v2-rooms--room-"
+    },
+    {
+      "id": "deleteApiV2RoomsRoom",
+      "upstream_operation_id": "deleteApiV2RoomsRoom",
+      "method": "DELETE",
+      "path": "/rooms/{room}",
+      "category": "Undocumented",
+      "title": "/api/v2/rooms/{room}",
+      "description": "DELETE /api/v2/rooms/{room}",
+      "auth": [
+        "requires user",
+        "OAuth",
+        "lazer"
+      ],
+      "enabled": false,
+      "disabled_reason": "lazer 客户端专用",
+      "parameters": [
+        {
+          "name": "room",
+          "in": "path",
+          "required": true,
+          "type": "string",
+          "description": "The room."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#undocumented-DELETEapi-v2-rooms--room-"
+    },
+    {
+      "id": "getApiV2SeasonalBackgrounds",
+      "upstream_operation_id": "getApiV2SeasonalBackgrounds",
+      "method": "GET",
+      "path": "/seasonal-backgrounds",
+      "category": "Undocumented",
+      "title": "/api/v2/seasonal-backgrounds",
+      "description": "GET /api/v2/seasonal-backgrounds",
+      "auth": [],
+      "enabled": true,
+      "disabled_reason": "",
+      "parameters": [],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#undocumented-GETapi-v2-seasonal-backgrounds"
+    },
+    {
+      "id": "getApiV2ScoresScoreDownload",
+      "upstream_operation_id": "getApiV2ScoresScoreDownload",
+      "method": "GET",
+      "path": "/scores/{score}/download",
+      "category": "Undocumented",
+      "title": "/api/v2/scores/{score}/download",
+      "description": "GET /api/v2/scores/{score}/download",
+      "auth": [
+        "OAuth",
+        "public"
+      ],
+      "enabled": false,
+      "disabled_reason": "二进制下载，当前 JSON 工具不开放",
+      "parameters": [
+        {
+          "name": "score",
+          "in": "path",
+          "required": true,
+          "type": "string",
+          "description": "The score."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#undocumented-GETapi-v2-scores--score--download"
+    },
+    {
+      "id": "getApiV2ScoresRulesetScoreDownload",
+      "upstream_operation_id": "getApiV2ScoresRulesetScoreDownload",
+      "method": "GET",
+      "path": "/scores/{ruleset}/{score}/download",
+      "category": "Undocumented",
+      "title": "/api/v2/scores/{ruleset}/{score}/download",
+      "description": "GET /api/v2/scores/{ruleset}/{score}/download",
+      "auth": [
+        "OAuth",
+        "public"
+      ],
+      "enabled": false,
+      "disabled_reason": "二进制下载，当前 JSON 工具不开放",
+      "parameters": [
+        {
+          "name": "ruleset",
+          "in": "path",
+          "required": true,
+          "type": "string",
+          "description": ""
+        },
+        {
+          "name": "score",
+          "in": "path",
+          "required": true,
+          "type": "string",
+          "description": ""
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#undocumented-GETapi-v2-scores--ruleset---score--download"
+    },
+    {
+      "id": "getApiV2ScoresRulesetScore",
+      "upstream_operation_id": "getApiV2ScoresRulesetScore",
+      "method": "GET",
+      "path": "/scores/{ruleset}/{score}",
+      "category": "Undocumented",
+      "title": "/api/v2/scores/{ruleset}/{score}",
+      "description": "GET /api/v2/scores/{ruleset}/{score}",
+      "auth": [
+        "OAuth",
+        "public"
+      ],
+      "enabled": true,
+      "disabled_reason": "",
+      "parameters": [
+        {
+          "name": "ruleset",
+          "in": "path",
+          "required": true,
+          "type": "string",
+          "description": ""
+        },
+        {
+          "name": "score",
+          "in": "path",
+          "required": true,
+          "type": "string",
+          "description": ""
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#undocumented-GETapi-v2-scores--ruleset---score-"
+    },
+    {
+      "id": "getApiV2ScoresScore",
+      "upstream_operation_id": "getApiV2ScoresScore",
+      "method": "GET",
+      "path": "/scores/{score}",
+      "category": "Undocumented",
+      "title": "/api/v2/scores/{score}",
+      "description": "GET /api/v2/scores/{score}",
+      "auth": [
+        "OAuth",
+        "public"
+      ],
+      "enabled": true,
+      "disabled_reason": "",
+      "parameters": [
+        {
+          "name": "score",
+          "in": "path",
+          "required": true,
+          "type": "string",
+          "description": "The score."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#undocumented-GETapi-v2-scores--score-"
+    },
+    {
+      "id": "getApiV2UsersLookup",
+      "upstream_operation_id": "getApiV2UsersLookup",
+      "method": "GET",
+      "path": "/users/lookup",
+      "category": "Undocumented",
+      "title": "/api/v2/users/lookup",
+      "description": "GET /api/v2/users/lookup",
+      "auth": [
+        "OAuth",
+        "public"
+      ],
+      "enabled": true,
+      "disabled_reason": "",
+      "parameters": [
+        {
+          "name": "ids",
+          "type": "array",
+          "in": "query",
+          "required": false,
+          "description": "最多 50 个用户 ID 或 @用户名"
+        },
+        {
+          "name": "ruleset_id",
+          "type": "integer",
+          "in": "query",
+          "required": false,
+          "description": "0/1/2/3"
+        },
+        {
+          "name": "exclude_bots",
+          "type": "boolean",
+          "in": "query",
+          "required": false,
+          "description": "排除机器人账号"
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#undocumented-GETapi-v2-users-lookup",
+      "parameter_source": "https://github.com/ppy/osu-web/tree/04643dee6cacfaadc6c80976256481322e21e945/app/Http/Controllers"
+    },
+    {
+      "id": "getApiV2Friends",
+      "upstream_operation_id": "getApiV2Friends",
+      "method": "GET",
+      "path": "/friends",
+      "category": "Undocumented",
+      "title": "/api/v2/friends",
+      "description": "GET /api/v2/friends",
+      "auth": [
+        "requires user",
+        "OAuth",
+        "friends.read"
+      ],
+      "enabled": false,
+      "disabled_reason": "需要用户授权或额外 scope",
+      "parameters": [],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#undocumented-GETapi-v2-friends"
+    },
+    {
+      "id": "postApiV2Friends",
+      "upstream_operation_id": "postApiV2Friends",
+      "method": "POST",
+      "path": "/friends",
+      "category": "Undocumented",
+      "title": "/api/v2/friends",
+      "description": "POST /api/v2/friends",
+      "auth": [
+        "requires user",
+        "OAuth",
+        "lazer"
+      ],
+      "enabled": false,
+      "disabled_reason": "lazer 客户端专用",
+      "parameters": [],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#undocumented-POSTapi-v2-friends"
+    },
+    {
+      "id": "deleteApiV2FriendsFriend",
+      "upstream_operation_id": "deleteApiV2FriendsFriend",
+      "method": "DELETE",
+      "path": "/friends/{friend}",
+      "category": "Undocumented",
+      "title": "/api/v2/friends/{friend}",
+      "description": "DELETE /api/v2/friends/{friend}",
+      "auth": [
+        "requires user",
+        "OAuth",
+        "lazer"
+      ],
+      "enabled": false,
+      "disabled_reason": "lazer 客户端专用",
+      "parameters": [
+        {
+          "name": "friend",
+          "in": "path",
+          "required": true,
+          "type": "string",
+          "description": "The friend."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#undocumented-DELETEapi-v2-friends--friend-"
+    },
+    {
+      "id": "getApiV2MeDownloadQuotaCheck",
+      "upstream_operation_id": "getApiV2MeDownloadQuotaCheck",
+      "method": "GET",
+      "path": "/me/download-quota-check",
+      "category": "Undocumented",
+      "title": "/api/v2/me/download-quota-check",
+      "description": "GET /api/v2/me/download-quota-check",
+      "auth": [
+        "requires user",
+        "OAuth",
+        "lazer"
+      ],
+      "enabled": false,
+      "disabled_reason": "lazer 客户端专用",
+      "parameters": [],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#undocumented-GETapi-v2-me-download-quota-check"
+    },
+    {
+      "id": "putApiV2MeOptions",
+      "upstream_operation_id": "putApiV2MeOptions",
+      "method": "PUT",
+      "path": "/me/options",
+      "category": "Undocumented",
+      "title": "/api/v2/me/options",
+      "description": "PUT /api/v2/me/options",
+      "auth": [
+        "requires user",
+        "OAuth",
+        "lazer"
+      ],
+      "enabled": false,
+      "disabled_reason": "lazer 客户端专用",
+      "parameters": [],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#undocumented-PUTapi-v2-me-options"
+    },
+    {
+      "id": "getApiV2SuggestionsWiki",
+      "upstream_operation_id": "getApiV2SuggestionsWiki",
+      "method": "GET",
+      "path": "/suggestions/wiki",
+      "category": "Undocumented",
+      "title": "/api/v2/suggestions/wiki",
+      "description": "GET /api/v2/suggestions/wiki",
+      "auth": [],
+      "enabled": true,
+      "disabled_reason": "",
+      "parameters": [],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#undocumented-GETapi-v2-suggestions-wiki"
+    },
+    {
+      "id": "getApiV2Tags",
+      "upstream_operation_id": "getApiV2Tags",
+      "method": "GET",
+      "path": "/tags",
+      "category": "Undocumented",
+      "title": "/api/v2/tags",
+      "description": "GET /api/v2/tags",
+      "auth": [
+        "OAuth",
+        "public"
+      ],
+      "enabled": true,
+      "disabled_reason": "",
+      "parameters": [],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#undocumented-GETapi-v2-tags"
+    },
+    {
+      "id": "postApiV2Screenshots",
+      "upstream_operation_id": "postApiV2Screenshots",
+      "method": "POST",
+      "path": "/screenshots",
+      "category": "Undocumented",
+      "title": "/api/v2/screenshots",
+      "description": "POST /api/v2/screenshots",
+      "auth": [
+        "requires user",
+        "OAuth",
+        "lazer"
+      ],
+      "enabled": false,
+      "disabled_reason": "lazer 客户端专用",
+      "parameters": [],
+      "body_schema": {
+        "type": "object",
+        "properties": {
+          "screenshot": {
+            "type": "string",
+            "description": "",
+            "example": "nisi"
+          }
+        },
+        "required": [
+          "screenshot"
+        ]
+      },
+      "docs": "https://osu.ppy.sh/docs/index.html#undocumented-POSTapi-v2-screenshots"
+    },
+    {
+      "id": "getUserKudosu",
+      "upstream_operation_id": "getUserKudosu",
+      "method": "GET",
+      "path": "/users/{user}/kudosu",
+      "category": "Users",
+      "title": "Get User Kudosu",
+      "description": "Get User Kudosu",
+      "auth": [
+        "OAuth",
+        "public"
+      ],
+      "enabled": true,
+      "disabled_reason": "",
+      "parameters": [
+        {
+          "name": "user",
+          "in": "path",
+          "required": true,
+          "type": "integer",
+          "description": "Id of the user."
+        },
+        {
+          "name": "limit",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "Maximum number of results."
+        },
+        {
+          "name": "offset",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Result offset for pagination."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#users-GETapi-v2-users--user--kudosu"
+    },
+    {
+      "id": "getUserScores",
+      "upstream_operation_id": "getUserScores",
+      "method": "GET",
+      "path": "/users/{user}/scores/{type}",
+      "category": "Users",
+      "title": "Get User Scores",
+      "description": "Get User Scores",
+      "auth": [
+        "OAuth",
+        "public"
+      ],
+      "enabled": true,
+      "disabled_reason": "",
+      "parameters": [
+        {
+          "name": "user",
+          "in": "path",
+          "required": true,
+          "type": "integer",
+          "description": "Id of the user."
+        },
+        {
+          "name": "type",
+          "in": "path",
+          "required": true,
+          "type": "string",
+          "description": "Score type. Must be one of these: `best`, `firsts`, `recent`."
+        },
+        {
+          "name": "legacy_only",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "Whether or not to exclude lazer scores. Defaults to 0."
+        },
+        {
+          "name": "include_fails",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Only for recent scores, include scores of failed plays. Set to 1 to include them. Defaults to 0."
+        },
+        {
+          "name": "mode",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "[Ruleset](#ruleset) of the scores to be returned. Defaults to the specified `user`'s mode."
+        },
+        {
+          "name": "limit",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "Maximum number of results."
+        },
+        {
+          "name": "offset",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Result offset for pagination."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#users-GETapi-v2-users--user--scores--type-"
+    },
+    {
+      "id": "getUserBeatmaps",
+      "upstream_operation_id": "getUserBeatmaps",
+      "method": "GET",
+      "path": "/users/{user}/beatmapsets/{type}",
+      "category": "Users",
+      "title": "Get User Beatmaps",
+      "description": "Get User Beatmaps",
+      "auth": [
+        "OAuth",
+        "public"
+      ],
+      "enabled": true,
+      "disabled_reason": "",
+      "parameters": [
+        {
+          "name": "user",
+          "in": "path",
+          "required": true,
+          "type": "integer",
+          "description": "Id of the user."
+        },
+        {
+          "name": "type",
+          "in": "path",
+          "required": true,
+          "type": "string",
+          "description": "Beatmap type."
+        },
+        {
+          "name": "limit",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "Maximum number of results."
+        },
+        {
+          "name": "offset",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Result offset for pagination."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#users-GETapi-v2-users--user--beatmapsets--type-"
+    },
+    {
+      "id": "getUserRecentActivity",
+      "upstream_operation_id": "getUserRecentActivity",
+      "method": "GET",
+      "path": "/users/{user}/recent_activity",
+      "category": "Users",
+      "title": "Get User Recent Activity",
+      "description": "Get User Recent Activity",
+      "auth": [
+        "OAuth",
+        "public"
+      ],
+      "enabled": true,
+      "disabled_reason": "",
+      "parameters": [
+        {
+          "name": "user",
+          "in": "path",
+          "required": true,
+          "type": "integer",
+          "description": "Id of the user."
+        },
+        {
+          "name": "limit",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "Maximum number of results."
+        },
+        {
+          "name": "offset",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Result offset for pagination."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#users-GETapi-v2-users--user--recent_activity"
+    },
+    {
+      "id": "searchBeatmapsPassed",
+      "upstream_operation_id": "searchBeatmapsPassed",
+      "method": "GET",
+      "path": "/users/{user}/beatmaps-passed",
+      "category": "Users",
+      "title": "Search Beatmaps Passed",
+      "description": "Search Beatmaps Passed",
+      "auth": [
+        "OAuth",
+        "public"
+      ],
+      "enabled": true,
+      "disabled_reason": "",
+      "parameters": [
+        {
+          "name": "user",
+          "in": "path",
+          "required": true,
+          "type": "integer",
+          "description": "The id of the user."
+        },
+        {
+          "name": "beatmapset_ids",
+          "in": "query",
+          "required": false,
+          "type": "array",
+          "description": "The list of Beatmapset."
+        },
+        {
+          "name": "exclude_converts",
+          "in": "query",
+          "required": false,
+          "type": "boolean",
+          "description": "Whether or not to exclude converts."
+        },
+        {
+          "name": "is_legacy",
+          "in": "query",
+          "required": false,
+          "type": "boolean",
+          "description": "Whether or not to consider legacy scores. Leave empty for all scores."
+        },
+        {
+          "name": "no_diff_reduction",
+          "in": "query",
+          "required": false,
+          "type": "boolean",
+          "description": "Whether or not to exclude diff reduction mods. Defaults to true."
+        },
+        {
+          "name": "ruleset_id",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "The [Ruleset](#ruleset) ID. Leave empty for all rulesets."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#users-GETapi-v2-users--user--beatmaps-passed"
+    },
+    {
+      "id": "getUser",
+      "upstream_operation_id": "getUser",
+      "method": "GET",
+      "path": "/users/{user}/{mode}",
+      "category": "Users",
+      "title": "Get User",
+      "description": "Get User",
+      "auth": [
+        "OAuth",
+        "public"
+      ],
+      "enabled": true,
+      "disabled_reason": "",
+      "parameters": [
+        {
+          "name": "user",
+          "in": "path",
+          "required": true,
+          "type": "string",
+          "description": "玩家数字 ID 或 @ 前缀用户名；纯数字用户名也加 @。"
+        },
+        {
+          "name": "mode",
+          "in": "path",
+          "required": false,
+          "type": "string",
+          "description": "Optional parameter. [Ruleset](#ruleset). User default mode will be used if not specified."
+        },
+        {
+          "name": "key",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "Type of `user` passed in url parameter. Can be either `id` or `username` to limit lookup by their respective type. Passing empty or invalid value will result in id lookup followed by username lookup if not found. This parameter has been deprecated. Prefix `user` parameter with `@` instead to lookup by username."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#users-GETapi-v2-users--user---mode--"
+    },
+    {
+      "id": "getUsers",
+      "upstream_operation_id": "getUsers",
+      "method": "GET",
+      "path": "/users",
+      "category": "Users",
+      "title": "Get Users",
+      "description": "Get Users",
+      "auth": [
+        "OAuth",
+        "public"
+      ],
+      "enabled": true,
+      "disabled_reason": "",
+      "parameters": [
+        {
+          "name": "ids[]",
+          "in": "query",
+          "required": false,
+          "type": "string",
+          "description": "User id to be returned. Specify once for each user id requested. Up to 50 users can be requested at once."
+        },
+        {
+          "name": "include_variant_statistics",
+          "in": "query",
+          "required": false,
+          "type": "boolean",
+          "description": "Whether to additionally include `statistics_rulesets.variants` (default: `false`)."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#users-GETapi-v2-users"
+    },
+    {
+      "id": "getOwnData",
+      "upstream_operation_id": "getOwnData",
+      "method": "GET",
+      "path": "/me/{mode}",
+      "category": "Users",
+      "title": "Get Own Data",
+      "description": "Get Own Data",
+      "auth": [
+        "requires user",
+        "OAuth",
+        "identify"
+      ],
+      "enabled": false,
+      "disabled_reason": "需要用户授权或额外 scope",
+      "parameters": [
+        {
+          "name": "mode",
+          "in": "path",
+          "required": false,
+          "type": "string",
+          "description": "Optional parameter. [Ruleset](#ruleset). User default mode will be used if not specified."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#users-GETapi-v2-me--mode--"
+    },
+    {
+      "id": "putApiV2MeAchievementsAchievementId",
+      "upstream_operation_id": "putApiV2MeAchievementsAchievementId",
+      "method": "PUT",
+      "path": "/me/achievements/{achievementId}",
+      "category": "Users",
+      "title": "/api/v2/me/achievements/{achievementId}",
+      "description": "PUT /api/v2/me/achievements/{achievementId}",
+      "auth": [
+        "requires user",
+        "OAuth",
+        "lazer"
+      ],
+      "enabled": false,
+      "disabled_reason": "lazer 客户端专用",
+      "parameters": [
+        {
+          "name": "achievementId",
+          "in": "path",
+          "required": true,
+          "type": "string",
+          "description": ""
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#users-PUTapi-v2-me-achievements--achievementId-"
+    },
+    {
+      "id": "getWikiPage",
+      "upstream_operation_id": "getWikiPage",
+      "method": "GET",
+      "path": "/wiki/{locale}/{path}",
+      "category": "Wiki",
+      "title": "Get Wiki Page",
+      "description": "Get Wiki Page",
+      "auth": [],
+      "enabled": true,
+      "disabled_reason": "",
+      "parameters": [
+        {
+          "name": "locale",
+          "in": "path",
+          "required": true,
+          "type": "string",
+          "description": "Two-letter language code of the wiki page."
+        },
+        {
+          "name": "path",
+          "in": "path",
+          "required": true,
+          "type": "string",
+          "description": "The path name of the wiki page."
+        }
+      ],
+      "body_schema": {},
+      "docs": "https://osu.ppy.sh/docs/index.html#wiki-GETapi-v2-wiki--locale---path-"
+    }
+  ]
+}

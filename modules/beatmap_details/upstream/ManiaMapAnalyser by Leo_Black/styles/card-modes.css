@@ -1,0 +1,292 @@
+.main-card {
+    display: grid;
+    grid-template-rows: auto auto 1fr;
+    gap: 8px;
+    width: 475px;
+    height: auto;
+    min-width: 475px;
+    max-width: 475px;
+    min-height: 540px;
+    max-height: none;
+    overflow: hidden;
+}
+
+/* Full mode: show Pattern + Etterna + Graph stacked together.
+   Height grows to fit all three blocks; nothing is compressed or scrolled. */
+.main-card.bars-full {
+    grid-template-rows: none;
+    grid-auto-rows: auto;
+    align-content: start;
+    gap: 10px;
+    height: auto;
+    min-height: 540px;
+    max-height: none;
+    overflow: visible;
+}
+
+.main-card.bars-full .cluster-bars,
+.main-card.bars-full .ett-skill-bars {
+    overflow-x: hidden;
+    overflow-y: visible;
+    max-height: none;
+}
+
+.main-card.bars-full .body-graph-wrap {
+    width: 100%;
+    margin: 0 auto 28px;
+}
+
+/* Full mode section separators — hr-like with centered text */
+.full-separator {
+    display: none;
+}
+
+.main-card.bars-full .full-separator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 6px 12px;
+    font-family: "Outfit", sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    color: color-mix(in srgb, var(--ma-accent) 40%, #8890a8);
+    white-space: nowrap;
+    opacity: 0.75;
+}
+
+.main-card.bars-full .full-separator::before,
+.main-card.bars-full .full-separator::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: color-mix(in srgb, var(--ma-accent) 22%, #4a5068);
+    border-radius: 1px;
+}
+
+/* Pattern mode: content-driven height — the card grows with the pattern
+   subtype list instead of clipping it; min-height keeps the resting height
+   stable. */
+.main-card.bars-pattern {
+    grid-template-rows: none;
+    grid-auto-rows: auto;
+    align-content: start;
+    gap: 8px;
+    height: auto;
+    min-height: 540px;
+    max-height: none;
+}
+
+.main-card.bars-pattern .ett-skill-bars,
+.main-card.bars-pattern .pp-bars,
+.main-card.bars-pattern .body-graph-wrap {
+    display: none;
+}
+
+/* 键型细分列表随卡片高度整体展开；底部留出 margin 避开绝对定位的
+   mode-tag 胶囊（bottom:10px、高约 21px）。 */
+.main-card.bars-pattern .cluster-bars {
+    min-height: max-content;
+    height: auto;
+    max-height: none;
+    overflow-y: visible;
+    margin-bottom: 28px;
+}
+
+.main-card.bars-graph {
+    grid-template-rows: auto auto auto;
+    align-content: start;
+    gap: 6px;
+    height: auto;
+    min-height: 396px;
+    max-height: none;
+}
+
+.main-card.bars-graph .cluster-bars,
+.main-card.bars-graph .ett-skill-bars {
+    display: none;
+}
+
+.main-card.bars-graph .body-graph-wrap {
+    margin-bottom: 18px;
+}
+
+.main-card.bars-none {
+    grid-template-rows: auto auto;
+    height: auto;
+    min-height: 200px;
+    max-height: none;
+    gap: 4px;
+    padding: 10px 10px 30px 10px;
+}
+
+.main-card.bars-none .cluster-bars,
+.main-card.bars-none .ett-skill-bars {
+    display: none;
+}
+
+.main-card.bars-none .status-row {
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.main-card.bars-none .title-icon {
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
+    flex: 0 0 28px;
+}
+
+.main-card.bars-none .title-icon svg {
+    width: 16px;
+    height: 16px;
+}
+
+.main-card.bars-none .status {
+    font-size: 16px;
+}
+
+.main-card.bars-none .star-block {
+    gap: 8px;
+}
+
+.main-card.bars-none .star-left {
+    gap: 2px;
+    padding-bottom: 2px;
+}
+
+.main-card.bars-none .star-value {
+    font-size: 52px;
+    padding: 2px 10px;
+    border-radius: 16px;
+}
+
+.main-card.bars-none .star-subtitle {
+    font-size: 28px;
+}
+
+.main-card.bars-none .star-caption {
+    font-size: 11px;
+}
+
+.main-card.bars-none .star-meta {
+    font-size: 15px;
+    line-height: 1.3;
+}
+
+.main-card.bars-none .star-value.category-mode {
+    font-size: 24px;
+    line-height: 1.2;
+    max-width: 240px;
+}
+
+/* Etterna mode: content-driven height (same pattern as Full/PP) — the card
+   grows with the seven skill rows, so no internal scrollbar appears regardless
+   of theme/fonts. min-height keeps the resting height stable. */
+.main-card.bars-etterna {
+    grid-template-rows: none;
+    grid-auto-rows: auto;
+    align-content: start;
+    gap: 10px;
+    height: auto;
+    min-height: 540px;
+    max-height: none;
+    overflow: visible;
+}
+
+.main-card.bars-etterna.bars-etterna-compact {
+    min-height: 520px;
+}
+
+.main-card.bars-etterna .cluster-bars {
+    display: none;
+}
+
+/* etterna 框在第三行用 1fr 撑满，会顶到卡片底部内边缘，与底部绝对定位的
+   mode-tag 胶囊（bottom:10px、高约 21px）重叠。底部留出一段 margin 把框抬高，
+   让框底边避开胶囊。 */
+.main-card.bars-etterna .ett-skill-bars {
+    overflow-x: hidden;
+    overflow-y: visible;
+    max-height: none;
+    margin-bottom: 24px;
+}
+
+.main-card.bars-etterna .star-value {
+    font-size: 48px;
+}
+
+.main-card.bars-etterna .star-subtitle {
+    font-size: 24px;
+}
+
+.main-card.bars-etterna .star-caption {
+    font-size: 11px;
+}
+
+.main-card.bars-etterna .star-value.category-mode {
+    font-family: "Outfit", sans-serif;
+    font-size: 24px;
+    line-height: 1.2;
+    font-weight: 700;
+    max-width: 250px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+/* ReworkPP 模式：与 bars-etterna 同构——只显示 pp 块，其余主体块隐藏。
+   高度自适应内容（同 bars-full）：五小行内容撑开卡片，消除底部空白；
+   min-height 归零——bars-pp 没有 Full 的三块堆叠，无需 540px 下限。 */
+.main-card.bars-pp {
+    grid-template-rows: none;
+    grid-auto-rows: auto;
+    align-content: start;
+    gap: 10px;
+    height: auto;
+    min-height: 0;
+    max-height: none;
+}
+
+.main-card.bars-pp .cluster-bars,
+.main-card.bars-pp .ett-skill-bars,
+.main-card.bars-pp .body-graph-wrap {
+    display: none;
+}
+
+/* pp 框不内部滚动，随卡片高度生长全部展开（同 bars-full 的 pp-bars 处理）；
+   底部留 margin 抬高，让框底边避开 mode-tag 胶囊（bottom:10px、高约 21px）。 */
+.main-card.bars-pp .pp-bars {
+    overflow-x: hidden;
+    overflow-y: visible;
+    max-height: none;
+    margin-bottom: 24px;
+}
+
+.main-card.bars-pp .star-value {
+    font-size: 48px;
+}
+
+.main-card.bars-pp .star-subtitle {
+    font-size: 24px;
+}
+
+.main-card.bars-pp .star-caption {
+    font-size: 11px;
+}
+
+.main-card.bars-pp .star-value.category-mode {
+    font-family: "Outfit", sans-serif;
+    font-size: 24px;
+    line-height: 1.2;
+    font-weight: 700;
+    max-width: 250px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+/* Full 模式：pp 块不内部滚动，随卡片高度生长全部展开 */
+.main-card.bars-full .pp-bars {
+    overflow-x: hidden;
+    overflow-y: visible;
+    max-height: none;
+}

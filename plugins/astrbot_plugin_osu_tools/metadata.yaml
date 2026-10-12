@@ -1,0 +1,8 @@
+name: astrbot_plugin_osu_tools
+display_name: osu! 官方 API 查询工具
+desc: 为 LLM 提供玩家、成绩、谱面、Mod 难度和排名查询，以及完整的官方 API 目录。
+version: 1.0.0
+author: OwO
+repo: ""
+astrbot_version: ">=4.9.2"
+tags: [osu, llm, tools]

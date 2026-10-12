@@ -62,7 +62,7 @@ class PlayHistory:
                   'maximum_statistics','max_combo','mods','pp','total_score','score',
                   'legacy_total_score','legacy_score_id','build_id','type',
                   'ended_at','created_at','ruleset_id','mode','perfect',
-                  'beatmap','beatmapset','user','server','sb_acc','rank_global')
+                  'beatmap','beatmapset','user','server','client','sb_acc','rank_global')
         payload = {k: score[k] for k in fields if k in score}
         payload['server'] = server
         body = json.dumps(payload, ensure_ascii=False, sort_keys=True)
@@ -80,4 +80,12 @@ class PlayHistory:
             row = db.execute('SELECT payload FROM plays WHERE server=? AND qq=? AND account=? '
                              'AND ruleset=? AND beatmap_id=? ORDER BY played_at DESC,score_key DESC LIMIT 1',
                              (server,str(qq),username.casefold(),ruleset,int(beatmap_id))).fetchone()
+        return json.loads(row[0]) if row else None
+
+    def latest_account(self, username, ruleset, server, beatmap_id):
+        """Public observed plays for an explicitly named account, across QQ bindings."""
+        with closing(self.connect()) as db:
+            row = db.execute('SELECT payload FROM plays WHERE server=? AND account=? '
+                             'AND ruleset=? AND beatmap_id=? ORDER BY played_at DESC,score_key DESC LIMIT 1',
+                             (server,username.casefold(),ruleset,int(beatmap_id))).fetchone()
         return json.loads(row[0]) if row else None

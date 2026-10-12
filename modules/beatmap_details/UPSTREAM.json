@@ -1,0 +1,12 @@
+{
+  "name": "osumania_map_analyser",
+  "repository": "https://github.com/LeoBlackMT/osumania_map_analyser",
+  "branch": "main",
+  "commit": "a44acf463679d57d46e4249afeb9adc2b816c3e0",
+  "copied_on": "2026-10-09",
+  "license": "MIT",
+  "copied_files": 356,
+  "copy_verified": "All file SHA-256 digests match the cloned upstream snapshot",
+  "excluded": [".git"],
+  "integration_status": "astrbot_dtlp_via_local_om_node"
+}

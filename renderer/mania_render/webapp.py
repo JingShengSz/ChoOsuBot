@@ -93,7 +93,7 @@ DEFAULT_SKIN_KEY = os.environ.get("MANIA_DEFAULT_SKIN") or "boj 1-10K"
 #            against. Costs a real-time recording (a 150 s chart takes 150 s) and needs a
 #            Chromium listening on CHROME_PORT.
 #   python — the Pillow renderer: no browser, no display, ~1.3-1.5x real time.
-ENGINES = ("webgl", "python")
+ENGINES = ("webgl", "python", "mrm")
 DEFAULT_ENGINE = os.environ.get("MANIA_ENGINE", "webgl").strip().lower()
 CHROME_HOST = os.environ.get("MANIA_CHROME_HOST", "127.0.0.1")
 CHROME_PORT = int(os.environ.get("MANIA_CHROME_PORT", "9222"))
@@ -567,6 +567,29 @@ def _run_job_webgl(job_id: str, bid: str, skin_key: str, scroll: float, fps: int
         set_("error", error=str(exc), message="失败")
 
 
+def _run_job_mrm(job_id, bid, skin_key, scroll, fps, range_s, lead_in, osr_path,
+                 bg_dim=.6, width=540, height=960, bitrate_kbps=0):
+    from .mrm_render import render
+    from .renderer import _find_ffmpeg
+
+    def set_(state, **kw):
+        with JOBS_LOCK:
+            JOBS[job_id].update(state=state, **kw)
+
+    try:
+        set_('running', percent=1, message='准备 Mania-Replay-Master')
+        out = CACHE / 'renders' / f'{job_id}_{bid}_mrm.mp4'
+        summary = render(bid, osr_path, CACHE, CACHE / 'mrm_work' / job_id, out,
+                         _find_ffmpeg(), scroll=scroll, fps=fps, width=width, height=height,
+                         range_s=range_s, timeout=float(JOBS[job_id].get('timeout') or 1800),
+                         progress=lambda pct, msg: set_('running', percent=pct, message=msg))
+        set_('done', percent=100, message='完成', output=str(out), width=width, height=height,
+             size_bytes=out.stat().st_size, renderer=summary['engine'], judgement_counts=summary['counts'])
+    except Exception as exc:
+        traceback.print_exc()
+        set_('error', error=str(exc), message='失败')
+
+
 def _dispatch_job(engine: str, *args) -> None:
     """Route a job to the requested renderer."""
     # Name the engine in BOTH traces. The two engines produce different pictures, so
@@ -577,7 +600,9 @@ def _dispatch_job(engine: str, *args) -> None:
     job_id = args[0] if args else "?"
     print(f"[engine] job={job_id} engine={engine}", flush=True)
     _api_log(f"engine job={job_id} engine={engine}")
-    if engine == "python":
+    if engine == 'mrm':
+        _run_job_mrm(*args)
+    elif engine == "python":
         _run_job(*args)
     else:
         _run_job_webgl(*args)
@@ -722,6 +747,42 @@ class Handler(BaseHTTPRequestHandler):
                 self.wfile.write(raw)
                 return
             return _json(self, 404, {"error": "diag.html missing"})
+
+        if u.path.startswith("/api/detail-compact/"):
+            bid = u.path[len("/api/detail-compact/"):]
+            try:
+                from modules.beatmap_details.compact_service import compact_card
+                rate=float(parse_qs(u.query).get('rate',['1'])[0])
+                raw = compact_card(bid,rate)
+            except ValueError as exc:
+                return _json(self, 400, {"error": str(exc)})
+            except Exception as exc:
+                _api_log(f"dtl failed bid={bid} type={type(exc).__name__}")
+                return _json(self, 502, {"error": "DTL 谱面卡片生成失败，请稍后重试"})
+            self.send_response(200)
+            self.send_header("Content-Type", "image/png")
+            self.send_header("Content-Length", str(len(raw)))
+            self.end_headers()
+            self.wfile.write(raw)
+            return
+
+        if u.path.startswith("/api/detail/"):
+            bid = u.path[len("/api/detail/"):]
+            try:
+                from modules.beatmap_details.service import detail_bundle
+                rate=float(parse_qs(u.query).get('rate',['1'])[0])
+                raw = detail_bundle(bid,rate)
+            except ValueError as exc:
+                return _json(self, 400, {"error": str(exc)})
+            except Exception as exc:
+                _api_log(f"detail failed bid={bid} type={type(exc).__name__}")
+                return _json(self, 502, {"error": "谱面详情生成失败，请稍后重试"})
+            self.send_response(200)
+            self.send_header("Content-Type", "application/zip")
+            self.send_header("Content-Length", str(len(raw)))
+            self.end_headers()
+            self.wfile.write(raw)
+            return
 
         if u.path.startswith("/api/media/"):
             # The SAME bytes as /api/audio, under a neutral path and content type. A
@@ -971,40 +1032,32 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 return _json(self, 400, {"error": str(exc)})
             return _json(self, 200, {"ok": True})
+        if u.path in ("/api/import_osz", "/api/import_detail_osz"):
+            from .osz import import_package
+            n = int(self.headers.get("Content-Length") or 0)
+            if n > 151 * 1024**2: return _json(self, 413, {"error":"osz 文件超过150MB"})
+            try:
+                _fields, files = _multipart_fields(self.rfile.read(n), self.headers.get("Content-Type") or "")
+                maps, warnings = import_package(files['osz'][1], require_audio=u.path == "/api/import_osz")
+                return _json(self, 200, {"maps": maps, "warnings": warnings})
+            except Exception as exc:
+                return _json(self, 400, {"error": str(exc)})
         if u.path == "/api/resolve_osr":
             n = int(self.headers.get("Content-Length") or 0)
+            if n > 33 * 1024**2:
+                return _json(self, 413, {"error": "回放超过32MB"})
             body = self.rfile.read(n)
             fields, files = _multipart_fields(body, self.headers.get("Content-Type") or "")
             if "osr" not in files:
                 return _json(self, 400, {"error": "缺少 osr 文件"})
             fn, data = files["osr"]
-            tmp = CACHE / "osr" / f"resolve_{uuid.uuid4().hex}.osr"
+            extension = Path(fn).suffix.lower() if Path(fn).suffix.lower() in ('.mr', '.mrv') else '.osr'
+            tmp = CACHE / "osr" / f"resolve_{uuid.uuid4().hex}{extension}"
             tmp.parent.mkdir(parents=True, exist_ok=True)
             tmp.write_bytes(data)
             try:
-                head, replay = parse_osr(tmp)
-                bid = lookup_bid_by_md5(head.beatmap_md5 or "", CACHE)
-                # return full replay data for web renderer
-                return _json(self, 200, {
-                    "bid": bid or "",
-                    "md5": head.beatmap_md5 or "",
-                    "username": head.username or "",
-                    "presses": [{"time": p.time_ms, "key": p.column} for p in replay.presses],
-                    "releases": [{"time": p.time_ms, "key": p.column} for p in replay.releases],
-                    "press_count": len(replay.presses),
-                    # Mirror is a play-time transform: the beatmap file is unmirrored, so
-                    # the page has to flip its hit objects to line the presses up.
-                    "mirror": head.mirror,
-                    "mods": head.mods,
-                    # The score's own judgement counts (lazer's names), and which
-                    # client wrote the replay.  Together they decide the object
-                    # model — osu!stable counts a hold once, osu!lazer twice — and
-                    # pin the HUD's final accuracy to the game's rather than to an
-                    # approximation of it.  See mania_render/judge.py.
-                    "counts": head.counts,
-                    "classic": replay.classic,
-                    "found": bool(bid),
-                })
+                from .replay_input import resolve_replay
+                return _json(self, 200, resolve_replay(tmp, CACHE, fields.get('bid', ''), fields.get('platform', 'pc')))
             except Exception as exc:
                 return _json(self, 400, {"error": str(exc)})
             finally:
@@ -1014,6 +1067,8 @@ class Handler(BaseHTTPRequestHandler):
                     pass
         if u.path == "/api/render":
             n = int(self.headers.get("Content-Length") or 0)
+            if n > 33 * 1024**2:
+                return _json(self, 413, {"error": "渲染请求超过32MB"})
             body = self.rfile.read(n)
             ctype = self.headers.get("Content-Type") or ""
             # Accept all three shapes. `aiohttp.FormData` with no file field is NOT
@@ -1038,12 +1093,15 @@ class Handler(BaseHTTPRequestHandler):
                              "application/x-www-form-urlencoded 或 application/json"
                 })
             bid = (fields.get("bid") or "").strip()
-            skin_key = fields.get("skin") or default_skin_key() or next(iter(SKINS))
-            scroll = float(fields.get("scroll") or DEFAULT_SCROLL)
+            engine = (fields.get("engine") or DEFAULT_ENGINE).strip().lower()
+            if engine not in ENGINES:
+                return _json(self, 400, {"error": f"engine 只能是 {' / '.join(ENGINES)}"})
+            skin_key = 'Mania-Replay-Master' if engine == 'mrm' else fields.get("skin") or default_skin_key() or next(iter(SKINS))
+            scroll = float(fields.get("scroll") or (20 if engine == 'mrm' else DEFAULT_SCROLL))
             # 60 fps is the default the page encodes at (WC_FPS in mania-web/src/main.js).
             fps = int(fields.get("fps") or 60)
-            width = int(fields.get("width") or DEFAULT_WIDTH)
-            height = int(fields.get("height") or DEFAULT_HEIGHT)
+            width = int(fields.get("width") or (540 if engine == 'mrm' else DEFAULT_WIDTH))
+            height = int(fields.get("height") or (960 if engine == 'mrm' else DEFAULT_HEIGHT))
             # Video bitrate in kbps. Like width/height: a request field, a server-side
             # default (MANIA_BITRATE), and the page told explicitly what to encode at.
             bitrate_kbps = int(fields.get("bitrate_kbps") or DEFAULT_BITRATE_KBPS)
@@ -1059,23 +1117,33 @@ class Handler(BaseHTTPRequestHandler):
                 if data:
                     osr_dir = CACHE / "osr"
                     osr_dir.mkdir(parents=True, exist_ok=True)
-                    osr_path = osr_dir / f"{uuid.uuid4().hex}_{Path(fn).name}"
+                    extension = Path(fn).suffix.lower() if Path(fn).suffix.lower() in ('.mr', '.mrv') else '.osr'
+                    osr_path = osr_dir / f"{uuid.uuid4().hex}{extension}"
                     osr_path.write_bytes(data)
+                    if extension in ('.mr', '.mrv'):
+                        platform = fields.get('platform', 'pc')
+                        if platform not in ('pc','pe'):
+                            osr_path.unlink(missing_ok=True)
+                            return _json(self, 400, {'error':'Malody platform 必须是 pc 或 pe'})
+                        osr_path.with_suffix('.json').write_text(json.dumps({'platform':platform}), encoding='utf-8')
             # osr 自带谱面 MD5 — 未填 bid 时自动反查
-            if not bid and osr_path:
+            if osr_path:
                 try:
-                    head, _ = parse_osr(osr_path)
-                    resolved = lookup_bid_by_md5(head.beatmap_md5 or "", CACHE)
-                    if resolved:
-                        bid = resolved
-                except Exception:
-                    pass
-            if not bid or not bid.isdigit():
+                    from .replay_input import resolve_replay
+                    resolved = resolve_replay(osr_path, CACHE, bid)
+                    bid = resolved['bid']
+                except Exception as exc:
+                    osr_path.unlink(missing_ok=True)
+                    return _json(self, 400, {"error": str(exc)})
+            if not bid or not (bid.isdigit() or __import__(__package__ + ".osz", fromlist=["is_local"]).is_local(bid)):
                 return _json(self, 400, {"error": "需要谱面 ID（或上传 .osr 自动识别）"})
-            engine = (fields.get("engine") or DEFAULT_ENGINE).strip().lower()
-            if engine not in ENGINES:
-                return _json(self, 400, {"error": f"engine 只能是 {' / '.join(ENGINES)}"})
-            set_scroll_for_skin(skin_key, scroll)
+            if engine == 'mrm' and not osr_path:
+                return _json(self, 400, {'error':'Mania-Replay-Master 需要回放文件'})
+            if osr_path and osr_path.suffix in ('.mr', '.mrv') and engine not in ('webgl', 'mrm'):
+                osr_path.unlink(missing_ok=True)
+                return _json(self, 400, {"error": "Malody 回放请使用 WebGL 或 MRM 渲染引擎"})
+            if engine != 'mrm':
+                set_scroll_for_skin(skin_key, scroll)
             job_id = uuid.uuid4().hex[:12]
             with JOBS_LOCK:
                 JOBS[job_id] = {

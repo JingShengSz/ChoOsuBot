@@ -1,0 +1,4 @@
+{
+  "private": true,
+  "dependencies": {"onnxruntime-common": "1.24.3"}
+}

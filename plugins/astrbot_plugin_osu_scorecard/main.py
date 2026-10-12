@@ -19,6 +19,7 @@ import asyncio
 import re
 import sys
 import time
+import uuid
 from io import BytesIO
 from pathlib import Path
 
@@ -33,12 +34,21 @@ from PIL import Image
 
 from astrbot.api import AstrBotConfig, logger
 from astrbot.api.event import AstrMessageEvent, MessageChain, filter
+try:
+    from .command_filter import command as insensitive_command
+except ImportError:
+    import sys
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from command_filter import command as insensitive_command
+
 from astrbot.api.star import Context, Star
 import astrbot.api.message_components as Comp
 
 try:  # 正常情况：AstrBot 按包导入，相对导入成立
     from . import card as cardmod
+    from .mames_api import MamesApi
     from .beatmap_media import BeatmapMedia
+    from .beatmap_details import BeatmapDetails, detail_args
     from . import heading
     from . import map_combo as map_combomod
     from . import oauth as oauthmod
@@ -51,7 +61,9 @@ try:  # 正常情况：AstrBot 按包导入，相对导入成立
     from .store import DEFAULT_SERVER, SERVER_LABEL, Store, norm_server
 except ImportError:  # 兜底：被当顶层模块加载时，走绝对导入
     import card as cardmod
+    from mames_api import MamesApi
     from beatmap_media import BeatmapMedia
+    from beatmap_details import BeatmapDetails, detail_args
     import heading
     import map_combo as map_combomod
     import oauth as oauthmod
@@ -85,6 +97,7 @@ RULESET_LABEL = {
 #: （SB 的校验是 `^[\w \[\]-]{2,15}$`），所以叫 `Foo-sb` 的玩家不能被误判成
 #: 「查 Foo 的私服成绩」。
 SB_FLAG_RE = re.compile(r"(?:^|\s)--?sb\s*$|(?:^|\s)-私服\s*$", re.I)
+MAMES_FLAG_RE = re.compile(r'(?:^|\s)--?mames\s*$', re.I)
 
 HELP_TEXT = (
     "osu! 成绩卡 —— 可用指令：\n"
@@ -92,26 +105,27 @@ HELP_TEXT = (
     "  r              最近24h内【游玩】的成绩（没通过也算）\n"
     "  s<谱面ID>      绑定账号在该谱面的最近一次成绩，也支持 s <谱面ID>\n"
     "  bind <名字>    把 osu! 用户名绑定到你的 QQ\n"
-    "  unbind         解绑账号，私服使用 unbind -sb\n"
+    "  unbind         解绑账号，私服使用 unbind -sb / unbind -mames\n"
     "  bg[谱面ID]     谱面背景；省略 ID 使用本聊天最近 p/r 的谱面\n"
     "  song[谱面ID]   同上，发送从 osu! 预览起点开始的 30 秒语音\n"
+    "  dtl[谱面ID]    单张预测卡片；支持回复谱面文件、dt/ht/1.2 等倍速\n"
+    "  dtlp[谱面ID]   三页谱面详情；也可回复 OSZ 文件，或省略 ID 使用最近 p/r 的谱面\n"
     "  mode <模式>    切换模式：osu / taiko / fruits / mania\n"
-    "  authorize      重新拿一次官服授权链接（绑定后没授权时用）\n"
+    "  authorize      可选官服授权（p/r/s 不需要）\n"
     "  help           这条帮助\n"
     "\n"
-    "每条指令末尾加 -sb 就是查【SB 私服】的成绩，不加是官服。\n"
+    "指令末尾加 -sb 查询 SB 私服，加 -mames 查询 Mamesosu，不加是官服。\n"
+    "  例：bind <用户名> -mames；p -mames；r -mames；s123456 -mames\n"
     "  例：p -sb           私服的最近通过\n"
     "  例：bind 名字 -sb   把名字绑定到你的 SB 私服账号\n"
     "官服和私服是两套独立绑定，互不影响。\n"
     "\n"
     "直接把成绩链接贴到群里也会自动出图，不用打指令。\n"
     "\n"
-    "【官服 p / r 需要授权一次】\n"
-    "绑定时会给你一个 osu! 授权链接，点开点「Authorize」就行。\n"
-    "授权完成后 p / r 才能查最近成绩；s 需要先绑定账号。\n"
+    "p/r 读取公开近期成绩，无需个人授权。\n"
     "p/r 返回的成绩会保存到记录库；s 在线查不到时使用已保存记录。\n"
-    "没收到链接、或者链接过期了，发 authorize 重新要一个。\n"
-    "私服（-sb）不需要任何授权，绑定后直接可用。\n"
+    "查询他人：p/r <用户名或@某人>；s<谱面ID> <用户名或@某人>，末尾可加 -sb/-mames。\n"
+    "私服（-sb / -mames）不需要任何授权，绑定后直接可用。\n"
     "\n"
     "发图较慢时先等一下 —— 渲染要花点时间。"
 )
@@ -121,7 +135,7 @@ HELP_TEXT = (
 SCORE_URL_RE = re.compile(r"osu\.ppy\.sh/(?:#/)?(?:community/)?scores/(\d{3,})", re.I)
 
 # Used to keep the automatic link handler from double-handling an explicit command.
-COMMAND_NAMES = ("p", "r", "s", "bg", "song", "unbind", "解绑", "bind", "mode", "authorize")
+COMMAND_NAMES = ("p", "r", "s", "bg", "song", "dtl", "dtlp", "unbind", "解绑", "bind", "mode", "authorize")
 
 OUTPUT_PREFIX = "scorecard_"
 
@@ -376,7 +390,18 @@ class OsuScoreCardPlugin(Star):
 
     def _any_client(self, server: str):
         """按服取客户端。官服是 OsuApi，私服是 SbApi。"""
+        if norm_server(server) == 'mames':
+            return self._mames()
         return self._sb() if norm_server(server) == "sb" else self._client()
+
+    def _mames(self):
+        if getattr(self, '_mames_client', None) is None:
+            self._mames_client = MamesApi(proxy=self.http_proxy)
+        return self._mames_client
+
+    @staticmethod
+    def _server_suffix(server):
+        return '' if server == DEFAULT_SERVER else f' -{server}'
 
     def _map_combo_resolver(self):
         """谱面满连解析器（下载 .osu 自己数 + 磁盘缓存）。
@@ -511,7 +536,7 @@ class OsuScoreCardPlugin(Star):
             if not profile.get("username"):
                 raise RuntimeError(f"SB 私服上没有找到玩家 {username_or_id}")
         else:
-            client = self._client()
+            client = self._any_client(server)
             raw = await self._call(client.user_by_name, key, rs)
             profile = {
                 "user_id": raw.get("id"),
@@ -519,7 +544,7 @@ class OsuScoreCardPlugin(Star):
                 "avatar_url": raw.get("avatar_url"),
                 "total_pp": ((raw.get("statistics") or {}).get("pp")),
                 "global_rank": ((raw.get("statistics") or {}).get("global_rank")),
-                "server": "osu",
+                "server": server,
             }
 
         profile["fetched_at"] = time.time()
@@ -572,6 +597,8 @@ class OsuScoreCardPlugin(Star):
             # 服务器标记（官方 / SB 私服）自带颜色，不参与按评级上色。
             if name == "server_tag":
                 job["accent"] = getattr(data, "server_tag_color", None)
+                if raster.server_badge_path(self.assets_dir / "ui_extra", data.server_tag).is_file():
+                    job["value"] = ""
             if name == "max_combo" and data.full_combo:
                 job["accent"] = "#FFD35A"
             jobs.append(job)
@@ -620,7 +647,7 @@ class OsuScoreCardPlugin(Star):
                 logger.warning(f"[scorecard] 头像解码失败 {type(exc).__name__}")
 
         ui_extras = raster.render_ui_extras(
-            self.assets_dir / "ui_extra", data.status_icon)
+            self.assets_dir / "ui_extra", data.status_icon, data.server_tag)
         if heading_overlay is not None:
             ui_extras.alpha_composite(heading_overlay)
         rasters.append({"layer": "ui_extras", "group": "beatmap_info",
@@ -808,7 +835,7 @@ class OsuScoreCardPlugin(Star):
         # 之前，因为它决定了卡片上 MAP COMBO 那一格填什么。
         counted_combo = await self._counted_map_combo(score, beatmap, srv)
         bpm_range = None
-        if srv == "osu":
+        if srv in ("osu", "mames"):
             bid = beatmap.get("id") or score.get("beatmap_id")
             if bid:
                 try:
@@ -860,51 +887,26 @@ class OsuScoreCardPlugin(Star):
                              server: str = DEFAULT_SERVER,
                              user_token: str | None = None
                              ) -> tuple[str, object, str]:
-        """Recent plays for one player.
-
-        Returns (status, payload, detail) where status is one of
-        "ok" / "empty" / "needs_user_token".
-
-        ── 官服（server="osu"，默认）──────────────────────────────────────────
-
-        `/users/{id}/{ruleset}/scores/recent` 对**应用令牌（client_credentials）**
-        一律返回 HTTP 404 —— 带不带 `include_fails`、`/best`、`/firsts`、用用户名
-        代替 id、老式路径，全部试过，全 404。osu! 把这个端点放在**用户令牌**
-        （authorization_code 流程）后面。
-
-        `user_token` 就是那个令牌，由 `_user_token(qq)` 取（过期会自动刷新）。
-
-        `/users/{id}/recent_activity` 虽然 200，但事件里 `beatmap` 是 `null`、
-        也没有成绩 id，填不了卡片的任何一格 —— 所以没有拿它当退路。
-
-        ── 私服（server="sb"）────────────────────────────────────────────────
-
-        私服**不需要任何授权**：`/v1/get_player_scores?scope=recent` 用用户名或 id
-        就能查。这正是官服缺的那块能力，所以 `p -sb` / `r -sb` 一直是能用的。
-
-        `include_fails` 和私服的 `include_failed` 语义一致（都是"是否包含失败"），
-        直接透传，不需要取反。
-        """
+        """Public recent plays; native clients resolve username to numeric user ID."""
         server = norm_server(server)
         rs = ruleset or self.ruleset
 
         if server == "sb":
             return await self._sb_recent(username, include_fails, rs)
 
-        if not user_token:
-            return "needs_user_token", None, ""
+        if server == 'mames':
+            rows = recent_plays(await self._call(self._mames().recent_scores,
+                               username, rs, include_fails=include_fails))
+            return ('ok', rows[0], '') if rows else ('empty', None, '')
 
         client = self._client()
         try:
             rows = await self._call(client.recent_scores, username, rs,
                                     include_fails=include_fails, limit=50,
                                     user_token=user_token)
-        except Exception as exc:  # noqa: BLE001
-            text = str(exc)
-            # 401/403 说明令牌被撤销或失效，404 仍是"没授权"的老面孔；
-            # 两种都当成「需要（重新）授权」，由指令层决定怎么提示。
-            if "HTTP 404" in text or "HTTP 401" in text or "HTTP 403" in text:
-                return "needs_user_token", None, text
+        except Exception as exc:
+            if 'HTTP 404' in str(exc) and '/scores/recent' not in str(exc):
+                raise RuntimeError('找不到这个 osu! 玩家，请检查用户名。') from None
             raise
         rows = recent_plays(rows)
         if not rows:
@@ -1030,7 +1032,7 @@ class OsuScoreCardPlugin(Star):
         普通回复路径，于是 `p` / `r` 触发的链接永远不会被撤回（只有 `bind` /
         `authorize` 那条路径会撤），用户看到的就是「链接一直挂在群里」。
         """
-        head = f"{username} 绑好了，但官服的最近成绩还差一次授权。\n"
+        head = f"查询 {username} 暂时需要授权。\n"
         if server_ok:
             return (
                 head
@@ -1320,6 +1322,8 @@ class OsuScoreCardPlugin(Star):
         `"F6A8AF"`     -> `("F6A8AF", "osu")`
         """
         raw = str(text or "")
+        if MAMES_FLAG_RE.search(raw):
+            return MAMES_FLAG_RE.sub('', raw).strip(), 'mames'
         if SB_FLAG_RE.search(raw):
             return SB_FLAG_RE.sub("", raw).strip(), "sb"
         return raw.strip(), DEFAULT_SERVER
@@ -1328,15 +1332,46 @@ class OsuScoreCardPlugin(Star):
         """命令参数 + 服务器标识，一次拿到。"""
         return self._split_server(self._args(event))
 
+    def _query_target(self, event, raw, server):
+        """Return (history QQ, username, ruleset); mentions use target bindings."""
+        raw = raw.strip()
+        mentions = []
+        getter = getattr(event, 'get_messages', None)
+        for component in (getter() if callable(getter) else []):
+            if isinstance(component, Comp.At):
+                target = str(component.qq)
+                bot = str(event.get_self_id()) if callable(getattr(event, 'get_self_id', None)) else ''
+                if target != bot:
+                    mentions.append(target)
+        literal = re.fullmatch(r'@(\d+)', raw)
+        if literal and not mentions:
+            mentions = [literal[1]]
+        if len(mentions) > 1:
+            raise ValueError('一次只能查询一个人。')
+        if mentions:
+            qq = mentions[0]
+            username = self.store.username_for(qq, server)
+            if not username:
+                raise ValueError('被@的人尚未绑定' + SERVER_LABEL[server] + '账号。')
+            return qq, username, self._ruleset_for(qq, server)
+        qq = str(event.get_sender_id())
+        if raw:
+            # Names do not establish a QQ ownership relationship.
+            return '', ' '.join(raw.split()), self._ruleset_for(qq, server)
+        username = self.store.username_for(qq, server)
+        if not username:
+            raise ValueError('请先绑定账号：bind <osu!用户名>' + self._server_suffix(server))
+        return qq, username, self._ruleset_for(qq, server)
+
     def _need_binding(self, event: AstrMessageEvent,
                       server: str = DEFAULT_SERVER) -> str | None:
         return self.store.username_for(event.get_sender_id(), server)
 
-    @filter.command("bind", alias={"绑定", "!bind", "！bind"})
+    @insensitive_command("bind", alias={"绑定", "!bind", "！bind"})
     async def bind(self, event: AstrMessageEvent):
         """把 osu! 用户名和你的 QQ 绑定，之后 p / r 就能直接出图。
 
-        用法：bind <osu!用户名> [-sb]
+        用法：bind <osu!用户名> [-sb|-mames]
         例：bind Cookiezi        （官服）
         例：bind Cookiezi -sb    （SB 私服）
         """
@@ -1344,7 +1379,7 @@ class OsuScoreCardPlugin(Star):
         srv_label = SERVER_LABEL.get(server, server)
         if not username:
             yield event.plain_result(
-                f"用法：bind <osu!用户名> [-sb]\n例：bind Cookiezi\n"
+                f"用法：bind <osu!用户名> [-sb|-mames]\n例：bind Cookiezi\n"
                 f"例：bind Cookiezi -sb   （绑定 SB 私服）\n"
                 f"绑定后可以用 mode 切换模式，用 help 看全部指令。")
             return
@@ -1380,21 +1415,7 @@ class OsuScoreCardPlugin(Star):
 
         yield event.plain_result(text)
 
-        # 官服还差一次授权才能查最近成绩。绑定提示先单独发完，再单独发授权链接 ——
-        # 分两条是为了 30 秒后只撤回链接那一条，不动「绑定成功」的提示。
-        # （让用户自己去翻 help 找 authorize 是不现实的，他会觉得「绑了怎么还用不了」。）
-        if server == DEFAULT_SERVER:
-            if self.store.oauth_for(qq, "osu"):
-                yield event.plain_result("官服已授权，p / r 可以直接用了。")
-            elif self.oauth_ready:
-                async for r in self._send_oauth_link(event, qq, ruleset):
-                    yield r
-            else:
-                yield event.plain_result(
-                    "官服凭据没配好，暂时发不出授权链接；"
-                    "不过按谱面查询 s 和贴成绩链接不受影响。")
-
-    @filter.command("authorize", alias={"授权", "oauth", "!authorize", "！授权"})
+    @insensitive_command("authorize", alias={"授权", "oauth", "!authorize", "！授权"})
     async def authorize(self, event: AstrMessageEvent):
         """重新拿一次官服授权链接（绑定过但没授权、或者链接过期了）。
 
@@ -1424,11 +1445,11 @@ class OsuScoreCardPlugin(Star):
                 event, qq, self._ruleset_for(qq, DEFAULT_SERVER)):
             yield r
 
-    @filter.command("mode", alias={"模式", "!mode", "！mode"})
+    @insensitive_command("mode", alias={"模式", "!mode", "！mode"})
     async def mode(self, event: AstrMessageEvent):
         """切换绑定的游戏模式（总 PP / 排名是分模式的，换模式要重新查一次）。
 
-        用法：mode <osu|taiko|fruits|mania> [-sb]
+        用法：mode <osu|taiko|fruits|mania> [-sb|-mames]
         例：mode mania
         例：mode mania -sb    （只改 SB 私服那个绑定）
         """
@@ -1440,7 +1461,7 @@ class OsuScoreCardPlugin(Star):
             cur = self._ruleset_for(qq, server)
             yield event.plain_result(
                 f"{srv_label} 当前绑定模式为：{RULESET_LABEL.get(cur, cur)}\n"
-                f"可切换：{' / '.join(RULESETS)}\n用法：mode <模式> [-sb]")
+                f"可切换：{' / '.join(RULESETS)}\n用法：mode <模式> [-sb|-mames]")
             return
         if want not in RULESETS:
             yield event.plain_result(
@@ -1451,7 +1472,7 @@ class OsuScoreCardPlugin(Star):
         if not bound:
             yield event.plain_result(
                 f"你在{srv_label}还没有绑定 osu! 用户名。\n"
-                f"先用 bind <osu!用户名>{' -sb' if server == 'sb' else ''} 绑定。")
+                f"先用 bind <osu!用户名>{self._server_suffix(server)} 绑定。")
             return
 
         # 规则集是绑定记录的一部分，先落盘再查资料。
@@ -1476,27 +1497,27 @@ class OsuScoreCardPlugin(Star):
             bits.append(f"全球 #{rank}")
         yield event.plain_result(" · ".join(bits))
 
-    @filter.command("help", alias={"帮助", "!help", "！help"})
+    @insensitive_command("help", alias={"帮助", "!help", "！help"})
     async def help_cmd(self, event: AstrMessageEvent):
         """列出这个插件的全部指令。"""
         yield event.plain_result(HELP_TEXT)
 
-    @filter.command("p")
+    @insensitive_command("p")
     async def passed(self, event: AstrMessageEvent):
         """最近**通过**的一个成绩，渲染成成绩卡。
 
-        用法：p [-sb]
+        用法：p [-sb|-mames]
         没绑定时先用 bind <osu!用户名> 绑定。加 -sb 查 SB 私服。
         """
         async for r in self._recent_card(event, include_fails=False,
                                          label="最近通过", cmd="p"):
             yield r
 
-    @filter.command("r")
+    @insensitive_command("r")
     async def played(self, event: AstrMessageEvent):
         """最近**游玩**的一个成绩（没通过也算），渲染成成绩卡。
 
-        用法：r [-sb]
+        用法：r [-sb|-mames]
         没绑定时先用 bind <osu!用户名> 绑定。加 -sb 查 SB 私服。
         """
         async for r in self._recent_card(event, include_fails=True,
@@ -1505,39 +1526,14 @@ class OsuScoreCardPlugin(Star):
 
     async def _recent_card(self, event: AstrMessageEvent, include_fails: bool,
                            label: str, cmd: str = "p"):
-        # 服务器从指令末尾的 -sb 解析；不带就是官服。
-        _unused, server = self._args_server(event)
-        srv_label = SERVER_LABEL.get(server, server)
-        qq = str(event.get_sender_id())
-        username = self._need_binding(event, server)
-
-        if not username:
-            # 最常见的困惑：用户绑的是私服，敲的却是不带 -sb 的 p —— 两个服的
-            # 绑定是分开的，这时候泛泛地说「你还没绑定」会让人以为绑定失败了。
-            if server == DEFAULT_SERVER:
-                other = self.store.username_for(qq, "sb")
-                if other:
-                    yield event.plain_result(
-                        f"你绑定的是【SB 私服】（{other}），而这条查的是官服。\n"
-                        f"查私服请用：{cmd} -sb\n"
-                        f"想在官服也能用，先发：bind <官服名字>（会给你一个授权链接）")
-                    return
-            yield event.plain_result(
-                f"你在{srv_label}还没有绑定 osu! 账号。\n"
-                f"先发：bind <osu!用户名>{' -sb' if server == 'sb' else ''}\n"
-                f"例：bind Cookiezi" + (" -sb" if server == "sb" else ""))
+        raw, server = self._args_server(event)
+        try:
+            qq, username, rs = self._query_target(event, raw, server)
+        except ValueError as exc:
+            yield event.plain_result(str(exc))
             return
-
-        rs = self._ruleset_for(qq, server)
-
-        # 官服需要用户令牌；私服不需要，传 None 就行。
+        # Recent scores are public: application token is sufficient.
         user_token = None
-        if server == DEFAULT_SERVER:
-            try:
-                user_token = await self._user_token(qq, rs)
-            except Exception as exc:  # noqa: BLE001
-                logger.info(f"[scorecard] 取官服令牌失败 {type(exc).__name__}")
-                user_token = None
 
         try:
             status, payload, _detail = await self._recent_scores(
@@ -1548,14 +1544,7 @@ class OsuScoreCardPlugin(Star):
             return
 
         if status == "needs_user_token":
-            # 说明走普通回复（留着），链接单独发一条并定时撤回。
-            # 两条分开是刻意的：撤回只撤链接那条，说明不会被一起撤掉；
-            # 而且不管是 bind 还是 p/r 触发的链接，都会经过同一个撤回路径。
-            ok, reason = await self._ensure_oauth_server()
-            yield event.plain_result(self._needs_auth_reply(username, ok, reason))
-            if ok:
-                async for r in self._send_oauth_link(event, qq, rs):
-                    yield r
+            yield event.plain_result('官服成绩接口暂时无法访问，请稍后重试。')
             return
         if status == "empty":
             yield event.plain_result("24h没有游玩记录。")
@@ -1564,7 +1553,7 @@ class OsuScoreCardPlugin(Star):
         self.history.record(qq, username, rs, server, payload)
         try:
             async with aiohttp.ClientSession() as session:
-                png = await self._render_score(event, payload, session)
+                png = await self._render_score(event, payload, session, ruleset=rs)
         except PhotoshopError as exc:
             yield event.plain_result(f"渲染失败：{exc}")
             return
@@ -1581,13 +1570,14 @@ class OsuScoreCardPlugin(Star):
     def _media_chat(event):
         return getattr(event, 'unified_msg_origin', None) or str(event.get_sender_id())
 
-    @filter.command('unbind', alias={'解绑'})
+    @insensitive_command('unbind', alias={'解绑'})
     async def unbind(self, event: AstrMessageEvent):
         _, server = self._args_server(event)
         removed = self.store.unbind(event.get_sender_id(), server)
-        yield event.plain_result(('已解绑' if removed else '尚未绑定') + (' SB 私服账号。' if server == 'sb' else '官服账号。'))
+        yield event.plain_result(('已解绑' if removed else '尚未绑定') + SERVER_LABEL[server] + '账号。')
 
     async def _media_reply(self, event, kind, raw):
+        raw, _server = self._split_server(raw)
         if raw and (not raw.isdecimal() or int(raw) <= 0):
             yield event.plain_result(f'用法：{kind} 或 {kind}<谱面ID>')
             return
@@ -1606,57 +1596,211 @@ class OsuScoreCardPlugin(Star):
             logger.warning(f'[scorecard] {kind} 媒体生成失败：{type(exc).__name__}')
             yield event.plain_result(self._explain(exc, '获取背景失败' if kind == 'bg' else '获取音乐预览失败'))
 
-    @filter.command('bg')
+    @insensitive_command('bg')
     async def background(self, event: AstrMessageEvent):
         async for result in self._media_reply(event, 'bg', self._args(event)):
             yield result
 
-    @filter.command('song')
+    @insensitive_command('song')
     async def song(self, event: AstrMessageEvent):
         async for result in self._media_reply(event, 'song', self._args(event)):
             yield result
 
-    @filter.regex(r'^[./。．]?(?:bg|song)\d+\s*$')
-    async def media_compact(self, event: AstrMessageEvent):
-        match = re.fullmatch(r'(bg|song)(\d+)', event.message_str.strip().lstrip('/.．。'))
+    async def _detail_reply(self, event, raw, *, local=False, server=None, label=None, compact=False, speed_rate=1.0):
+        raw = raw.strip()
+        is_local = local and re.fullmatch(r'local-[0-9a-f]{32}-[0-9]+', raw)
+        if raw and not is_local and not re.fullmatch(r'[1-9][0-9]{0,9}', raw):
+            yield event.plain_result(f'用法：{"dtl" if compact else "dtlp"} 或 {"dtl" if compact else "dtlp"}<谱面ID>（也可加空格）')
+            return
+        bid = raw if is_local else int(raw) if raw else self.history.chat_map(self._media_chat(event))
+        if not bid:
+            yield event.plain_result(f'本聊天还没有成功发送过 p/r 成绩，请先使用 p/r，或在 {"dtl" if compact else "dtlp"} 后加谱面ID。')
+            return
+        try:
+            details = BeatmapDetails(self.data_dir / 'beatmap_details',
+                                     server or str(self._cfg('detail_server', 'http://127.0.0.1:8760')))
+            if compact:
+                page = await details.compact(bid, **({"speed_rate":speed_rate} if speed_rate!=1 else {}))
+            else:
+                pages = await details.pages(bid, **({"speed_rate":speed_rate} if speed_rate!=1 else {}))
+        except Exception as exc:
+            logger.warning(f'[scorecard] dtlp 生成失败：{type(exc).__name__}')
+            yield event.plain_result(f'谱面详情生成失败：{exc}')
+            return
+        if compact:
+            yield event.image_result(str(page))
+            return
+        if event.get_platform_name() == 'aiocqhttp':
+            titles = ('谱面信息与 Density', '难度算法与 MSD', 'Rework PP 与键型报告')
+            source = f'本地谱面 · {label or "OSZ"}' if is_local else f'谱面 {bid}'
+            nodes = [Comp.Node(
+                uin=str(event.get_self_id()), name='Detail Pro',
+                content=[Comp.Plain(f'{source} · {index}/3 · {title}\n{speed_rate:g}× · Stable'),
+                         Comp.Image.fromFileSystem(str(page))],
+            ) for index, (page, title) in enumerate(zip(pages, titles), start=1)]
+            yield event.chain_result([Comp.Nodes(nodes)])
+        else:
+            for page in pages:
+                yield event.image_result(str(page))
+
+    @insensitive_command('dtl')
+    async def detail_card(self, event: AstrMessageEvent):
+        async for result in self._detail_request(event,compact=True):
+            yield result
+
+    @insensitive_command('dtlp')
+    async def detail_pro(self, event: AstrMessageEvent):
+        async for result in self._detail_request(event,compact=False):
+            yield result
+
+    @filter.regex(r'(?i)^[./。．]?dtl[1-9][0-9]{0,9}(?:\s+.*)?$')
+    async def detail_card_compact(self, event: AstrMessageEvent):
+        match=re.fullmatch(r'dtl([1-9][0-9]{0,9})(?:\s+(.*))?',event.message_str.strip().lstrip('/.．。'),re.I)
         if match:
-            async for result in self._media_reply(event, match[1], match[2]):
+            async for result in self._detail_request(event,compact=True,raw=match[1]+' '+(match[2] or '')):
                 yield result
 
-    @filter.command("s")
+    async def _detail_request(self,event,*,compact=False,raw=None):
+        try:
+            raw,speed_rate=detail_args(self._args(event) if raw is None else raw)
+        except ValueError as exc:
+            yield event.plain_result(str(exc))
+            return
+        command='dtl' if compact else 'dtlp'
+        if not raw:
+            context=getattr(self,'context',None)
+            meta=context.get_registered_star('astrbot_plugin_mania_render') if context else None
+            reader=getattr(meta,'star_cls',None) if getattr(meta,'activated',False) else None
+            try:
+                package=await reader._collect_osz(event,details_only=True) if reader else None
+            except Exception as exc:
+                logger.warning(f'[scorecard] {command} package failed: {type(exc).__name__}')
+                yield event.plain_result(f'读取谱面文件失败：{exc}')
+                return
+            if package:
+                maps,_warnings=package
+                if len(maps)>1:
+                    now=time.time()
+                    choices={k:v for k,v in getattr(self,'_detail_choices',{}).items() if now-v['time']<1800}
+                    token=uuid.uuid4().hex[:12]
+                    choices[(self._media_chat(event),str(event.get_sender_id()))]={
+                        'maps':maps,'time':now,'token':token,'server':reader.server,
+                        'compact':compact,'speed_rate':speed_rate,
+                    }
+                    self._detail_choices=choices
+                    rows=[f"{i}. {m.get('title','')} · {m.get('version','')} · {m['keys']}K" for i,m in enumerate(maps,1)]
+                    yield event.plain_result(f'请选择要分析的难度（{command}）：\n'+'\n'.join(rows)+
+                        f'\n预测倍速：{speed_rate:g}×\n回复本列表发送编号，例如 2、2 dt 或 2 1.2（可带@机器人，30分钟内有效）。\n选择标识：{token}')
+                    return
+                chart=maps[0]
+                async for result in self._detail_reply(event,chart['beatmap_id'],local=True,
+                    server=reader.server,label=chart.get('version'),compact=compact,speed_rate=speed_rate):
+                    yield result
+                return
+        async for result in self._detail_reply(event,raw,compact=compact,speed_rate=speed_rate):
+            yield result
+
+    @filter.event_message_type(filter.EventMessageType.ALL)
+    async def detail_package_choice(self, event: AstrMessageEvent):
+        components = event.get_messages()
+        bot_id = str(event.get_self_id())
+        if any(isinstance(c,Comp.At) and str(c.qq)!=bot_id for c in components):
+            return
+        plain = ''.join(c.text for c in components if isinstance(c,Comp.Plain)).strip()
+        if not re.fullmatch(r'[0-9]+(?:\s+.*)?',plain):
+            return
+        reply = next((str(c.id) for c in components if isinstance(c,Comp.Reply)),None)
+        if not reply:
+            raw = getattr(event.message_obj,'raw_message',{})
+            segments = raw.get('message',[]) if isinstance(raw,dict) else raw or []
+            reply = next((str((c.get('data') or {}).get('id')) for c in segments
+                          if isinstance(c,dict) and c.get('type') in ('reply','quote')),None)
+        bot = getattr(event,'bot',None)
+        if not reply or not bot or not hasattr(bot,'api'):
+            return
+        try:
+            info = await bot.api.call_action('get_msg',message_id=int(reply) if reply.isdigit() else reply)
+        except Exception:
+            return
+        text = str(info.get('raw_message') or info.get('message') or '')
+        if not re.search(r'请选择要分析的难度（dtlp?）',text):
+            return
+        sender = str((info.get('sender') or {}).get('user_id') or '')
+        if sender and sender != bot_id:
+            return
+        key = (self._media_chat(event),str(event.get_sender_id()))
+        pending = getattr(self,'_detail_choices',{}).get(key)
+        if not pending or time.time()-pending['time']>=1800 or pending['token'] not in text:
+            yield event.plain_result('没有对应的待选谱面，或列表已过期。请回复 OSZ 文件重新发送 dtlp。')
+            event.stop_event()
+            return
+        try:
+            selection,selected_rate=detail_args(plain)
+            number=int(selection)
+        except ValueError as exc:
+            yield event.plain_result(str(exc));event.stop_event();return
+        speed_rate=selected_rate if len(plain.split())>1 else pending.get('speed_rate',1.0)
+        if not 1<=number<=len(pending['maps']):
+            yield event.plain_result('请输入列表中的有效难度编号。')
+            event.stop_event()
+            return
+        self._detail_choices.pop(key)
+        chart = pending['maps'][number-1]
+        async for result in self._detail_reply(event,chart['beatmap_id'],local=True,
+                                              server=pending['server'],label=chart.get('version'),
+                                              compact=pending.get('compact',False),speed_rate=speed_rate):
+            yield result
+        event.stop_event()
+
+    @filter.regex(r'(?i)^[./。．]?dtlp[1-9][0-9]{0,9}(?:\s+.*)?$')
+    async def detail_pro_compact(self, event: AstrMessageEvent):
+        match = re.fullmatch(r'dtlp([1-9][0-9]{0,9})(?:\s+(.*))?', event.message_str.strip().lstrip('/.．。'), re.I)
+        if match:
+            async for result in self._detail_request(event,raw=match[1]+' '+(match[2] or '')):
+                yield result
+
+    @filter.regex(r'(?i)^[./。．]?(?:bg|song)\d+\s*$')
+    async def media_compact(self, event: AstrMessageEvent):
+        match = re.fullmatch(r'(bg|song)(\d+)', event.message_str.strip().lstrip('/.．。'), re.I)
+        if match:
+            async for result in self._media_reply(event, match[1].lower(), match[2]):
+                yield result
+
+    @insensitive_command("s")
     async def specific(self, event: AstrMessageEvent):
-        """s <谱面ID> [-sb]：绑定账号在该谱面的最近一次已知成绩。"""
+        """s <谱面ID> [-sb|-mames]：绑定账号在该谱面的最近一次已知成绩。"""
         raw, server = self._args_server(event)
         match = SCORE_URL_RE.search(raw)
         if match:
             async for result in self._score_card(event, match.group(0), server=server):
                 yield result
             return
-        if not raw.isdecimal() or int(raw) <= 0:
-            yield event.plain_result("用法：s<谱面ID> 或 s <谱面ID>，私服加 -sb。")
+        match = re.fullmatch(r'(\d+)(?:\s+(.*))?', raw)
+        if not match or int(match[1]) <= 0:
+            yield event.plain_result('用法：s<谱面ID> [用户名/@某人] [-sb/-mames]')
             return
-        async for result in self._map_card(event, int(raw), server):
+        async for result in self._map_card(event, int(match[1]), server, match[2] or ''):
             yield result
 
-    @filter.regex(r"^[./。．]?s\d+(?:\s+(?:--?sb|-私服))?\s*$")
+    @filter.regex(r"(?i)^[./。．]?s\d+(?:\s+.*)?\s*$")
     async def specific_compact(self, event: AstrMessageEvent):
         text = event.message_str.strip().lstrip("/.．。")
-        server = "sb" if SB_FLAG_RE.search(text) else DEFAULT_SERVER
-        bid = int(re.match(r"s(\d+)", text).group(1))
-        if bid <= 0:
-            yield event.plain_result("谱面ID必须是正整数。")
+        raw, server = self._split_server(text)
+        match = re.fullmatch(r's(\d+)(?:\s+(.*))?', raw, re.I)
+        if not match or int(match[1]) <= 0:
+            yield event.plain_result('谱面ID必须是正整数。')
             return
-        async for result in self._map_card(event, bid, server):
+        async for result in self._map_card(event, int(match[1]), server, match[2] or ''):
             yield result
 
-    async def _map_card(self, event, beatmap_id, server=DEFAULT_SERVER):
-        qq = str(event.get_sender_id())
-        username = self.store.username_for(qq, server)
-        if not username:
-            yield event.plain_result("请先绑定账号：bind <osu!用户名>" + (" -sb" if server == "sb" else ""))
+    async def _map_card(self, event, beatmap_id, server=DEFAULT_SERVER, target=''):
+        try:
+            qq, username, rs = self._query_target(event, target, server)
+        except ValueError as exc:
+            yield event.plain_result(str(exc))
             return
-        rs = self._ruleset_for(qq, server)
-        cached = self.history.latest(qq, username, rs, server, beatmap_id)
+        cached = (self.history.latest(qq, username, rs, server, beatmap_id) if qq else
+                  self.history.latest_account(username, rs, server, beatmap_id))
         score = None
         api_failed = False
         try:
@@ -1670,7 +1814,7 @@ class OsuScoreCardPlugin(Star):
                     raw = max(rows, key=lambda s: played_at(s) or 0)
                     score = await self._sb_score_bundle(raw, username, uid=pid)
             else:
-                client = self._client()
+                client = self._any_client(server)
                 profile = await self._call(client.user_by_name, username, rs)
                 rows = await self._call(client.beatmap_user_scores, beatmap_id, profile['id'], rs)
                 if rows:
@@ -1700,6 +1844,9 @@ class OsuScoreCardPlugin(Star):
     async def _score_card(self, event: AstrMessageEvent, reference: str,
                           server: str = DEFAULT_SERVER):
         server = norm_server(server)
+        if server == 'mames':
+            yield event.plain_result('Mamesosu 请使用 s<谱面ID> -mames 查询绑定账号的成绩。')
+            return
         if server == "sb":
             async for r in self._sb_score_card(event, reference):
                 yield r

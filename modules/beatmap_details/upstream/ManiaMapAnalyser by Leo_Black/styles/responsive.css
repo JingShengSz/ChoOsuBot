@@ -1,0 +1,90 @@
+@media (max-width: 640px) {
+    .dashboard {
+        gap: 12px;
+        width: 475px;
+        min-width: 475px;
+        max-width: 475px;
+    }
+
+    .card {
+        padding: 12px;
+    }
+
+    .main-card {
+        width: 475px;
+        height: auto;
+        min-width: 475px;
+        max-width: 475px;
+        min-height: 520px;
+        max-height: none;
+    }
+
+    .main-card.bars-pattern {
+        height: auto;
+        min-height: 555px;
+        max-height: none;
+    }
+
+    .main-card.bars-graph {
+        height: auto;
+        min-height: 400px;
+        max-height: none;
+    }
+
+    .main-card.bars-none {
+        height: auto;
+        min-height: 200px;
+        max-height: none;
+    }
+
+    .main-card.bars-etterna {
+        height: auto;
+        min-height: 540px;
+        max-height: none;
+    }
+
+    .main-card.bars-etterna.bars-etterna-compact {
+        height: auto;
+        min-height: 500px;
+        max-height: none;
+    }
+
+    .main-card.bars-pp {
+        grid-template-rows: none;
+        grid-auto-rows: auto;
+        align-content: start;
+        height: auto;
+        min-height: 0;
+        max-height: none;
+    }
+
+    .star-value {
+        font-size: 40px;
+    }
+
+    .main-card:not(.bars-none) .star-value:not(.category-mode) {
+        font-size: 44px;
+        padding: 4px 10px;
+        border-radius: 18px;
+    }
+
+    .star-block {
+        align-items: center;
+    }
+
+    .star-right-group {
+        min-width: 0;
+        max-width: 56%;
+        width: 56%;
+        flex: 0 0 56%;
+    }
+
+    .star-subtitle {
+        font-size: 26px;
+    }
+
+    .star-caption {
+        font-size: 11px;
+    }
+
+}
