@@ -197,6 +197,7 @@ def render(job_id: str, bid: str, skin_key: str, *, osr_path: Path | None,
             _set_input(cdp, sid, "bgDim", str(int(round(bg_dim * 100))), "input")
 
         progress(8, "加载谱面…")
+        cdp.evaluate("window.__maniaAutomation = true", session=sid)
         if osr_path is not None:
             if osr_path.suffix.lower() in ('.mr', '.mrv'):
                 import json
@@ -209,12 +210,12 @@ def render(job_id: str, bid: str, skin_key: str, *, osr_path: Path | None,
             }, session=sid).get("nodeId")
             if not node:
                 raise WebGLRenderError("页面里找不到 .osr 上传控件")
-            # `DOM.setFileInputFiles` fires the page's change handler, which loads the
-            # replay immediately (passing the bid as the fallback id).
+            # Select the file, then explicitly submit the source screen.
             if bid:
                 _set_input(cdp, sid, "bidInput", bid, "input")
             cdp.call("DOM.setFileInputFiles", {"files": [str(osr_path)], "nodeId": node},
                      session=sid)
+            cdp.evaluate("document.getElementById('btnLoad').click()", session=sid)
         else:
             _set_input(cdp, sid, "bidInput", bid, "input")
             cdp.evaluate("document.getElementById('btnLoad').click()", session=sid)
@@ -272,20 +273,15 @@ def render(job_id: str, bid: str, skin_key: str, *, osr_path: Path | None,
         _wait_for_stream(stream, timeout=180)
 
         progress(93, "封装视频…")
-        playback_rate = 1.0
-        duration_s = None
-        if osr_path and osr_path.suffix.lower() in ('.mr', '.mrv'):
-            from .malody import parse_mr
-            from .malody_v import parse_mrv
-            from . import osz
-            from .osu_file import parse_osu
-            native = (parse_mrv if osr_path.suffix.lower() == '.mrv' else parse_mr)(osr_path.read_bytes())
-            playback_rate = native['rate']
-            native_chart = parse_osu(osz.text(bid))
-            end_ms = max((note.start_time for note in native_chart.hit_objects), default=0) if native.get('holds_to_notes') else native_chart.end_time_ms
-            duration_s = end_ms / 1000 / playback_rate
+        scene = cdp.evaluate("window.__mania.sceneState().timeline", session=sid)
+        playback_rate = float(scene['rate']) if scene else 1.0
+        start_ms = float(scene['start']) if scene else 0.0
+        music_end_ms = float(scene['resultStart']) if scene else None
+        duration_s = (music_end_ms-start_ms)/1000/playback_rate if scene else None
         _mux_stream(ffmpeg, stream, audio_path, out_path, range_s=range_s,
-                    playback_rate=playback_rate, duration_s=duration_s)
+                    playback_rate=playback_rate, duration_s=duration_s,
+                    audio_lead_s=-start_ms/1000/playback_rate,
+                    audio_end_s=music_end_ms/1000 if music_end_ms is not None else None)
         stream.unlink(missing_ok=True)
         progress(100, "完成")
         return out_path
@@ -335,7 +331,8 @@ def _wait_for_stream(path: Path, *, timeout: float = 180.0) -> None:
 
 def _mux_stream(ffmpeg: str, stream: Path, audio: Path | None, dest: Path, *,
                 range_s: str | None, scale: tuple[int, int] | None = None,
-                playback_rate: float = 1.0, duration_s: float | None = None) -> None:
+                playback_rate: float = 1.0, duration_s: float | None = None,
+                audio_lead_s: float = 0, audio_end_s: float | None = None) -> None:
     """Wrap the Annex-B H.264 stream in MP4 and add the beatmap audio.
 
     The WebGL export carries no audio track at all (verified: the page records a canvas
@@ -364,9 +361,9 @@ def _mux_stream(ffmpeg: str, stream: Path, audio: Path | None, dest: Path, *,
     args = [ffmpeg, "-y", "-loglevel", "error", "-r", str(60 * playback_rate), "-i", str(stream)]
     if has_audio:
         args += ["-i", str(audio), "-map", "0:v:0", "-map", "1:a:0"]
-    if trim or scale or playback_rate != 1:
+    args += trim
+    if _range_args(range_s) or scale or playback_rate != 1:
         # A cut or a resize has to re-encode; a plain export never does.
-        args += trim
         if scale:
             args += ["-vf", f"scale={scale[0]}:{scale[1]}:flags=bicubic"]
         if playback_rate != 1:
@@ -376,8 +373,17 @@ def _mux_stream(ffmpeg: str, stream: Path, audio: Path | None, dest: Path, *,
     else:
         args += ["-c:v", "copy"]
     if has_audio:
+        filters = []
+        if audio_end_s is not None:
+            filters += [f'atrim=end={audio_end_s}', 'asetpts=PTS-STARTPTS']
         if playback_rate != 1:
-            args += ['-af', f'atempo={playback_rate}']
+            filters += [f'atempo={playback_rate}']
+        if audio_lead_s > 0:
+            filters += [f'adelay={round(audio_lead_s*1000)}:all=1']
+        if duration_s is not None:
+            filters += [f'apad=whole_dur={duration_s}']
+        if filters:
+            args += ['-af', ','.join(filters)]
         # No `-shortest`: the video input is a raw Annex-B elementary stream with no
         # duration metadata, and asking ffmpeg to stop at the shortest input made it drop
         # the audio track entirely. The audio is the beatmap's own track and is trimmed by

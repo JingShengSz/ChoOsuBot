@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import lzma
+import json
+import math
 import struct
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from .models import ReplayData, ReplayPress
@@ -82,6 +85,21 @@ class OsrHeader:
     count_miss: int = 0
     score: int = 0
     max_combo: int = 0
+    ended_at: str | None = None
+    # Lazer stores complete mods/settings and statistics after the legacy payload.
+    mods_detail: list[dict] = field(default_factory=list)
+    maximum_statistics: dict = field(default_factory=dict)
+
+    @property
+    def clock_rate(self) -> float:
+        for mod in self.mods_detail:
+            acronym = mod.get("acronym")
+            if acronym in ("DT", "NC", "HT", "DC"):
+                value = float(mod.get("settings", {}).get("speed_change", 1.5 if acronym in ("DT", "NC") else .75))
+                if not math.isfinite(value) or value <= 0:
+                    raise ValueError("回放倍速设置无效")
+                return value
+        return 1.5 if self.mods & (64 | 512) else .75 if self.mods & 256 else 1.0
 
     @property
     def counts(self) -> dict[str, int]:
@@ -105,7 +123,7 @@ class OsrHeader:
         has to apply the same flip (`OsuBeatmap.apply_mirror`) or every judgement
         lands on the wrong lane.
         """
-        return bool(self.mods & MOD_MIRROR)
+        return bool(self.mods & MOD_MIRROR) or any(m.get("acronym") == "MR" for m in self.mods_detail)
 
 
 def parse_osr(path: str | Path) -> tuple[OsrHeader, ReplayData]:
@@ -133,9 +151,29 @@ def parse_osr(path: str | Path) -> tuple[OsrHeader, ReplayData]:
     (head.mods,) = struct.unpack_from("<i", buf, off)
     off += 4  # mods
     _, off = _read_string(buf, off)  # life bar
+    (ticks,) = struct.unpack_from('<q',buf,off)
+    try:
+        head.ended_at=(datetime(1,1,1,tzinfo=timezone.utc)+timedelta(microseconds=ticks//10)).isoformat() if ticks>0 else None
+    except OverflowError:
+        head.ended_at=None
     off += 8  # timestamp
     blob, off = _read_bytes(buf, off)
     head.replay_bytes = blob
+
+    # LegacyScoreDecoder reads OnlineID, then an LZMA-compressed JSON score for
+    # versions >= 30000001. The legacy bitmask cannot represent HO or DT settings.
+    if head.version >= 30000001 and off + 12 <= len(buf):
+        off += 8  # LegacyOnlineID
+        extra, off = _read_bytes(buf, off)
+        if extra:
+            score_info = json.loads(lzma.decompress(extra, format=lzma.FORMAT_ALONE))
+            head.mods_detail = score_info.get("mods", [])
+            head.maximum_statistics = score_info.get("maximum_statistics", {})
+            statistics = score_info.get("statistics")
+            if statistics is not None:
+                for name, attr in {"perfect":"count_geki", "great":"count_300", "good":"count_katu",
+                                   "ok":"count_100", "meh":"count_50", "miss":"count_miss"}.items():
+                    setattr(head, attr, int(statistics.get(name, 0)))
 
     if head.ruleset_id != 3:
         raise ValueError(f"replay ruleset {head.ruleset_id} is not mania (3)")

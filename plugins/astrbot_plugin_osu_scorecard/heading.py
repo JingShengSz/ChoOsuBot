@@ -3,7 +3,10 @@ from __future__ import annotations
 
 from PIL import Image, ImageDraw
 
-from render import font_for
+try:
+    from .render import font_for
+except ImportError:  # Standalone plugin scripts import modules directly.
+    from render import font_for
 
 
 TITLE_X, TITLE_Y, RIGHT_EDGE = 104, 74, 660

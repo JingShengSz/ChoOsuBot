@@ -9,14 +9,14 @@ export function matchMalodyReplay(beatmap, replay) {
     const notes = objs.filter(o => o.col === col);
     let next = 0;
     const addMiss = o => judgements.push({ time: o.time+miss, objTime:o.time, kind:'head',
-      result:'miss', offset:0, byPress:false });
+      col, result:'miss', offset:0, byPress:false });
     for (const press of replay.presses.filter(p => p.key === col)) {
       while (next < notes.length && press.time > notes[next].time+miss) addMiss(notes[next++]);
       if (next >= notes.length || press.time < notes[next].time-miss) continue;
       const o = notes[next++], offset = press.time-o.time, delta = Math.abs(offset);
       const result = delta <= best ? 'perfect' : delta <= cool ? 'great' : delta <= good ? 'good' : 'miss';
       o.matched = true; o.error = offset; press.hold = o.isHold;
-      judgements.push({ time:press.time, objTime:o.time, kind:'head', result, offset, byPress:true });
+      judgements.push({ time:press.time, objTime:o.time, kind:'head', col, result, offset, byPress:true });
     }
     while (next < notes.length) addMiss(notes[next++]);
   }
@@ -39,7 +39,7 @@ export function matchMalodyReplay(beatmap, replay) {
       }
       cursors[j.key]=cursor;
       if (nearest) {nearest.matched=j.result!=='miss';nearest.error=j.time-nearest.time;}
-      return {time:j.time, objTime:nearest?.time ?? j.time, kind:'head', result:j.result,
+      return {time:j.time, objTime:nearest?.time ?? j.time, kind:'head', col:j.key, result:j.result,
         offset:nearest ? j.time-nearest.time : 0, byPress:!!nearest && j.result!=='miss'};
     });
     return {objs, presses:replay.presses, comboTrail:replay.recordedJudgements.map(j=>({time:j.time,combo:j.combo})),

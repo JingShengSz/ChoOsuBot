@@ -17,6 +17,7 @@ export function parseOsu(text) {
       if (k === 'title') bm.title = v;
       if (k === 'artist') bm.artist = v;
       if (k === 'version') bm.version = v;
+      if (k === 'creator') bm.creator = v;
       // The .osu carries its own ids, so audio/background can be located without
       // any metadata API (sayobot being down must not cost us the whole track).
       if (k === 'beatmapid') bm.beatmapID = +v || 0;

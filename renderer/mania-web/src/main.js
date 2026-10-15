@@ -1,8 +1,16 @@
 import { readZip } from './zip.js';
 import { parseOsu, parseOsr, parseSkinIni } from './parsers.js';
 import { Renderer } from './renderer.js';
+import { HudLayout } from './hud-layout.js';
+import { SourceUI } from './source-ui.js';
+import { DrawerUI } from './drawer-ui.js';
 import { matchMalodyReplay } from './malody-replay.js';
 import { applyMalodyMods } from './malody-mods.js';
+import { buildHitTraces, hitTraceRects, noteHasEnded } from './hit-traces.js';
+import { errorBarState, errorColour } from './error-bar.js';
+import { sceneTimeline, introArrow, resultTransition } from './scene-flow.js';
+import { ReplayIndex, timeWindow, upperBound } from './frame-index.js';
+import { selectVideoConfig, yieldToUI, waitForEncoder, resizeExportCanvas } from './export-fast.js';
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('game');
@@ -31,6 +39,25 @@ let seekDragging = false;
 let skinList = [];
 // hit matching for combo / errors
 let hitMatch = null;
+let frameIndex=null;
+function indexedFrame(){
+  if(!frameIndex||frameIndex.beatmap!==beatmap||frameIndex.match!==hitMatch||frameIndex.replay!==replay||frameIndex.keys!==geometry.keys)
+    frameIndex=new ReplayIndex(beatmap,hitMatch,replay,geometry.keys);
+  return frameIndex;
+}
+let lastExportStats=null;
+let exportingVideo=false;
+let showHits = false;
+let hitTraces = [];
+let lastHitTraceRects = [];
+let sceneLoading = false;
+let importedPackage = null;
+let hasLoadedScene = false;
+const hudLayout = new HudLayout(() => { if (beatmap) drawFrame(currentTimeMs()); });
+const sourceUI = new SourceUI();
+const drawerUI = new DrawerUI();
+try{const saved=localStorage.getItem('mania-export-quality');if(['720','1080'].includes(saved)&&$('exportQuality'))$('exportQuality').value=saved;}catch{}
+if($('exportQuality'))$('exportQuality').onchange=()=>{try{localStorage.setItem('mania-export-quality',$('exportQuality').value);}catch{}};
 // Last hit-burst quad actually drawn, for the __mania debug hook (null between bursts).
 let lastBurstRect = null;
 
@@ -43,18 +70,60 @@ let hasAudio = false;
 let audioNote = '';
 let playStartWall = 0;     // performance.now() when playback (re)started
 let playStartPos = 0;      // track position (ms) at that moment
+let playbackRate=1;
 
 function currentTimeMs() {
   if (!playing) return pausedAtMs;
-  const rate = +($('playSpeed')?.value || 1);
+  const rate = playbackRate;
   const elapsed = (performance.now() - playStartWall) * rate;
   return playStartPos + elapsed;
 }
 let pausedAtMs = 0;
+let resultImage = null, resultPromise = null, resultError = '', resultGeneration = 0;
+let audioStarting = false;
+let recordingAudioGraph = null;
+
+function flowTimeline() {
+  const first = beatmap?.hitObjects[0]?.time || 0;
+  const entry = first - (geometry?.timeRange || 0) * (1 + 100 / Math.max(1,geometry?.hitY || 1));
+  return sceneTimeline(entry,beatmap?.duration || 0,+$('playSpeed').value || 1);
+}
+
+function prepareResultCard() {
+  const generation=++resultGeneration;
+  resultImage=null;resultError='';
+  const counts=replay?.counts || (hitMatch ? Object.fromEntries(Object.entries(getJudgeCounts((beatmap.duration||0)+1000)).map(([k,v])=>[{max:'perfect',g300:'great',g200:'good',g100:'ok',g50:'meh',miss:'miss'}[k],v]))
+    : {perfect:beatmap.hitObjects.reduce((n,h)=>n+1+(h.isHold?1:0),0),great:0,good:0,ok:0,meh:0,miss:0});
+  const expected=beatmap.hitObjects.reduce((n,h)=>n+1+(h.isHold&&!replay?.classic&&replay?.source!=='malody'?1:0),0);
+  const passed=Object.values(counts).reduce((n,c)=>n+c,0)>=expected;
+  const meta=beatmap.resultMeta || {};
+  const mods=replay?.modsDetail?.length ? replay.modsDetail : [[1,'NF'],[2,'EZ'],[8,'HD'],[16,'HR'],[32,'SD'],[64,'DT'],[256,'HT'],[512,'NC'],[1024,'FL'],[16384,'PF'],[1073741824,'MR']].filter(([bit])=>(replay?.mods||0)&bit).map(([,name])=>name);
+  const mapCombo=Number(meta.max_combo)||beatmap.hitObjects.reduce((n,h)=>n+1+(h.isHold?1:0),0);
+  const maxCombo=replay?.maxCombo??(hitMatch?hitMatch.comboTrail.reduce((n,j)=>Math.max(n,j.combo),0):mapCombo);
+  let background='';
+  if(bgImage){try{const c=document.createElement('canvas');c.width=1920;c.height=1080;c.getContext('2d').drawImage(bgImage,0,0,1920,1080);background=c.toDataURL('image/jpeg',.85);}catch{}}
+  const density=new Array(26).fill(0),first=beatmap.hitObjects[0]?.time||0;
+  const bpms=beatmap.timings.map(t=>Math.round(t.bpm)).filter(n=>Number.isFinite(n)&&n>0);
+  for(const h of beatmap.hitObjects)density[Math.min(25,Math.max(0,Math.floor((h.time-first)/Math.max(1,beatmap.duration-first)*26)))]++;
+  const payload={autoplay:!replay,background,map_combo:mapCombo,density,bpm_range:bpms.length?[Math.min(...bpms),Math.max(...bpms)]:null,fail_progress:passed?null:Math.min(1,Object.values(counts).reduce((n,c)=>n+c,0)/Math.max(1,expected)),
+    beatmap:{id:beatmap.beatmapID||'?',version:beatmap.version,cs:beatmap.keys,accuracy:beatmap.od,drain:beatmap.hp,total_length:beatmap.duration/1000,
+      difficulty_rating:beatmap.starRating||0,bpm:bpms[0],creator:beatmap.creator||meta.creator||'',status:meta.status||''},
+    beatmapset:{title:beatmap.title,artist:beatmap.artist,creator:beatmap.creator||meta.creator||''},
+    score:{statistics:counts,user:{username:replay?.username||'Auto Play'},total_score:replay?.score??null,max_combo:maxCombo,mods,passed,
+      rank:passed?undefined:'F',client:replay?.client||(replay?.classic?'Stable':'Lazer'),source:replay?.source,ended_at:replay?.endedAt,
+      display_date:replay?.endedAt?new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Shanghai'}).format(new Date(replay.endedAt)):null}};
+  resultPromise=(async()=>{
+    const response=await fetch(`${API}/result_card`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    if(!response.ok){const detail=await response.json();throw new Error(detail.error||'成绩卡生成失败');}
+    const url=URL.createObjectURL(await response.blob()),image=new Image();
+    try{image.src=url;await image.decode();}finally{URL.revokeObjectURL(url);}
+    if(generation===resultGeneration){resultImage=image;if(beatmap)drawFrame(currentTimeMs());}
+  })().catch(error=>{if(generation===resultGeneration)resultError=error.message;});
+}
 
 function seekTo(ms) {
-  pausedAtMs = Math.max(0, ms);
-  if (hasAudio) audio.currentTime = pausedAtMs / 1000;
+  pausedAtMs = Math.max(flowTimeline().start, ms);
+  if (hasAudio) audio.currentTime = Math.max(0,pausedAtMs) / 1000;
 }
 
 // ── geometry ──
@@ -210,7 +279,14 @@ function difficultyRange(od, lo, mid, hi) {
 // ManiaHitWindows.updateWindows: Math.Floor(range * totalMultiplier) + 0.5
 function getHitWindows(od) {
   const w = {};
-  for (const name of HIT_RESULTS) w[name] = Math.floor(difficultyRange(od, ...WINDOW_RANGES[name])) + 0.5;
+  const rate=replay?.rate||1;
+  const acronyms=new Set(replay?.modsDetail?.map(m=>m.acronym)||[]);
+  const difficultyMultiplier=(acronyms.has('HR')||(replay?.mods&16))?1.4:(acronyms.has('EZ')||(replay?.mods&2))?1/1.4:1;
+  const classic={perfect:16,great:34,good:67,ok:97,meh:121,miss:158};
+  for (const name of HIT_RESULTS) {
+    const base=(replay?.classic||acronyms.has('CL')) ? classic[name]+(name==='perfect'?0:3*Math.max(0,Math.min(10,10-od))) : difficultyRange(od,...WINDOW_RANGES[name]);
+    w[name]=Math.floor(base*rate/difficultyMultiplier)+.5;
+  }
   return w;
 }
 
@@ -227,6 +303,7 @@ function buildHitMatch() {
   if (!beatmap || !replay) return;
   if (replay.source === 'malody') {
     hitMatch = matchMalodyReplay(beatmap, replay);
+    hitTraces = buildHitTraces(hitMatch, replay, beatmap.keys);
     return;
   }
   const od = (beatmap.od !== undefined && beatmap.od !== null) ? beatmap.od : 5;
@@ -257,8 +334,8 @@ function buildHitMatch() {
   for (const arr of pressByCol.values()) arr.sort((a, b) => a.time - b.time);
   for (const arr of relByCol.values()) arr.sort((a, b) => a - b);
 
-  const J = (time, objTime, kind, result, offset, byPress) => {
-    const rec = { time, objTime, kind, result, offset, byPress: !!byPress };
+  const J = (time, objTime, kind, result, offset, byPress, col) => {
+    const rec = { time, objTime, kind, result, offset, col, byPress: !!byPress };
     match.judgements.push(rec);
     return rec;
   };
@@ -274,7 +351,7 @@ function buildHitMatch() {
         const o = list[i];
         if (t > o.time + w.meh) {           // already auto-missed before this press
           judged.set(i, 'miss');
-          J(Math.round(o.time + w.meh), o.time, 'head', 'miss', 0, false);
+          J(Math.round(o.time + w.meh), o.time, 'head', 'miss', 0, false, col);
           continue;
         }
         // Note lock: "next" is the next object still in AliveObjects, and a
@@ -295,12 +372,12 @@ function buildHitMatch() {
         // press objects — the old code set this on a throwaway copy, so the hold
         // lighting was never once drawn.
         press.hold = o.isHold;
-        headJ.set(i, J(t, o.time, 'head', r, off, true));
+        headJ.set(i, J(t, o.time, 'head', r, off, true, col));
         if (r !== 'miss') {                  // OrderedHitPolicy.HandleHit
           for (let j = 0; j < i; j++) {
             if (judged.has(j)) continue;
             judged.set(j, 'miss');
-            J(Math.round(list[j].time + w.meh), list[j].time, 'head', 'miss', 0, false);
+            J(Math.round(list[j].time + w.meh), list[j].time, 'head', 'miss', 0, false, col);
           }
         }
         break;
@@ -309,7 +386,7 @@ function buildHitMatch() {
     for (let i = 0; i < list.length; i++) {
       if (judged.has(i)) continue;
       judged.set(i, 'miss');
-      J(Math.round(list[i].time + w.meh), list[i].time, 'head', 'miss', 0, false);
+      J(Math.round(list[i].time + w.meh), list[i].time, 'head', 'miss', 0, false, col);
     }
     // Tails: resolved by the release, with the 1.5x lenience and the Meh cap.
     for (let i = 0; i < list.length; i++) {
@@ -349,7 +426,7 @@ function buildHitMatch() {
         }
         continue;
       }
-      J(when, o.endTime, 'tail', tailResult, off, false);
+      J(when, o.endTime, 'tail', tailResult, off, false, col);
     }
   }
 
@@ -362,6 +439,7 @@ function buildHitMatch() {
     if (j.result === 'miss') combo = 0; else combo++;
     match.comboTrail.push({ time: j.time, combo });
   }
+  hitTraces = buildHitTraces(match, replay, beatmap.keys);
 }
 
 // ── pinning the counter to the score's own counts ───────────────────────────
@@ -417,10 +495,7 @@ function pressedColumns(nowMs) {
   const held = new Set();
   if (!geometry) return held;
   if (replay && replay.presses.length) {
-    const last = new Map();   // column -> 'down' | 'up'
-    for (const p of replay.presses) { if (p.time <= nowMs) last.set(p.key % geometry.keys, 'down'); else break; }
-    for (const r of replay.releases) { if (r.time <= nowMs) last.set(r.key % geometry.keys, 'up'); else break; }
-    for (const [col, st] of last) if (st === 'down') held.add(col);
+    indexedFrame().lastKeys(nowMs).forEach((s,col)=>{if(s.down!==undefined&&s.up===undefined)held.add(col);});
     return held;
   }
   if (beatmap) {
@@ -438,7 +513,7 @@ function pressedColumns(nowMs) {
 function pressLog(nowMs) {
   if (!replay || !replay.presses.length || !geometry) return [];
   const out = [];
-  for (const p of replay.presses) {
+  for (const p of timeWindow(replay.presses,nowMs-200,nowMs)) {
     const age = nowMs - p.time;
     if (age < 0) break;
     if (age > 200) continue;
@@ -450,38 +525,38 @@ function pressLog(nowMs) {
 /**
  * Per-column stage-light state for LegacyColumnBackground:
  *   OnPressed  -> `light.FadeIn()` + `light.ScaleTo(Vector2.One)`   (both instant)
- *   OnReleased -> `light.FadeTo(0, 250)` + `light.ScaleTo((1, 0), 250)`, linear, and the
- *                 light is anchored BottomCentre, so it collapses DOWN onto its bottom edge.
+ *   OnReleased -> fade out over 250ms, preserving the skin-defined beam dimensions.
  * Returns column -> { alpha, scaleY }. Columns that were never pressed are absent.
  */
 function stageLightState(nowMs) {
   const out = new Map();
   if (!geometry) return out;
+  if (!replay) {
+    for (const h of beatmap?.hitObjects || []) {
+      if (!h.isHold || nowMs<h.time) continue;
+      const k=Math.max(0,(nowMs-h.endTime)/STAGE_LIGHT_RELEASE_MS);
+      if(k<1){const alpha=(1-k)**2;const previous=out.get(h.column)?.alpha||0;out.set(h.column,{alpha:Math.max(previous,alpha),scaleY:1});}
+    }
+    return out;
+  }
   if (!replay || !replay.releases.length) {
     // No release log (autoplay): fall back to "held now" with no release animation.
     for (const col of pressedColumns(nowMs)) out.set(col, { alpha: 1, scaleY: 1 });
     return out;
   }
   const lastDown = new Map(), lastUp = new Map();
-  for (const p of replay.presses) { if (p.time <= nowMs) lastDown.set(p.key % geometry.keys, p.time); else break; }
-  for (const r of replay.releases) { if (r.time <= nowMs) lastUp.set(r.key % geometry.keys, r.time); else break; }
+  indexedFrame().lastKeys(nowMs).forEach((state,col)=>{if(state.down!==undefined)lastDown.set(col,state.down);if(state.up!==undefined)lastUp.set(col,state.up);});
   for (const [col, downAt] of lastDown) {
     const upAt = lastUp.get(col);
     if (upAt === undefined || upAt < downAt) { out.set(col, { alpha: 1, scaleY: 1 }); continue; }
     const k = (nowMs - upAt) / STAGE_LIGHT_RELEASE_MS;
-    if (k < 1) out.set(col, { alpha: 1 - k, scaleY: 1 - k });
+    if (k < 1) out.set(col, { alpha: (1 - k) ** 2, scaleY: 1 });
   }
   return out;
 }
 
 function getCombo(nowMs) {
-  if (hitMatch) {
-    let c = 0;
-    for (const t of hitMatch.comboTrail) {
-      if (t.time <= nowMs) c = t.combo; else break;
-    }
-    return c;
-  }
+  if (hitMatch) return indexedFrame().combo(nowMs);
   // FC sim (no replay): all notes hit, combo = count up to nowMs
   if (!beatmap) return 0;
   let c = 0;
@@ -494,14 +569,7 @@ function getCombo(nowMs) {
   return c;
 }
 
-function getCPS(nowMs) {
-  if (replay && replay.presses.length) {
-    const rate = replay.source === 'malody' ? replay.rate : 1;
-    return replay.presses.filter(p => p.time > nowMs - 1000 * rate && p.time <= nowMs).length;
-  }
-  // FC sim: count note heads in last 1s
-  if (!beatmap) return 0;
-  return beatmap.hitObjects.filter(h => h.time > nowMs - 1000 && h.time <= nowMs).length;
+function getCPS(nowMs) { return indexedFrame().cps(nowMs,+$('playSpeed').value||1);
 }
 
 function getAccuracy(nowMs) {
@@ -529,27 +597,14 @@ function getAccuracyStable(nowMs) {
   return 100 * ((c.max + c.g300) * 300 + c.g200 * 200 + c.g100 * 100 + c.g50 * 50) / (300 * total);
 }
 
-function getJudgeCounts(nowMs) {
-  const counts = { max: 0, g300: 0, g200: 0, g100: 0, g50: 0, miss: 0 };
-  if (!hitMatch) return counts;
-  // Straight from the judgements — head AND tail, with the windows the engine
-  // actually used.  The old version re-derived the result from the offset with
-  // hardcoded thresholds (16/37/70/100) that ignored OD entirely and treated
-  // every offset past 100ms as a Meh, so a MISS beyond the meh window was
-  // published as a 50.
-  const key = { perfect: 'max', great: 'g300', good: 'g200', ok: 'g100', meh: 'g50', miss: 'miss' };
-  for (const j of hitMatch.judgements) {
-    if (j.time > nowMs) break;               // sorted by time
-    counts[key[j.result]]++;
-  }
-  return counts;
+function getJudgeCounts(nowMs) { return indexedFrame().counts(nowMs);
 }
 
 function getBPM(nowMs) {
   if (!beatmap.timings || !beatmap.timings.length) return 0;
   let chosen = beatmap.timings[0];
   for (const t of beatmap.timings) { if (t.time <= nowMs) chosen = t; else break; }
-  return (chosen.bpm || 0) * (replay?.source === 'malody' ? replay.rate : 1);
+  return (chosen.bpm || 0) * (+$('playSpeed').value||1);
 }
 
 // ── skin: root-level skin.ini wins; textures keyed by full path AND stem ──
@@ -779,6 +834,7 @@ function resolveSid(meta, bm) {
 }
 
 async function loadAudioAndBackground(bm, meta, sid) {
+  if (sceneLoading) sourceUI.setStage('audio');
   // The GPU texture slot is keyed by a fixed role name, and `uploadTexture` returns the
   // cached texture on a hit — so without dropping it here the next beatmap kept drawing
   // the PREVIOUS song's background, cropped with the new image's UV rect. Clear both the
@@ -898,6 +954,7 @@ function setAudioState(ok, why) {
 
 // ── load from bid ──
 async function loadFromBid(bid) {
+  setPlaybackSpeed(1);
   info.textContent = `获取谱面 ${bid}…`;
   const osuRes = await fetch(`${API}/beatmap_osu/${bid}`);
   if (!osuRes.ok) throw new Error('谱面获取失败');
@@ -906,6 +963,7 @@ async function loadFromBid(bid) {
 
   const metaRes = await fetch(`${API}/beatmap_meta?bid=${bid}`);
   const meta = metaRes.ok ? await metaRes.json() : {};
+  beatmap.resultMeta = meta;
   if (meta.difficultyrating) beatmap.starRating = +meta.difficultyrating;
   if (!beatmap.bgFilename && meta.background_filename) beatmap.bgFilename = meta.background_filename;
 
@@ -944,13 +1002,16 @@ async function loadFromOsr(file, fallbackBid = null) {
     // judgement is matched to the wrong lane and the HUD reports nonsense.
     mirror: !!data.mirror,
     mods: data.mods | 0,
+    modsDetail:data.mods_detail||[],client:data.client,
     // The judgement counts osu! itself recorded for this play, and which client
-    // wrote the replay.  See setObjectModel()/reconcileJudgements(): a stable
+    // wrote the replay. See reconcileJudgements(): a stable
     // replay counts a hold ONCE, a lazer replay TWICE, and the header's counts
     // are what the displayed accuracy is pinned to.
     counts: data.counts || null,
+    score:data.score ?? null,maxCombo:data.max_combo ?? null,endedAt:data.ended_at,
     classic: !!data.classic,
   };
+  setPlaybackSpeed(replay.rate);
   const md5 = data.md5;
   if (!md5) throw new Error('osr 中没有谱面 MD5');
   info.textContent = `MD5 ${md5.slice(0, 8)}… → 查询谱面…`;
@@ -968,6 +1029,7 @@ async function loadFromOsr(file, fallbackBid = null) {
   const osuRes = await fetch(`${API}/beatmap_osu/${bid}`);
   if (!osuRes.ok) throw new Error('.osu 下载失败');
   beatmap = parseOsu(await osuRes.text());
+  beatmap.resultMeta = meta;
   if (meta.difficultyrating) beatmap.starRating = +meta.difficultyrating;
   if (!beatmap.bgFilename && meta.background_filename) beatmap.bgFilename = meta.background_filename;
   // ManiaModMirror: `Column = (columnCount - 1) - Column`, applied the moment the chart
@@ -1008,11 +1070,15 @@ async function loadSkinList() {
       o.textContent = `${s.key} (${s.scroll})`;
       sel.appendChild(o);
     }
+    const sourceSel = $('sourceSkinSel');
+    sourceSel.replaceChildren(...Array.from(sel.options, o => o.cloneNode(true)));
+    sourceSel.disabled = !skinList.length;
     if (d.skins && d.skins.length) {
       // The server names the default (`/api/skins` → `default`, currently boj) rather than
       // leaving it to dictionary order.
       const def = d.skins.find(s => s.key === d.default) || d.skins[0];
       sel.value = def.key;
+      sourceSel.value = def.key;
       scrollSpeed = def.scroll || 30;
       $('scrollSpeed').value = scrollSpeed;
       await loadSkinByKey(def.key);
@@ -1059,9 +1125,11 @@ async function loadSkinByKey(key) {
   }
 }
 
-$('skinSel').addEventListener('change', async (e) => {
+async function onSkinSelection(e) {
   if (!e.target.value) return;
   const key = e.target.value;
+  $('skinSel').value = key;
+  $('sourceSkinSel').value = key;
   info.textContent = `加载皮肤 ${key}…`;
   try {
     const applied = await loadSkinByKey(key);
@@ -1079,7 +1147,9 @@ $('skinSel').addEventListener('change', async (e) => {
     const decl = ini ? ini.declaredKeys.join('/') : '?';
     info.textContent = `皮肤 ${key} 已加载 (${skin.textures.size} 贴图 · [Mania] ${decl}K)`;
   } catch (err) { info.textContent = '皮肤错误: ' + err.message; }
-});
+}
+$('skinSel').addEventListener('change', onSkinSelection);
+$('sourceSkinSel').addEventListener('change', onSkinSelection);
 
 $('fOsk').addEventListener('change', async (e) => {
   const f = e.target.files[0]; if (!f) return;
@@ -1092,38 +1162,106 @@ $('fOsk').addEventListener('change', async (e) => {
   } catch (err) { info.textContent = '皮肤错误: ' + err.message; }
 });
 
-$('btnLoad').addEventListener('click', async () => {
-  const bid = $('bidInput').value.trim();
-  const f = $('fOsr').files[0];
+function showSourceError(message, notice = false) {
+  $('sourceError').textContent = message;
+  $('sourceError').hidden = !message;
+  $('sourceError').classList.toggle('is-notice', notice);
+  $('bidInput').setAttribute('aria-invalid', String(!!message && !notice && message.startsWith('谱面 ID')));
+}
+function setSourceBusy(busy, message = '') {
+  sceneLoading = busy;
+  $('sourceScene').hidden = false;
+  $('sourceScene').setAttribute('aria-busy', String(busy));
+  $('sourceForm').hidden = busy;
+  $('sourceLoading').hidden = !busy;
+  $('btnLoad').disabled = busy;
+  if (busy) sourceUI.setStage('source');
+  if (message) $('loadingDetail').textContent = message;
+  checkReady();
+}
+new MutationObserver(() => {
+  if (sceneLoading) $('loadingDetail').textContent = info.textContent;
+}).observe(info, {childList:true, characterData:true, subtree:true});
+
+async function loadSelectedSource() {
+  if (sceneLoading) return;
+  const f = $('fOsr').files[0], pack = $('fMap').files[0];
+  let bid = $('bidInput').value.trim();
+  const malody = f && /\.(mr|mrv)$/i.test(f.name);
+  showSourceError('');
+  if (!f && !pack && !bid) { showSourceError('请输入谱面 ID，或选择回放 / 谱面包。'); return; }
+  if (f && !/\.(osr|mr|mrv)$/i.test(f.name)) { showSourceError('回放格式不支持，请选择 .osr、.mr 或 .mrv 文件。'); return; }
+  if (pack && !/\.(osz|mcz|zip)$/i.test(pack.name)) { showSourceError('谱面包格式不支持，请选择 .osz、.mcz 或 .zip 文件。'); return; }
+  const automatedLocal = window.__maniaAutomation && /^local-[a-f0-9]{32}-\d+$/.test(bid);
+  if (bid && !pack && !/^\d+$/.test(bid) && !automatedLocal) { showSourceError('谱面 ID 请填写数字，例如 5125772。'); $('bidInput').focus(); return; }
+  if (malody && !pack && !window.__maniaAutomation) {
+    showSourceError('Malody 回放需要上传对应谱面包，请选择包含谱面和音频的 .mcz / .osz / .zip 文件。'); return;
+  }
+  pausePlayback();
+  hudLayout.setEditing(false);
+  setSourceBusy(true, '准备谱面与回放…');
   try {
+    if (pack) {
+      if (pack !== importedPackage?.file) {
+        info.textContent = '正在导入本地谱面包…';
+        const fd = new FormData(); fd.append('osz', pack);
+        const response = await fetch(`${API}/import_osz`, {method:'POST', body:fd});
+        const result = await response.json();
+        if (!response.ok || result.error) throw new Error(result.error || '谱面包导入失败');
+        if (!result.maps?.length) throw new Error('谱面包中没有可用的难度');
+        importedPackage = {file:pack, maps:result.maps};
+        const sel = $('packageDifficulty');sel.replaceChildren();
+        if (result.maps.length>1) sel.add(new Option('请选择要渲染的难度', ''));
+        for (const map of result.maps) sel.add(new Option(`${map.version || map.title} · ${map.keys || '?'}K`,map.beatmap_id));
+        $('packageChoice').hidden = result.maps.length<2;
+      }
+      bid = $('packageDifficulty').value;
+      if (!bid) {setSourceBusy(false);showSourceError('谱面包已导入，请选择难度后点击渲染。',true);$('packageDifficulty').focus();return;}
+    }
+    sourceUI.setStage('skin');
+    info.textContent = '正在准备皮肤…';
+    await initialSkinReady;
+    if (!skin && !skinLoadState.loading) await loadSkinList();
+    while (skinLoadState.loading) await new Promise(resolve=>setTimeout(resolve,50));
+    if (!skin || skinLoadState.error) throw new Error(skinLoadState.error || '皮肤加载失败，请重试');
+    replay = null;hitMatch = null;hitTraces = [];
+    sourceUI.setStage('chart');
     if (f) await loadFromOsr(f, bid || null);
-    else if (bid) await loadFromBid(bid);
-    else { info.textContent = '请输入谱面 ID 或上传 .osr'; return; }
-  } catch (err) { info.textContent = '错误: ' + err.message; }
+    else await loadFromBid(bid);
+    sceneLoading = false;hasLoadedScene = true;
+    $('sourceScene').hidden = true;$('sourceScene').setAttribute('aria-busy','false');
+    $('btnLoad').disabled = false;$('btnBackViewer').hidden = false;
+    pausedAtMs = flowTimeline().start;checkReady();prepareResultCard();drawFrame(pausedAtMs);
+  } catch (err) {
+    beatmap = null;replay = null;hitMatch = null;hitTraces = [];hasLoadedScene = false;
+    $('btnBackViewer').hidden = true;
+    setSourceBusy(false);info.textContent = '错误: ' + err.message;showSourceError(err.message);
+  }
+}
+$('sourceForm').addEventListener('submit', event => {event.preventDefault();loadSelectedSource();});
+$('bidInput').addEventListener('input', () => showSourceError(''));
+$('packageDifficulty').addEventListener('change', () => showSourceError(''));
+$('fOsr').addEventListener('change', () => showSourceError(''));
+$('fMap').addEventListener('change', () => {importedPackage=null;$('packageChoice').hidden=true;showSourceError('');});
+$('btnSource').addEventListener('click', () => {
+  if (exportAbort) return;
+  pausePlayback();hudLayout.setEditing(false);setSourceBusy(false);showSourceError('');
+  $('btnBackViewer').hidden = !hasLoadedScene;
 });
-
-$('fOsr').addEventListener('change', async (e) => {
-  const f = e.target.files[0]; if (!f) return;
-  try { await loadFromOsr(f, $('bidInput').value.trim() || null); }
-  catch (err) { info.textContent = '错误: ' + err.message; }
-});
-
-// Typing a 谱面 ID takes over from a selected .osr instead of silently losing to it:
-// 加载 prefers the file, so with a .osr still selected the ID box looks like it does
-// nothing. Clearing the selection on the first edit makes the ID authoritative again.
-$('bidInput').addEventListener('input', () => {
-  if (!$('fOsr').files.length) return;
-  $('fOsr').value = '';
-  const note = '已取消 .osr，改为按谱面 ID 加载';
-  info.textContent = note;
-});
+$('btnBackViewer').addEventListener('click', () => {$('sourceScene').hidden=true;checkReady();});
+$('btnEditHud').addEventListener('click', () => hudLayout.setEditing(!hudLayout.editing));
 
 $('btnClearOsr').addEventListener('click', () => {
   $('fOsr').value = '';
+  showSourceError('');
   replay = null;
   hitMatch = null;
+  hitTraces = [];
+  $('btnShowHits').disabled = true;
+  $('btnShowHits').title = '加载回放后可显示真实打击';
+  setShowHits(false);
   if (beatmap) drawFrame(audio.currentTime * 1000 || 0);
-  info.textContent = '已取消 .osr，切换到自动游玩';
+  info.textContent = '已取消回放，切换到自动播放';
 });
 
 $('scrollSpeed').addEventListener('change', () => {
@@ -1141,11 +1279,23 @@ $('scrollSpeed').addEventListener('change', () => {
     }).catch(() => {});
   }
 });
+function setPlaybackSpeed(rate) {
+  const select=$('playSpeed');
+  select.querySelectorAll('[data-replay-rate]').forEach(option=>option.remove());
+  if(!Array.from(select.options).some(option=>+option.value===rate)){
+    const option=new Option(`${rate}×`,String(rate));option.dataset.replayRate='true';select.add(option);
+  }
+  select.value=String(rate);
+  playbackRate=rate;
+  if(hasAudio)audio.playbackRate=rate;
+}
 $('playSpeed').addEventListener('change', () => {
+  const position=currentTimeMs();
   const rate = +$('playSpeed').value;
+  playbackRate=rate;
   if (hasAudio) audio.playbackRate = rate;
   // rebase the clock so changing speed does not jump the playhead
-  playStartPos = pausedAtMs;
+  playStartPos = position;
   playStartWall = performance.now();
 });
 $('bgDim').addEventListener('input', () => {
@@ -1157,6 +1307,14 @@ $('bgBlur').addEventListener('input', () => {
   bgBlur = +$('bgBlur').value;
   $('bgBlurVal').textContent = bgBlur;
 });
+
+function setShowHits(enabled) {
+  showHits = !!enabled;
+  $('btnShowHits').setAttribute('aria-pressed', String(showHits));
+  $('btnShowHits').textContent = showHits ? '显示打击：开' : '显示打击：关';
+  if (!playing) drawFrame(currentTimeMs());
+}
+$('btnShowHits').addEventListener('click', () => setShowHits(!showHits));
 
 // ── drawFrame ──
 function drawFrame(nowMs) {
@@ -1264,7 +1422,7 @@ function drawFrame(nowMs) {
   const stageLight = getTex(block.stageLight) || getTex("mania-stage-light");
   if (stageLight) {
     const lightStates = stageLightState(nowMs);
-    const lhFull = Math.min(stageLight.height, 768) * g.texScale;   // wiki: max height 768
+    const lhFull = Math.min(stageLight.height, 768) * g.texScale;   // skin sprite, max height 768
     const lightBottom = VIEW_H - (block.lightPosition ?? 67) * g.scale;
     for (const [col, st] of lightStates) {
       const lh = lhFull * st.scaleY;
@@ -1318,18 +1476,19 @@ function drawFrame(nowMs) {
     return img.height * noteHeight / img.width;
   };
 
-  for (const h of beatmap.hitObjects) {
+  const index=indexedFrame();
+  const start=nowMs+(g.hitY-VIEW_H-100)*g.timeRange/g.hitY;
+  const end=nowMs+(g.hitY+100)*g.timeRange/g.hitY;
+  for (const h of index.notes.visible(start,end)) {
     const t1 = h.time, t2 = h.isHold ? h.endTime : h.time;
     const y1 = g.hitY - (t1 - nowMs) / g.timeRange * g.hitY;
     const y2 = h.isHold ? g.hitY - (t2 - nowMs) / g.timeRange * g.hitY : y1;
     const margin = 100;
     if (Math.max(y1, y2) < -margin || Math.min(y1, y2) > VIEW_H + margin) continue;
-    if (!h.isHold && nowMs > t1 + 150) continue;
-    if (h.isHold && nowMs > t2 + 100) continue;
-
     const col = h.column;
     const cx = g.colX[col], cw = g.colW[col];
-    const matched = hitMatch && hitMatch.objs.find(o => o.time === t1 && o.col === col)?.matched;
+    const matched = hitMatch && index.heads.get(`${col}:${t1}`)?.matched;
+    if (noteHasEnded(h,nowMs,matched)) continue;
 
     if (h.isHold) {
       // ── hold note composition (osu.Game.Rulesets.Mania/Objects/Drawables/DrawableHoldNote.cs) ──
@@ -1475,6 +1634,8 @@ function drawFrame(nowMs) {
     // (lazer stores them as `ExplosionWidth`); absent means "use the texture size",
     // which is a texture dimension and so scales by texScale.
     const configured = (widths && widths[col]) || 0;
+    // Preserve the skin's width and texture aspect ratio. A separate effect scale
+    // would spread the flash into neighbouring columns while the notes stay put.
     const lw = configured > 0 ? configured * g.scale : img.width * g.texScale;
     const lh = img.height * (lw / img.width);
     renderer.drawQuad(renderer.uploadTexture('lf' + col + fi + frames.length, img),
@@ -1502,7 +1663,7 @@ function drawFrame(nowMs) {
   if (hitMatch && replay && replay.presses.length) {
     const burstCentreY = (block.scorePosition ?? 300) * g.scale;
     let drawn = false;
-    for (const obj of hitMatch.objs) {
+    for (const obj of timeWindow(hitMatch.objs,nowMs-600,nowMs)) {
       const age = nowMs - obj.time;
       if (age < 0 || age > 600) continue;
       const alpha = age < 80 ? age / 80 : Math.max(0, 1 - (age - 80) / 520);
@@ -1560,20 +1721,46 @@ function drawFrame(nowMs) {
   // ── warning arrow — wiki: mania-warningarrow.png, Origin Centre, points down, shown
   // before the map starts.
   const warnArrow = getTex(block.warningArrow) || getTex("mania-warningarrow");
-  const firstObject = beatmap.hitObjects.length ? beatmap.hitObjects[0].time : 0;
-  if (warnArrow && nowMs < firstObject) {
+  const arrowMotion=introArrow(nowMs,flowTimeline());
+  if (warnArrow && arrowMotion) {
     const wh = warnArrow.height * g.texScale;
     const ww = warnArrow.width * g.texScale;
     renderer.drawQuad(renderer.uploadTexture("warnarrow", warnArrow),
-      (g.stageLeft + g.stageRight) / 2 - ww / 2, VIEW_H / 2 - wh / 2, ww, wh, 1, 0);
+      (g.stageLeft + g.stageRight) / 2 - ww / 2, VIEW_H / 2 - wh / 2 + arrowMotion.offset, ww, wh, arrowMotion.alpha, 0);
   }
 
+  lastHitTraceRects = [];
+  if (showHits && replay && hitMatch) {
+    // Dim existing skin sprites in the game canvas; the HUD and trace stay bright.
+    // Export uses this same frame path, so it contains exactly the visible overlay.
+    renderer.drawDim(0, 0, VIEW_W, VIEW_H, 0.65);
+    lastHitTraceRects = hitTraceRects(hitTraces, g, nowMs, VIEW_H);
+  }
   drawHUD(nowMs);
+  // The HUD canvas is above the WebGL canvas. Paint traces last here so even
+  // judgment sprites, counters and the error bar cannot cover a T or LN trace.
+  hudCtx.save();
+  for (const r of lastHitTraceRects) {
+    hudCtx.fillStyle = `rgb(${r.rgb.map(v=>Math.round(v*255)).join(',')})`;
+    hudCtx.fillRect(r.x,r.y,r.w,r.h);
+  }
+  hudCtx.restore();
+  const transition=exportingVideo?0:resultTransition(nowMs,flowTimeline());
+  if(transition>0){
+    hudCtx.save();hudCtx.globalAlpha=transition;
+    if(resultImage)hudCtx.drawImage(resultImage,0,0,VIEW_W,VIEW_H);
+    else{hudCtx.fillStyle='#151c1d';hudCtx.fillRect(0,0,VIEW_W,VIEW_H);hudCtx.fillStyle='#adedd2';hudCtx.font='24px system-ui';hudCtx.textAlign='center';hudCtx.fillText(resultError?'成绩卡生成失败：'+resultError:'正在准备成绩卡…',VIEW_W/2,VIEW_H/2);}
+    hudCtx.restore();
+  }
   // update bottom time
   const elapsed = Math.max(0, nowMs / 1000);
   const total = Math.max(0, (beatmap.duration || 0) / 1000);
   $('time').textContent = `${fmt(elapsed)} / ${fmt(total)}`;
-  if (!seekDragging) $('seek').value = Math.min(10000, Math.round((nowMs / Math.max(1, beatmap.duration || 1)) * 10000));
+  if (!seekDragging) {
+    const flow=flowTimeline();
+    $('seek').value = Math.max(0,Math.min(10000, Math.round((nowMs-flow.start)/(flow.end-flow.start)*10000)));
+    if (drawerUI.open) drawerUI.updateRange($('seek'));
+  }
 }
 
 function fmt(s) {
@@ -1583,66 +1770,31 @@ function fmt(s) {
 
 // ── HUD (osu component layout) ──
 function drawHUD(nowMs) {
+  hudCtx.setTransform(hudCanvas.width/VIEW_W,0,0,hudCanvas.height/VIEW_H,0,0);
   hudCtx.clearRect(0, 0, VIEW_W, VIEW_H);
-  const rate = replay?.source === 'malody' ? replay.rate : 1;
+  const rate = +$('playSpeed').value||1;
   const elapsed = Math.max(0, nowMs / 1000 / rate);
   const total = Math.max(0, (beatmap.duration || 0) / 1000 / rate);
   const pct = total > 0 ? Math.min(1, elapsed / total) : 0;
 
-  // 1. ComboCounter — TopLeft(20, 20)
-  hudCtx.fillStyle = '#fff';
-  hudCtx.font = 'bold 56px system-ui';
-  hudCtx.textAlign = 'left';
-  hudCtx.fillText(`${getCombo(nowMs)}x`, 20, 20 + 56);
-
-  // 2. BeatmapAttributeText — TopRight(-20, 20) — difficulty name, NOT key count
-  hudCtx.textAlign = 'right';
-  hudCtx.font = '24px system-ui';
-  hudCtx.fillStyle = '#fff';
-  const diffName = beatmap.version || beatmap.title || '';
-  hudCtx.fillText(diffName.length > 30 ? diffName.slice(0, 28) + '…' : diffName, VIEW_W - 20, 20 + 24);
-
-  // 3. BPMCounter — TopRight(-20, 55)
-  hudCtx.font = '24px system-ui';
-  const bpm = getBPM(nowMs);
-  hudCtx.fillText(bpm ? `${Math.round(bpm)} BPM` : 'BPM', VIEW_W - 20, 55 + 24);
-
-  // 4. SongProgress — TopRight(-20, 100)
-  hudCtx.font = '20px system-ui';
-  hudCtx.fillStyle = '#ccc';
-  hudCtx.fillText(`${Math.floor(elapsed)}s / ${Math.floor(total)}s (${Math.round(pct * 100)}%)`, VIEW_W - 20, 100 + 20);
-
-  // 5. AccuracyCounter — BottomRight(-20, -50)
-  hudCtx.textAlign = 'right';
-  hudCtx.font = '28px system-ui';
-  hudCtx.fillStyle = '#fff';
-  // Two accuracy figures, unlabelled, SIDE BY SIDE on the one line the skin
-  // gives this component: lazer's first (ScoreProcessor, where a PERFECT is
-  // worth 305), then osu!stable's (Perfect and Great both 300, denominator 300
-  // per judgement). They disagree on every play that is not all-perfect, so
-  // both are shown.
-  //
-  // Side by side rather than stacked on purpose: the clicks-per-second counter
-  // sits at BottomRight(-20, -90), and a second line 34px above this one ran
-  // straight through it. Sharing the baseline costs width, not height, and this
-  // component is right-anchored, so the extra width grows away from everything.
-  hudCtx.fillText(replay?.source === 'malody' ? `${getAccuracy(nowMs).toFixed(2)}% Malody`
-    : `${getAccuracy(nowMs).toFixed(2)}% ${getAccuracyStable(nowMs).toFixed(2)}%`,
-    VIEW_W - 20, VIEW_H - 50);
-
-  // 6. ClicksPerSecondCounter — BottomRight(-20, -90)
-  hudCtx.font = '20px system-ui';
-  hudCtx.fillStyle = '#ccc';
-  hudCtx.fillText(`${getCPS(nowMs)} clicks/sec`, VIEW_W - 20, VIEW_H - 90);
-
-  // 7. BarHitErrorMeter — BottomCentre 20px up (replay only)
+  const text = (id,value,x,y,font,align='left',color='#fff') => {
+    hudLayout.draw(hudCtx,id,()=>{
+      hudCtx.font=font;hudCtx.textAlign=align;hudCtx.fillStyle=hudLayout.color(id,color);
+      hudCtx.fillText(hudLayout.text(id,value),x,y);
+    });
+  };
+  text('combo',`${getCombo(nowMs)}x`,20,76,'bold 56px system-ui');
+  const diffName=beatmap.version||beatmap.title||'';
+  text('title',diffName.length>30?diffName.slice(0,28)+'…':diffName,1900,44,'24px system-ui','right');
+  const bpm=getBPM(nowMs);
+  text('bpm',bpm?`${Math.round(bpm)} BPM`:'BPM',1900,79,'24px system-ui','right');
+  text('progress',`${Math.floor(elapsed)}s / ${Math.floor(total)}s (${Math.round(pct*100)}%)`,1900,120,'20px system-ui','right','#ccc');
+  text('accuracy',replay?.source==='malody'?`${getAccuracy(nowMs).toFixed(2)}% Malody`:
+    `${getAccuracy(nowMs).toFixed(2)}% Lazer · ${getAccuracyStable(nowMs).toFixed(2)}% Stable`,1900,1030,'28px system-ui','right');
+  text('cps',`${getCPS(nowMs)} clicks/sec`,1900,990,'20px system-ui','right','#ccc');
   if (replay && hitMatch) {
-    drawErrorBar(nowMs);
-  }
-
-  // 8. Judgement panel — LeftCentre (replay only)
-  if (replay && hitMatch) {
-    drawJudgePanel(nowMs);
+    hudLayout.draw(hudCtx,'error',()=>drawErrorBar(nowMs));
+    hudLayout.draw(hudCtx,'judge',()=>drawJudgePanel(nowMs));
   }
 }
 
@@ -1650,68 +1802,63 @@ function drawErrorBar(nowMs) {
   const barW = 500, barH = 6;
   const cx = VIEW_W / 2, y = VIEW_H - 20 - barH;
   const x0 = cx - barW / 2;
+  hudCtx.save();hudCtx.globalAlpha *= hudLayout.layout.error.opacity;
+  const label=hudLayout.layout.error.text;
+  if(label){hudCtx.font='14px system-ui';hudCtx.textAlign='left';hudCtx.fillStyle=hudLayout.color('error','#fff');hudCtx.fillText(label,x0,y-10);}
 
   // background
   hudCtx.fillStyle = 'rgba(255,255,255,0.12)';
   hudCtx.fillRect(x0, y, barW, barH);
 
-  // zone colours (mania hit windows: 16/37/70/100 ms for MAX/300/200/100)
+  // The meter uses the matcher's actual windows, including OD / native Malody.
   const nativeWindows = replay?.source === 'malody' ? replay.windows : null;
-  const extent = nativeWindows ? nativeWindows[3] : 120;
-  const zones = nativeWindows ? [
-    [nativeWindows[0], 'rgba(120,230,220,0.25)'],
-    [nativeWindows[1], 'rgba(245,215,80,0.20)'],
-    [nativeWindows[2], 'rgba(170,210,120,0.15)'],
-  ] : [
-    [16, 'rgba(120,230,220,0.25)'],
-    [37, 'rgba(245,215,80,0.20)'],
-    [70, 'rgba(170,210,120,0.15)'],
-    [100, 'rgba(240,168,104,0.12)'],
-  ];
-  for (const [ms, color] of zones) {
+  const windows = hitMatch.windows;
+  const extent = nativeWindows ? nativeWindows[3] : windows.meh;
+  const zones = nativeWindows ? ['good','great','perfect'] : ['meh','ok','good','great','perfect'];
+  for (const result of zones) {
+    const ms = windows[result], color = errorColour(result);
     const w = (ms / extent) * barW / 2;
     hudCtx.fillStyle = color;
+    hudCtx.save();hudCtx.globalAlpha *= .18;
     hudCtx.fillRect(cx - w, y, w * 2, barH);
+    hudCtx.restore();
   }
 
   // centre line
   hudCtx.fillStyle = 'rgba(255,255,255,0.7)';
   hudCtx.fillRect(cx - 1, y - 2, 2, barH + 4);
+  hudCtx.restore();
 
-  // ticks for recent hits (fade over 5s)
-  if (!hitMatch) return;
-  for (const obj of hitMatch.objs) {
-    if (!obj.matched) continue;
-    const age = nowMs - obj.time;
-    if (age < 0 || age > 5000) continue;
-    const alpha = age < 100 ? age / 100 : Math.max(0, 1 - (age - 100) / 4900);
-    const err = Math.max(-extent, Math.min(extent, obj.error));
-    const tx = cx + (err / extent) * (barW / 2);
-    hudCtx.fillStyle = `rgba(100,200,255,${alpha * 0.85})`;
-    hudCtx.fillRect(tx - 1, y - 3, 2, barH + 6);
+  const state = errorBarState(hitTraces, nowMs, extent, hudLayout.layout.error.beamScale);
+  for (const marker of state.markers) {
+    const tx = cx + marker.position * barW / 2;
+    hudCtx.fillStyle = marker.colour;
+    hudCtx.save();hudCtx.globalAlpha *= marker.alpha * hudLayout.layout.error.beamOpacity;
+    hudCtx.beginPath();
+    hudCtx.roundRect(tx - marker.w / 2, y + barH / 2 - marker.h / 2, marker.w, marker.h, marker.radius);
+    hudCtx.fill();
+    hudCtx.restore();
   }
 
-  // moving-average chevron
-  let sum = 0, n = 0;
-  for (const obj of hitMatch.objs) {
-    if (obj.time > nowMs) break;
-    if (obj.matched) { sum += obj.error; n++; }
-  }
-  if (n > 0) {
-    const avg = Math.max(-extent, Math.min(extent, sum / n));
-    const ax = cx + (avg / extent) * (barW / 2);
+  // Recent average, positioned by actual key-down time (also after seeking).
+  if (state.average !== null) {
+    hudCtx.save();hudCtx.globalAlpha *= hudLayout.layout.error.opacity;
+    const ax = cx + state.average * barW / 2;
+    const arrowBase = y + barH / 2 - 6 * hudLayout.layout.error.beamScale - 3;
     hudCtx.fillStyle = 'rgba(255,255,255,0.7)';
     hudCtx.beginPath();
-    hudCtx.moveTo(ax, y - 8);
-    hudCtx.lineTo(ax - 5, y - 2);
-    hudCtx.lineTo(ax + 5, y - 2);
+    hudCtx.moveTo(ax, arrowBase);
+    hudCtx.lineTo(ax - 5, arrowBase - 6);
+    hudCtx.lineTo(ax + 5, arrowBase - 6);
     hudCtx.fill();
+    hudCtx.restore();
   }
 }
 
 function drawJudgePanel(nowMs) {
   const c = getJudgeCounts(nowMs);
   const x = 24, y = VIEW_H / 2 - 130;
+  if(hudLayout.layout.judge.text){hudCtx.font='22px system-ui';hudCtx.textAlign='left';hudCtx.fillStyle=hudLayout.color('judge','#fff');hudLayout.layout.judge.text.split('\n').forEach((line,i)=>hudCtx.fillText(line,x,y+i*30));return;}
   // Ratio = MAX/300 (python: ratio_label)
   let ratio = '—';
   if (c.g300 > 0) ratio = (c.max / c.g300).toFixed(1);
@@ -1739,25 +1886,12 @@ function drawJudgePanel(nowMs) {
     hudCtx.font = bold ? 'bold 22px system-ui' : '22px system-ui';
     hudCtx.fillStyle = '#fff';
     hudCtx.fillText(label, x, y + i * 30);
-    hudCtx.fillStyle = color;
+    hudCtx.fillStyle = hudLayout.color('judge',color);
     hudCtx.fillText(val, x + 80, y + i * 30);
   }
 }
 
-function getUR(nowMs) {
-  if (!hitMatch) return '—';
-  let n = 0, mean = 0, m2 = 0;
-  for (const obj of hitMatch.objs) {
-    if (obj.time > nowMs) break;
-    if (!obj.matched) continue;
-    n++;
-    const x = obj.error / (replay?.source === 'malody' ? replay.rate : 1);
-    const delta = x - mean;
-    mean += delta / n;
-    m2 += delta * (x - mean);
-  }
-  if (n < 2) return '—';
-  return (10 * Math.sqrt(m2 / n)).toFixed(1);
+function getUR(nowMs) { return hitMatch ? indexedFrame().ur(nowMs) : '—';
 }
 
 // ── drawer: slides out when the pointer approaches the bottom edge ───────────
@@ -1765,11 +1899,15 @@ function getUR(nowMs) {
 const drawer = $('drawer');
 let drawerPinned = false;
 let drawerHideTimer = 0;
+let drawerHeldOpen = false;
+let drawerDismissed = false;
+let drawerDragging = false;
 
 function setDrawer(open) {
   if (open === drawerPinned) return;
   drawerPinned = open;
   drawer.classList.toggle('open', open);
+  drawerUI.setOpen(open);
 }
 
 // Is the pointer over the drawer, or on the strip that summons it?
@@ -1795,8 +1933,12 @@ function typingInsideDrawer() {
 }
 
 function updateDrawer() {
+  if (!$('sourceScene').hidden) {
+    drawerHeldOpen = false;pointerNearBottom = pointerOnDrawer = false;
+    clearTimeout(drawerHideTimer);setDrawer(false);return;
+  }
   const typingFresh = typingInsideDrawer() && Date.now() - lastKeystroke < TYPING_HOLD_MS;
-  setDrawer(pointerNearBottom || pointerOnDrawer || typingFresh);
+  setDrawer(!drawerDismissed && (drawerHeldOpen || drawerDragging || pointerNearBottom || pointerOnDrawer || typingFresh));
   // While a field holds focus but the pointer has moved away, re-check once the hold
   // lapses so the drawer closes without waiting for another mouse move.
   clearTimeout(drawerHideTimer);
@@ -1805,12 +1947,31 @@ function updateDrawer() {
   }
 }
 
+const drawerMouse = matchMedia('(hover: hover) and (pointer: fine)');
 window.addEventListener('mousemove', (e) => {
-  pointerNearBottom = e.clientY >= window.innerHeight - 18;
+  if(!drawerMouse.matches || !$('sourceScene').hidden){updateDrawer();return;}
+  pointerNearBottom = e.clientY >= window.innerHeight - 24 || !!e.target.closest?.('#drawerToggle');
   pointerOnDrawer = !!(e.target && e.target.closest && e.target.closest('#drawer'));
+  if (!pointerOnDrawer || pointerNearBottom) drawerDismissed = false;
   updateDrawer();
 });
-window.addEventListener('keydown', () => { lastKeystroke = Date.now(); updateDrawer(); });
+function dismissDrawer() {
+  drawerHeldOpen = false;drawerDismissed = true;
+  pointerOnDrawer = pointerNearBottom = false;lastKeystroke = 0;
+  clearTimeout(drawerHideTimer);setDrawer(false);
+  if (!$('drawerToggle').hidden) $('drawerToggle').focus({preventScroll:true});
+}
+$('drawerToggle').addEventListener('click', () => {
+  drawerDismissed = false;drawerHeldOpen = true;setDrawer(true);
+  $('btnDrawerClose').focus({preventScroll:true});
+});
+$('btnDrawerClose').addEventListener('click', dismissDrawer);
+drawer.addEventListener('pointerdown', event => {if(event.target.matches('input[type=range]'))drawerDragging=true;});
+for(const type of ['pointerup','pointercancel'])window.addEventListener(type,()=>{if(drawerDragging){drawerDragging=false;updateDrawer();}});
+window.addEventListener('keydown', (event) => {
+  if(event.key==='Escape' && drawerPinned){event.preventDefault();dismissDrawer();return;}
+  lastKeystroke = Date.now();updateDrawer();
+});
 window.addEventListener('mouseleave', () => {
   pointerOnDrawer = pointerNearBottom = false;
   updateDrawer();
@@ -1842,8 +2003,10 @@ function tick() {
     nowMs = currentTimeMs();
   }
   pausedAtMs = nowMs;
-  const total = beatmap.duration || 0;
-  if (total > 0 && nowMs >= total) { pausePlayback(); return; }
+  const flow = flowTimeline();
+  if(nowMs>=0&&nowMs<flow.resultStart&&hasAudio&&audio.paused&&!audio.ended&&!audioStarting){audioStarting=true;audio.currentTime=Math.max(0,nowMs)/1000;audio.play().catch(()=>setAudioState(false,'音频无法播放')).finally(()=>{audioStarting=false;});}
+  if(nowMs>=flow.resultStart&&hasAudio&&!audio.paused)audio.pause();
+  if (nowMs >= flow.end) { pausedAtMs=flow.end;playing=false;audio.pause();setPlayButton(false);drawFrame(flow.end);return; }
   drawFrame(nowMs);
   animFrame = requestAnimationFrame(tick);
 }
@@ -1862,7 +2025,8 @@ function startPlayback() {
   playing = true;
   setPlayButton(true);
   cancelAnimationFrame(animFrame);
-  if (hasAudio) {
+  if(hasAudio)audio.playbackRate=rate;
+  if (hasAudio && pausedAtMs>=0 && pausedAtMs<flowTimeline().resultStart) {
     audio.playbackRate = rate;
     audio.play().catch(() => {
       // a browser can refuse to start audio; the clock keeps the render going
@@ -1888,9 +2052,9 @@ function togglePlayback() { if (playing) pausePlayback(); else startPlayback(); 
 
 function resetPlayback() {
   if (hasAudio) { try { audio.pause(); audio.currentTime = 0; } catch {} }
-  playing = false; pausedAtMs = 0; cancelAnimationFrame(animFrame);
+  playing = false; pausedAtMs = flowTimeline().start; cancelAnimationFrame(animFrame);
   setPlayButton(false);
-  drawFrame(0);
+  drawFrame(pausedAtMs);
 }
 
 $('btnPlay').addEventListener('click', togglePlayback);
@@ -1898,6 +2062,7 @@ $('btnReset').addEventListener('click', resetPlayback);
 
 // Space toggles playback, unless a form control has focus.
 window.addEventListener('keydown', (e) => {
+  if (!$('sourceScene').hidden) return;
   if (e.code !== 'Space' && e.key !== ' ') return;
   const el = document.activeElement;
   const tag = (el && el.tagName) || '';
@@ -1910,7 +2075,8 @@ $('seek').addEventListener('mousedown', () => { seekDragging = true; });
 $('seek').addEventListener('mouseup', () => { seekDragging = false; });
 $('seek').addEventListener('input', (e) => {
   if (!beatmap) return;
-  const t = (+e.target.value / 10000) * (beatmap.duration || 1);
+  const flow=flowTimeline();
+  const t = flow.start+(+e.target.value / 10000)*(flow.end-flow.start);
   seekTo(t);
   if (playing) { playStartPos = t; playStartWall = performance.now(); }
   drawFrame(t);
@@ -1918,10 +2084,8 @@ $('seek').addEventListener('input', (e) => {
 drawVolCircle();
 
 // ── export ──
-// This is a CANVAS RECORDING, not a render: `captureStream` + MediaRecorder only produce
-// frames as they are painted, so the export always takes **1x real time** — a 3:08 chart
-// needs the whole song's worth of wall clock (measured: `audio.currentTime` advances at
-// exactly 1 s/s), and nothing appears until it finishes.
+// WebCodecs draws the complete scene timeline offline. Browsers without it use
+// captureStream + MediaRecorder, which record the timeline in real time.
 //
 // It used to stop only on `audio.onended`, which broke in three ways:
 //   * no audio track (the fetch failed) -> `startPlayback` never plays, `onended` never
@@ -1981,7 +2145,7 @@ const MUX_AUDIO_BPS = 192_000;
  * audio has to be encoded here — `fetch` works on the blob: URL the player already uses,
  * `decodeAudioData` turns it into PCM, and AudioEncoder turns that into AAC.
  */
-async function encodeBeatmapAudio(onProgress, isCancelled) {
+async function encodeBeatmapAudio(onProgress, isCancelled, timeline, durationS) {
   if (!audio || !audio.src) return null;
   // Second attempt uses `/api/media/...`: byte-identical content under a neutral path and
   // content type, so a client that refuses the media-typed URL can still export instead of
@@ -2002,6 +2166,13 @@ async function encodeBeatmapAudio(onProgress, isCancelled) {
   } finally {
     actx.close();
   }
+  // Align the audio with negative chart-time pre-roll; keep only the requested
+  // two seconds after the chart, then silence during the result transition.
+  const offline = new OfflineAudioContext(2,Math.ceil(durationS*SR),SR);
+  const source = offline.createBufferSource();source.buffer=decoded;
+  source.playbackRate.value=timeline.rate;source.connect(offline.destination);
+  source.start(-timeline.start/timeline.rate/1000,0,timeline.resultStart/1000);
+  decoded=await offline.startRendering();
 
   const { Track } = await import('./mp4.js');
   const track = new Track('audio', SR, 2);
@@ -2053,10 +2224,10 @@ async function encodeBeatmapAudio(onProgress, isCancelled) {
     });
     enc.encode(data);
     data.close();
-    if (enc.encodeQueueSize > 40) await new Promise((r) => setTimeout(r, 0));
+    while(enc.encodeQueueSize>40&&!error&&!isCancelled())await waitForEncoder(enc);
     if ((off / BLOCK) % 200 === 0) {
       onProgress(Math.round(off / frames * 100));
-      await new Promise((r) => setTimeout(r, 0));
+      await yieldToUI();
     }
   }
   await enc.flush();
@@ -2070,11 +2241,16 @@ async function exportWebCodecs(jobId, total, onProgress, isCancelled) {
   // is no server round trip to hand the samples to. A job id means AstrBot asked, and the
   // samples are streamed to the service which muxes them with ffmpeg.
   const local = !jobId;
+  const timeline=flowTimeline(), frameStep=local?timeline.rate:1;
   // Encode at the size the job asked for, not at the canvas size then downscaled: the
   // drawImage below is a GPU blit, whereas encoding 1080p and rescaling later costs a
   // second full encode and throws away quality.
-  const outW = Math.max(2, window.__webglOutW || canvas.width);
-  const outH = Math.max(2, window.__webglOutH || canvas.height);
+  const quality=$('exportQuality')?.value||'1080';
+  const outW = Math.max(2, window.__webglOutW || (local&&quality==='720'?1280:1920));
+  const outH = Math.max(2, window.__webglOutH || (local&&quality==='720'?720:1080));
+  const restoreCanvas=resizeExportCanvas(canvas,hudCanvas,renderer,outW,outH);
+  const renderStarted=performance.now();
+  try {
   // The rate is chosen by whoever asked for the render: the service sets
   // `window.__webglBitrate` (bits per second) from the request's `bitrate_kbps`. A human
   // clicking 导出 sets nothing and keeps MANUAL_BITRATE. `bySize` is the delivery backstop
@@ -2083,7 +2259,7 @@ async function exportWebCodecs(jobId, total, onProgress, isCancelled) {
   const bySize = local ? Infinity
     : Math.floor(BOT_MAX_BYTES * 8 / durationS) - MUX_AUDIO_BPS;
   const bitrate = Math.max(150_000,
-    Math.min(window.__webglBitrate || MANUAL_BITRATE, bySize));
+    Math.min(window.__webglBitrate || (local&&outW*outH<=1280*720?3_000_000:MANUAL_BITRATE), bySize));
   const composite = document.createElement('canvas');
   composite.width = outW;
   composite.height = outH;
@@ -2194,46 +2370,54 @@ async function exportWebCodecs(jobId, total, onProgress, isCancelled) {
       // No CBR on this build: keep the variable-rate config rather than losing the export.
     }
   }
+  encCfg=await selectVideoConfig(encCfg);
   encoder.configure(encCfg);
+  let lastYield=performance.now();
 
   for (let f = 0; f < total; f++) {
     if (isCancelled() || error) break;
-    const t = f * 1000 / WC_FPS;                   // chart time — our choice, not the clock
+    const t = timeline.start+f*frameStep*1000/WC_FPS;
     drawFrame(t);
     cctx.drawImage(canvas, 0, 0, outW, outH);
     cctx.drawImage(hudCanvas, 0, 0, outW, outH);
     const frame = new VideoFrame(composite, {
-      timestamp: Math.round(t * 1000),
+      timestamp: Math.round(f * 1e6 / WC_FPS),
       duration: Math.round(1e6 / WC_FPS),
     });
     encoder.encode(frame, { keyFrame: f % 120 === 0 });
     frame.close();
     // Let the encoder drain instead of queueing two hours of frames.
-    if (encoder.encodeQueueSize > 24) await new Promise((r) => setTimeout(r, 0));
-    if (f % 30 === 0) {
+    while(encoder.encodeQueueSize>24&&!error&&!isCancelled())await waitForEncoder(encoder);
+    if (performance.now()-lastYield>=32 || f===total-1) {
       // The local path still has the audio pass to do, so video is 0..80% of the work.
       onProgress(Math.round((local ? 0.8 : 1) * f / total * 100));
-      await new Promise((r) => setTimeout(r, 0));
+      if($('exportStatus'))$('exportStatus').textContent=`${Math.round((f+1)*1000/Math.max(1,performance.now()-renderStarted))} 帧/秒 · ${outH}p`;
+      await yieldToUI();lastYield=performance.now();
     }
   }
   await encoder.flush();
   encoder.close();
   if (error) throw error;
+  if(isCancelled())return;
+  const elapsedMs=performance.now()-renderStarted;
+  lastExportStats={frames:total,elapsedMs,fps:total*1000/elapsedMs,width:outW,height:outH,hardwarePreference:encCfg.hardwareAcceleration};
 
   if (local) {
     if (!localTrack.description || !localTrack.samples.length) {
       throw new Error('编码器没有产出可用样本');
     }
     let audioTrack = null;
+    const audioStarted=performance.now();
     try {
       onProgress(82);
       audioTrack = await encodeBeatmapAudio(
-        (pct) => onProgress(82 + Math.round(pct * 0.15)), isCancelled);
+        (pct) => onProgress(82 + Math.round(pct * 0.15)), isCancelled,timeline,total/WC_FPS);
     } catch (e) {
       // A silent video still beats no video — but say so rather than pretending.
       info.textContent = '音频编码失败，导出无声视频: ' + e.message;
       audioTrack = null;
     }
+    lastExportStats.audioElapsedMs=performance.now()-audioStarted;
     onProgress(97);
     const { Mp4Muxer } = await import('./mp4.js');
     const blob = new Mp4Muxer([localTrack, audioTrack]).build();
@@ -2256,6 +2440,7 @@ async function exportWebCodecs(jobId, total, onProgress, isCancelled) {
     throw new Error(`结束上传失败 HTTP ${fin.status} ${detail.error || ''}`.trim());
   }
   onProgress(100);
+  }finally{restoreCanvas();}
 }
 
 let exportAbort = null;
@@ -2265,7 +2450,8 @@ $('btnExport').addEventListener('click', async () => {
   if (exportAbort) { exportAbort(); return; }        // second click cancels
 
   const btn = $('btnExport');
-  const durationMs = Math.max(1, beatmap.duration || (audio.duration ? audio.duration * 1000 : 1));
+  const timeline=flowTimeline();
+  const durationMs = Math.max(1,timeline.resultStart-timeline.start);
   const chunks = [];
   let rec = null;
   let poll = 0;
@@ -2277,6 +2463,7 @@ $('btnExport').addEventListener('click', async () => {
     document.body.classList.remove('noinfo');
     btn.textContent = '导出';
     exportAbort = null;
+    exportingVideo=false;
     if (hasAudio) audio.onended = null;
     pausePlayback();
   };
@@ -2289,6 +2476,7 @@ $('btnExport').addEventListener('click', async () => {
   };
 
   document.body.classList.add('noinfo');   // keep the status line out of the recording
+  exportingVideo=true;
   btn.textContent = '导出中… 0%';
 
   // WebCodecs whenever the browser has it: it is several times faster than MediaRecorder,
@@ -2300,10 +2488,10 @@ $('btnExport').addEventListener('click', async () => {
     exportAbort = () => stop(true);
     try {
       pausePlayback();
-      seekTo(0);
+      seekTo(timeline.start);
       await exportWebCodecs(
         window.__webglJobId || null,
-        Math.max(1, Math.ceil(durationMs / 1000 * 60)),
+        Math.max(1, Math.ceil(durationMs / (window.__webglJobId?1:timeline.rate) / 1000 * 60)),
         (pct) => { btn.textContent = `导出中… ${pct}%`; },
         () => cancelled,
       );
@@ -2342,6 +2530,15 @@ $('btnExport').addEventListener('click', async () => {
     pump();
 
     const stream = composite.captureStream(60);
+    if(hasAudio){
+      if(!recordingAudioGraph){
+        const context=new AudioContext(),source=context.createMediaElementSource(audio),destination=context.createMediaStreamDestination();
+        source.connect(context.destination);source.connect(destination);
+        recordingAudioGraph={context,destination};
+      }
+      await recordingAudioGraph.context.resume();
+      for(const track of recordingAudioGraph.destination.stream.getAudioTracks())stream.addTrack(track);
+    }
     rec = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 8_000_000 });
     rec.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
     rec.onstop = () => {
@@ -2364,16 +2561,16 @@ $('btnExport').addEventListener('click', async () => {
     // hitting 导出 during playback used to keep the old render clock while the audio
     // restarted at 0 — picture and sound diverged for the whole recording.
     pausePlayback();
-    seekTo(0);
+    seekTo(timeline.start);
     rec.start();
     startPlayback();
 
     poll = setInterval(() => {
       const ms = currentTimeMs();
-      btn.textContent = `导出中… ${Math.min(99, Math.round(ms / durationMs * 100))}%`;
-      if (ms >= durationMs) stop(false);
+      btn.textContent = `导出中… ${Math.min(99, Math.round((ms-timeline.start)/durationMs * 100))}%`;
+      if (ms >= timeline.resultStart) stop(false);
     }, 200);
-    if (hasAudio) audio.onended = () => stop(false);   // backstop for a short track
+    // Audio may finish before the chart; the wall clock continues to the result.
   } catch (err) {
     info.textContent = '导出错误: ' + err.message;
     cleanup();
@@ -2400,7 +2597,7 @@ function drawVolCircle() {
   const end = start + Math.PI * 2 * vol;
   ctx.beginPath();
   ctx.arc(cx, cy, r, start, end);
-  ctx.strokeStyle = '#6c5ce7';
+  ctx.strokeStyle = '#adedd2';
   ctx.lineWidth = 5;
   ctx.lineCap = 'round';
   ctx.stroke();
@@ -2410,6 +2607,7 @@ function drawVolCircle() {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(Math.round(vol * 100) + '%', cx, cy);
+  canvas.setAttribute('aria-valuenow',String(Math.round(vol*100)));
 }
 
 // click on volume circle to set volume
@@ -2428,17 +2626,29 @@ $('volCircle').addEventListener('click', (e) => {
   audio.volume = Math.max(0, Math.min(1, vol));
   drawVolCircle();
 });
+$('volCircle').addEventListener('keydown', event => {
+  let value=audio.volume;
+  if(['ArrowUp','ArrowRight'].includes(event.key)) value+=.05;
+  else if(['ArrowDown','ArrowLeft'].includes(event.key)) value-=.05;
+  else if(event.key==='Home') value=0;
+  else if(event.key==='End') value=1;
+  else return;
+  event.preventDefault();audio.volume=Math.max(0,Math.min(1,value));drawVolCircle();
+});
 
 // init volume circle
 drawVolCircle();
 
 // ── init ──
 function checkReady() {
-  const ready = !!beatmap;
+  const ready = !!beatmap && !sceneLoading;
   $('btnPlay').disabled = !ready;
+  $('btnEditHud').disabled = !ready;
   $('btnReset').disabled = !ready;
+  $('btnShowHits').disabled = !ready || !replay;
+  $('btnShowHits').title = replay ? '显示真实按键及早晚打偏差' : '加载回放后可显示真实打击';
   $('btnExport').disabled = !ready;
-  if (ready) {
+  if (beatmap) {
     if (!renderer) renderer = new Renderer(canvas);
     if (!ini) ini = parseSkinIni('');
     applyIni();
@@ -2446,13 +2656,20 @@ function checkReady() {
   }
 }
 
-loadSkinList();
+const initialSkinReady = loadSkinList();
 
 // ── debug hook ───────────────────────────────────────────────────────────────
 // Exposes the resolved geometry/skin state so the verification harness can assert
 // on what the renderer actually decided, rather than guessing from pixels.
 window.__mania = {
+  layoutState() { return structuredClone(hudLayout.layout); },
+  lightState(now) { return [...stageLightState(now)]; },
   skinState() { return { ...skinLoadState }; },
+  setShowHits,
+  hitTraces() { return {enabled:showHits, count:hitTraces.length, rects:lastHitTraceRects}; },
+  playback() { return {playing, timeMs:currentTimeMs(), audioTime:audio.currentTime}; },
+  sceneState(ms=currentTimeMs()){const timeline=flowTimeline();return {timeline,arrow:introArrow(ms,timeline),transition:resultTransition(ms,timeline),resultReady:!!resultImage,resultError};},
+  exportState(){return lastExportStats&&{...lastExportStats};},
   // The WebCodecs export drives rendering itself instead of letting the wall clock do it,
   // so the frame renderer has to be reachable from outside.
   drawFrame,
@@ -2488,6 +2705,7 @@ window.__mania = {
       lightPosition: block.lightPosition,
       bottom: VIEW_H - (block.lightPosition ?? 67) * geometry.scale,
       heightView: tex ? Math.min(tex.height, 768) * geometry.texScale : null,
+      widthsView: [...geometry.colW],
       columnLineWidth: block.columnLineWidth,
     };
   },

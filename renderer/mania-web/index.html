@@ -4,6 +4,8 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>mania-web — osu!mania WebGL Replay Viewer</title>
+<link rel="stylesheet" href="src/workspace-ui.css">
+<link rel="stylesheet" href="src/source-ui.css">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:#0a0a0f;color:#e0e0e8;font-family:system-ui,sans-serif;display:flex;flex-direction:column;height:100vh;overflow:hidden}
@@ -35,65 +37,100 @@ body.noinfo #info{display:none}
 button{padding:6px 14px;border:0;border-radius:5px;background:#6c5ce7;color:#fff;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap}
 button:disabled{opacity:.4;cursor:wait}
 button.secondary{background:#2a2a3a}
+button[aria-pressed=true]{background:#126c86;color:#fff}
 button.playing{background:#e74c3c}
 select{padding:4px 6px;border-radius:4px;background:#1a1a28;color:#e0e0e8;border:1px solid #2a2a3a;font-size:11px}
 #vol{width:60px}
 #bgDimVal,#bgBlurVal{color:#888;min-width:28px;font-size:10px}
 </style>
+<link rel="stylesheet" href="src/drawer-ui.css">
 </head>
 <body>
 <div id="stage">
   <canvas id="game" width="1920" height="1080"></canvas>
   <canvas id="hud" width="1920" height="1080"></canvas>
+  <div id="hudLayoutOverlay" hidden></div>
   <div id="info">鼠标移到屏幕底部打开控制面板 · 上传 .osr 或输入谱面 ID 开始</div>
 </div>
 
 <!-- hovering this strip pulls the drawer out; everything except the playfield lives in it -->
 <div id="hotzone"></div>
+<button id="drawerToggle" class="drawer-toggle" aria-controls="drawer" aria-expanded="false" hidden><span class="drawer-grip" aria-hidden="true"></span>控制面板 <span aria-hidden="true">⌃</span></button>
 
-<div id="drawer">
-  <div class="row">
-    <span class="time" id="time">0:00 / 0:00</span>
-    <button id="btnPlay" disabled>▶ 播放</button>
-    <button id="btnReset" class="secondary" disabled>⏮ 重置</button>
-    <span class="hint">空格 播放/暂停 · 鼠标离开面板自动收起</span>
-    <button id="btnFull" class="secondary" style="margin-left:auto">⛶ 全屏</button>
-  </div>
-
-  <div class="row">
-    <label style="flex:1;min-width:240px">歌曲进度 <input type="range" id="seek" min="0" max="10000" value="0"/></label>
-  </div>
-  <div class="sep"></div>
-
-  <div class="row">
-    <label>谱面 ID <input type="text" id="bidInput" placeholder="如 5125772"/></label>
-    <label>回放 .osr / .mr <input type="file" id="fOsr" accept=".osr,.mr,.mrv"/>
-      <button type="button" id="btnClearOsr" class="secondary" style="padding:3px 8px;font-size:10px;margin-top:2px">取消选择</button>
-    </label>
-    <button id="btnLoad">加载</button>
-  </div>
-  <div class="sep"></div>
-
-  <div class="row">
-    <label>皮肤 <select id="skinSel"><option value="">加载中…</option></select></label>
-    <label>.osk <input type="file" id="fOsk" accept=".osk,.zip"/></label>
-  </div>
-  <div class="sep"></div>
-
-  <div class="row">
-    <label>滚动速度 <input type="number" id="scrollSpeed" value="30" min="1" max="40" step="0.5" style="width:55px"/></label>
-    <label>播放速度 <select id="playSpeed"><option value="0.5">0.5×</option><option value="0.75">0.75×</option><option value="1" selected>1×</option><option value="1.5">1.5×</option><option value="2">2×</option></select></label>
-    <label>背景暗度 <input type="range" id="bgDim" min="0" max="100" value="30" style="width:80px"/> <span id="bgDimVal">30%</span></label>
-    <label>模糊 <input type="range" id="bgBlur" min="0" max="20" value="0" style="width:80px"/> <span id="bgBlurVal">0</span></label>
-  </div>
-  <div class="sep"></div>
-
-  <div class="row">
-    <canvas id="volCircle" width="56" height="56" style="cursor:pointer"></canvas>
-    <span style="font-size:10px;color:#666">音量</span>
-    <button id="btnExport" class="secondary" disabled style="margin-left:auto">导出</button>
+<div id="drawer" class="player-drawer" inert aria-hidden="true" aria-label="播放控制面板">
+  <div class="drawer-inner">
+    <header class="drawer-header"><div><span class="drawer-kicker">PLAYBACK / CONTROLS</span><h2>播放控制</h2></div><span class="drawer-hint"><kbd>空格</kbd> 播放 / 暂停 · 移开鼠标自动收起</span><button id="btnDrawerClose" class="secondary" aria-label="收起控制面板">收起 <span aria-hidden="true">⌄</span></button></header>
+    <div class="drawer-playback">
+      <button id="btnPlay" disabled>▶ 播放</button>
+      <button id="btnReset" class="secondary" disabled>⏮ 重置</button>
+      <span class="time" id="time">0:00 / 0:00</span>
+      <div class="drawer-view-actions"><button id="btnShowHits" class="secondary" aria-pressed="false" disabled title="加载回放后可显示真实打击">显示打击：关</button><button id="btnEditHud" class="secondary" aria-pressed="false" disabled>编辑布局</button><button id="btnFull" class="secondary">⛶ 全屏</button></div>
+    </div>
+    <label class="drawer-timeline">歌曲进度<input type="range" id="seek" min="0" max="10000" value="0"/></label>
+    <div class="drawer-settings">
+      <section class="drawer-group"><h3><span>01</span> 皮肤</h3><label>当前皮肤<select id="skinSel"><option value="">加载中…</option></select></label><div class="drawer-import"><label class="drawer-file" for="fOsk">导入 .osk<input type="file" id="fOsk" accept=".osk,.zip"/></label><span id="drawerSkinFile">也支持 .zip 皮肤包</span></div></section>
+      <section class="drawer-group"><h3><span>02</span> 播放</h3><div class="drawer-two-fields"><label>滚动速度<input type="number" id="scrollSpeed" value="30" min="1" max="40" step="0.5"/></label><label>播放速度<select id="playSpeed"><option value="0.5">0.5×</option><option value="0.75">0.75×</option><option value="1" selected>1×</option><option value="1.5">1.5×</option><option value="2">2×</option></select></label></div><p class="drawer-field-note">滚动速度调整音符流速；播放速度调整时间。</p></section>
+      <section class="drawer-group"><h3><span>03</span> 画面</h3><label class="drawer-range">背景暗度<span id="bgDimVal">30%</span><input type="range" id="bgDim" min="0" max="100" value="30"/></label><label class="drawer-range">背景模糊<span id="bgBlurVal">0</span><input type="range" id="bgBlur" min="0" max="20" value="0"/></label></section>
+    </div>
+    <footer class="drawer-footer"><div class="drawer-volume"><canvas id="volCircle" width="56" height="56" tabindex="0" role="slider" aria-label="音量" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"></canvas><div><strong>音量</strong><span>点击圆环或用方向键调整</span></div></div><div class="drawer-footer-actions"><span id="exportStatus" role="status" aria-live="polite"></span><label>导出画质<select id="exportQuality"><option value="720" selected>720p · 60 FPS</option><option value="1080">1080p · 60 FPS</option></select></label><button id="btnSource" class="secondary">更换谱面 / 回放</button><button id="btnExport" disabled>导出</button></div></footer>
   </div>
 </div>
+<aside id="hudLayoutPanel" hidden aria-label="组件属性"></aside>
+<section id="sourceScene" class="source-scene" aria-label="选择谱面与回放">
+  <div class="source-shell">
+    <header class="source-header"><span class="source-brand"><b>OM</b><span>MANIA RENDERER</span></span><span class="source-header-note">谱面 · 回放 · 画面</span></header>
+    <div class="source-workspace">
+      <aside class="source-intro">
+        <p class="source-eyebrow">YOUR NEXT PLAYBACK</p>
+        <h1>让回放<br>回到眼前<span>。</span></h1>
+        <p class="source-description">从一张谱面，或一次游玩开始。<br>载入后，预览回放并编辑画面。</p>
+        <div class="source-lanes" aria-hidden="true"><i></i><i></i><i></i><i></i><span></span></div>
+        <div class="source-summary"><span class="source-summary-label">本次输入</span><strong id="sourceSummary">等待选择谱面</strong><span id="sourceSummaryDetail">在线谱面 ID 或本地文件</span></div>
+        <p class="source-footnote">支持 osu!mania 与 Malody Key 回放</p>
+      </aside>
+      <form id="sourceForm" class="source-form" novalidate>
+        <div class="source-form-heading"><span class="source-section-number">01 / SOURCE</span><h2>选择谱面与回放</h2></div>
+        <label class="source-field" for="bidInput">在线谱面 ID<span class="source-optional">可选</span></label>
+        <div class="source-id-field"><span aria-hidden="true">#</span><input type="text" id="bidInput" placeholder="例如 5125772" autocomplete="off" inputmode="numeric" aria-describedby="sourceIdHint sourceError"></div>
+        <p id="sourceIdHint" class="source-help">只填 ID 可自动播放；有本地谱面包时优先使用包内难度。</p>
+        <div class="source-file-grid">
+          <div class="source-file-section">
+            <div class="source-file-heading"><span>回放文件</span><button type="button" id="btnClearOsr" class="source-clear" hidden>清除</button></div>
+            <label class="source-drop" for="fOsr" data-input="fOsr" tabindex="0" role="button" aria-label="选择或拖入回放文件">
+              <input type="file" id="fOsr" accept=".osr,.mr,.mrv" tabindex="-1" aria-describedby="replayFileName replayFileError">
+              <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M10 4h9l5 5v19H8V4h2M19 4v6h5M13 14l7 4-7 4z"/></svg>
+              <strong id="replayFileName">选择或拖入回放</strong><span id="replayFileMeta">.osr / .mr / .mrv</span><span class="source-file-action">选择文件 <span aria-hidden="true">↗</span></span>
+            </label>
+            <p id="replayFileError" class="source-file-error" role="alert" hidden></p>
+          </div>
+          <div class="source-file-section">
+            <div class="source-file-heading"><span>本地谱面包</span><button type="button" id="btnClearMap" class="source-clear" hidden>清除</button></div>
+            <label class="source-drop" for="fMap" data-input="fMap" tabindex="0" role="button" aria-label="选择或拖入本地谱面包">
+              <input type="file" id="fMap" accept=".osz,.mcz,.zip" tabindex="-1" aria-describedby="mapFileName mapFileError">
+              <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M4 9h10l3 3h11v15H4zM4 9V6h10l3 3h9v3M12 19h8M16 15v8"/></svg>
+              <strong id="mapFileName">选择或拖入谱面包</strong><span id="mapFileMeta">.osz / .mcz / .zip</span><span class="source-file-action">选择文件 <span aria-hidden="true">↗</span></span>
+            </label>
+            <p id="mapFileError" class="source-file-error" role="alert" hidden></p>
+          </div>
+        </div>
+        <p id="sourcePairHint" class="source-help source-pair-hint">Malody 回放需要配套谱面包，包内包含谱面和音频。</p>
+        <label id="packageChoice" class="source-field source-choice" hidden>选择难度<select id="packageDifficulty"></select></label>
+        <div class="source-skin-row"><label class="source-field" for="sourceSkinSel">画面皮肤</label><select id="sourceSkinSel" disabled><option value="">正在读取皮肤…</option></select></div>
+        <p id="sourceError" class="source-error" role="alert" tabindex="-1" hidden></p>
+        <div class="source-actions"><button id="btnLoad" type="submit"><span>渲染</span><span aria-hidden="true">→</span></button><button id="btnBackViewer" type="button" class="secondary" hidden>返回画面</button></div>
+        <p class="source-bottom-note">载入后可调整布局、切换皮肤与导出视频。</p>
+      </form>
+      <div id="sourceLoading" class="source-loading" hidden>
+        <span class="source-section-number">02 / LOADING</span>
+        <div class="source-loading-track" aria-hidden="true"><i></i><i></i><i></i><i></i><span></span></div>
+        <div role="status" aria-live="polite"><h2 id="loadingTitle">正在读取输入</h2><p id="loadingDetail">准备谱面与回放…</p></div>
+        <ol class="source-loading-steps" aria-label="加载步骤"><li data-step="source" aria-current="step"><span>01</span>读取输入</li><li data-step="skin"><span>02</span>准备皮肤</li><li data-step="chart"><span>03</span>加载谱面</li><li data-step="audio"><span>04</span>音频与背景</li></ol>
+        <p class="source-loading-note">大型皮肤或谱面包需要更长时间。完成后会自动进入画面。</p>
+      </div>
+    </div>
+    <footer class="source-footer"><span>先选择内容，再进入画面。</span><span>OSU!MANIA / MALODY KEY</span></footer>
+  </div>
+</section>
 <audio id="audio"></audio>
 <script type="module" src="src/main.js"></script>
 </body>

@@ -7,7 +7,9 @@
 An osu!mania replay renderer: renders a beatmap or an `.osr` replay to MP4, driven from the
 command line, a browser WebGL viewer, or an AstrBot chat plugin.
 
-默认输出 **1920×1080 / 60fps / H.264 MP4**。
+网页手动导出默认 **1280×720 / 60fps / H.264 MP4**，可选 1080p；后台任务按请求的尺寸和码率输出。
+
+网页支持回放自动倍速与 lazer 完整 Mod 设置，包括 DT、HT、自定义倍速及 HO（长条转单键）。成绩图在网页播放结束后显示，导出视频保留最后音符后的 2 秒音乐，不包含成绩图。参见 [回放修正说明](docs/replay_mods_fix.md) 和 [导出优化记录](docs/export_fast_trial.md)。
 
 ---
 
@@ -24,8 +26,7 @@ command line, a browser WebGL viewer, or an AstrBot chat plugin.
 
 渲染有两种路径，互不依赖：
 
-- **浏览器侧** —— `mania-web` 在访问者的浏览器里用 WebGL 绘制，MP4/H.264 直接由
-  `MediaRecorder` 产出，**不需要 ffmpeg**，服务端不加载 Pillow/numpy。
+- **浏览器侧** —— `mania-web` 在访问者的浏览器里用 WebGL 绘制，优先用 WebCodecs 离线编码并封装音画 MP4，旧浏览器回退到 `MediaRecorder`。本地导出不需要 ffmpeg；网页成绩图使用 Pillow 与成绩卡共享模板。
 - **服务端** —— `POST /api/render` 或 CLI，由 Python 逐帧绘制后用 ffmpeg 编码。
 
 ## 2. 环境要求

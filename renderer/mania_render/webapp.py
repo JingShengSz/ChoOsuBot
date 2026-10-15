@@ -975,6 +975,22 @@ class Handler(BaseHTTPRequestHandler):
         _json(self, 404, {"error": "not found"})
 
     def do_POST(self):
+        if urlparse(self.path).path == '/api/result_card':
+            n = int(self.headers.get('Content-Length') or 0)
+            if n <= 0 or n > 8*1024**2:
+                return _json(self, 413, {'error':'成绩卡请求大小无效'})
+            try:
+                from .result_card import render_result
+                png = render_result(json.loads(self.rfile.read(n)), ROOT)
+                self.send_response(200)
+                self._static_headers('image/png',len(png))
+                self.end_headers()
+                self.wfile.write(png)
+                return
+            except (ValueError, KeyError, TypeError) as exc:
+                return _json(self,400,{'error':str(exc)})
+            except Exception as exc:
+                return _json(self,500,{'error':str(exc)})
         u = urlparse(self.path)
         if u.path.startswith("/api/webgl-stream/"):
             # The page's WebCodecs export streams Annex-B H.264 here as it is encoded,

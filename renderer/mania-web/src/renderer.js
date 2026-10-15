@@ -81,6 +81,7 @@ void main() {
 export class Renderer {
   constructor(canvas) {
     this.canvas = canvas;
+    this.logicalWidth=canvas.width;this.logicalHeight=canvas.height;
     const gl = canvas.getContext('webgl2', { premultipliedAlpha: false, alpha: true, antialias: false });
     if (!gl) throw new Error('WebGL2 not supported');
     this.gl = gl;
@@ -96,6 +97,7 @@ export class Renderer {
 
     this.prog = this._build(VS, FS);
     this.progBg = this._build(VS_BG, FS_BG);
+    this.quadUniforms=Object.fromEntries(['uRect','uResolution','uAlpha','uBlendMode','uRadius','uUV','uTex'].map(name=>[name,gl.getUniformLocation(this.prog,name)]));
     this.whiteTex = this._makeSolid(255, 255, 255, 255);
     this.blackTex = this._makeSolid(0, 0, 0, 255);
     this.textureCache = new Map();
@@ -214,17 +216,17 @@ export class Renderer {
     gl.enableVertexAttribArray(1);
     gl.vertexAttribPointer(1, 2, gl.FLOAT, false, 16, 8);
 
-    gl.uniform4f(gl.getUniformLocation(this.prog, 'uRect'), x, y, w, h);
-    gl.uniform2f(gl.getUniformLocation(this.prog, 'uResolution'), this.canvas.width, this.canvas.height);
-    gl.uniform1f(gl.getUniformLocation(this.prog, 'uAlpha'), alpha);
-    gl.uniform1i(gl.getUniformLocation(this.prog, 'uBlendMode'), blendMode);
-    gl.uniform1f(gl.getUniformLocation(this.prog, 'uRadius'), radius);
-    gl.uniform4f(gl.getUniformLocation(this.prog, 'uUV'),
+    gl.uniform4f(this.quadUniforms.uRect, x, y, w, h);
+    gl.uniform2f(this.quadUniforms.uResolution, this.logicalWidth, this.logicalHeight);
+    gl.uniform1f(this.quadUniforms.uAlpha, alpha);
+    gl.uniform1i(this.quadUniforms.uBlendMode, blendMode);
+    gl.uniform1f(this.quadUniforms.uRadius, radius);
+    gl.uniform4f(this.quadUniforms.uUV,
       uv ? uv[0] : 0, uv ? uv[1] : 0, uv ? uv[2] : 1, uv ? uv[3] : 1);
 
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, tex || this.whiteTex);
-    gl.uniform1i(gl.getUniformLocation(this.prog, 'uTex'), 0);
+    gl.uniform1i(this.quadUniforms.uTex, 0);
 
     if (blendMode === 1) gl.blendFunc(gl.SRC_ALPHA, gl.ONE);           // additive
     else if (blendMode === 2) gl.blendFunc(gl.DST_COLOR, gl.ONE_MINUS_SRC_ALPHA); // multiplicative: transparent source leaves dst untouched
